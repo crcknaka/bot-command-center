@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/dashboard.js';
 import { PostsPage } from './pages/posts.js';
 import { SettingsPage } from './pages/settings.js';
 import { SchedulePage } from './pages/schedule.js';
+import { DocsPage } from './pages/docs.js';
 // integrations moved into settings tabs
 import { BotDetailPage } from './pages/bot-detail.js';
 import { ActivityPage } from './pages/activity.js';
@@ -55,6 +56,7 @@ function AppRoutes() {
       <Route path="/activity" element={<ProtectedRoute><AppLayout><ActivityPage /></AppLayout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><AppLayout><UsersPage /></AppLayout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/docs" element={<ProtectedRoute><AppLayout><DocsPage /></AppLayout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

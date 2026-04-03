@@ -17,6 +17,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.activity': 'Журнал',
     'nav.users': 'Пользователи',
     'nav.settings': 'Настройки',
+    'nav.docs': 'Документация',
     'nav.logout': 'Выйти',
     'role.superadmin': 'Администратор',
     'role.client': 'Клиент',
@@ -120,6 +121,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'settings.ai_models': 'AI Models',
     'settings.search': 'Search',
     'settings.change_password': 'Change password',
+    'nav.docs': 'Documentation',
   },
 };
 

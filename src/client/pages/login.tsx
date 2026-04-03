@@ -42,6 +42,7 @@ export function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@localhost"
               className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-500 transition-colors"
               style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
               required
@@ -54,6 +55,7 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-500 transition-colors"
               style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
               required

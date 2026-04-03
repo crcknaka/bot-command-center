@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bot, FileText, Calendar, Settings, Users, Activity, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Bot, FileText, Calendar, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { LangSwitcher } from '../ui/lang-switcher.js';
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },
   { path: '/users', labelKey: 'nav.users', icon: Users, superadminOnly: true },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings },
+  { path: '/docs', labelKey: 'nav.docs', icon: BookOpen },
 ];
 
 export function Sidebar() {

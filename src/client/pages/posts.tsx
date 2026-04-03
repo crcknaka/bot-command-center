@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2 } from 'lucide-react';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TelegramPreview } from '../components/telegram-preview.js';
@@ -320,8 +320,8 @@ export function PostsPage() {
                     </button>
                   )}
                   {post.status === 'draft' && (
-                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'queued' })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors">
-                      Одобрить
+                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'queued' })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors">
+                      <CheckCircle size={12} /> Одобрить
                     </button>
                   )}
                   {(post.status === 'queued' || post.status === 'draft') && (
