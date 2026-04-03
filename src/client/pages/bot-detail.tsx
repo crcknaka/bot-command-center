@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil } from 'lucide-react';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { Stepper } from '../components/ui/stepper.js';
@@ -65,6 +65,13 @@ export function BotDetailPage() {
   const deleteTaskMut = useMutation({
     mutationFn: (taskId: number) => apiFetch(`/tasks/${taskId}`, { method: 'DELETE' }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
+
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const editTaskMut = useMutation({
+    mutationFn: ({ id, ...data }: { id: number; config?: any; schedule?: string; enabled?: boolean }) =>
+      apiFetch(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); qc.invalidateQueries({ queryKey: ['bot', botId] }); setEditingTask(null); },
   });
 
   const addSourceMut = useMutation({
@@ -178,6 +185,7 @@ export function BotDetailPage() {
                 onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
                 onDeleteChannel={() => { if (confirm(`Удалить канал "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
+                onEditTask={(task: any) => setEditingTask(task)}
                 onDeleteTask={(taskId: number) => { if (confirm('Удалить эту задачу?')) deleteTaskMut.mutate(taskId); }}
                 onAddSource={(taskId: number) => setShowAddSource(taskId)}
                 onFetchSource={(sourceId: number) => fetchSourceMut.mutate(sourceId)}
@@ -385,6 +393,16 @@ export function BotDetailPage() {
         );
       })()}
 
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onSave={(data) => editTaskMut.mutate({ id: editingTask.id, ...data })}
+          onClose={() => setEditingTask(null)}
+          isPending={editTaskMut.isPending}
+        />
+      )}
+
       {/* Add Source Modal */}
       {showAddSource !== null && (
         <AddSourceModal
@@ -397,6 +415,109 @@ export function BotDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+// ─── Edit Task Modal ─────────────────────────────────────────────────────────
+
+const schedulePresets = [
+  { label: 'Каждый день в 9:00', value: '0 9 * * *' },
+  { label: 'Два раза в день', value: '0 9,18 * * *' },
+  { label: 'Каждые 6 часов', value: '0 */6 * * *' },
+  { label: 'Каждый час', value: '0 * * * *' },
+];
+
+function EditTaskModal({ task, onSave, onClose, isPending }: {
+  task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
+}) {
+  const config = task.config ?? {};
+  const [schedule, setSchedule] = useState(task.schedule ?? '');
+  const [enabled, setEnabled] = useState(task.enabled ?? true);
+  const [useAi, setUseAi] = useState(config.useAi !== false);
+  const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
+  const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
+
+  return (
+    <Modal title="Редактировать задачу" onClose={onClose}>
+      <div className="space-y-4">
+        {/* Enabled */}
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Задача активна
+        </label>
+
+        {/* Schedule */}
+        {task.type === 'news_feed' && (
+          <div>
+            <label className="block text-sm font-medium mb-2">Расписание</label>
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
+              {schedulePresets.map((p) => (
+                <button key={p.value} type="button" onClick={() => setSchedule(p.value)}
+                  className={cn('p-2 rounded-lg border text-[11px] text-left transition-colors', schedule === p.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                  style={{ borderColor: schedule === p.value ? undefined : 'var(--border)' }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <details>
+              <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>Cron-выражение</summary>
+              <input value={schedule} onChange={(e) => setSchedule(e.target.value)} className="w-full px-3 py-1.5 rounded-lg border text-xs font-mono mt-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </details>
+          </div>
+        )}
+
+        {/* AI mode */}
+        {task.type === 'news_feed' && (
+          <div>
+            <label className="block text-sm font-medium mb-2">Режим контента</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setUseAi(true)}
+                className={cn('p-2.5 rounded-xl border text-xs text-left transition-colors', useAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                style={{ borderColor: useAi ? undefined : 'var(--border)' }}>
+                <div className="font-medium">🤖 С AI</div>
+                <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>AI переписывает статьи</div>
+              </button>
+              <button type="button" onClick={() => setUseAi(false)}
+                className={cn('p-2.5 rounded-xl border text-xs text-left transition-colors', !useAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                style={{ borderColor: !useAi ? undefined : 'var(--border)' }}>
+                <div className="font-medium">📋 Без AI</div>
+                <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Шаблон: заголовок + ссылка</div>
+              </button>
+            </div>
+            {!useAi && (
+              <div className="mt-2">
+                <label className="block text-xs font-medium mb-1">Шаблон</label>
+                <textarea value={rawTemplate} onChange={(e) => setRawTemplate(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{title}'}, {'{summary}'}, {'{url}'}, {'{author}'}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Auto-approve */}
+        {task.type === 'news_feed' && (
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
+            Авто-одобрение (сразу в очередь, без ручной проверки)
+          </label>
+        )}
+
+        <div className="flex gap-3 justify-end pt-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+          <button
+            onClick={() => onSave({
+              schedule: schedule || null,
+              enabled,
+              config: { ...config, useAi, rawTemplate: useAi ? undefined : rawTemplate, autoApprove },
+            })}
+            disabled={isPending}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}
+          >
+            {isPending ? 'Сохраняю...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -815,7 +936,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
 
 // ── Channel Card (inline sub-component) ─────────────────────────────────────
 
-function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
+function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
   const qc = useQueryClient();
   const { data: tasks } = useQuery({
     queryKey: ['tasks', channel.id],
@@ -880,6 +1001,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, on
               <TaskCard
                 key={task.id}
                 task={task}
+                onEdit={() => onEditTask(task)}
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
                 onAddSource={() => onAddSource(task.id)}
@@ -914,7 +1036,7 @@ function cronToHuman(cron: string | null): string {
   return presets[cron] ?? cron;
 }
 
-function TaskCard({ task, onRun, onDelete, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -938,7 +1060,10 @@ function TaskCard({ task, onRun, onDelete, onAddSource, onFetchSource, onDeleteS
           </span>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста — найдёт новости, сгенерирует пост и добавит в очередь">
+          <button onClick={onEdit} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors" title="Редактировать настройки задачи">
+            <Pencil size={12} />
+          </button>
+          <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
             <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить сейчас'}
           </button>
           <button onClick={onDelete} className="p-1.5 rounded hover:bg-white/5" title="Удалить задачу">
