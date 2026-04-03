@@ -57,18 +57,36 @@ async function publishPendingPosts() {
     db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, post.id)).run();
 
     try {
+      // Build content with signature
+      let content = post.content;
+      if (bot?.postSignature) {
+        content += '\n\n' + bot.postSignature;
+      }
+
+      // Build inline keyboard
+      let reply_markup: any = undefined;
+      const buttons = post.inlineButtons as Array<{ text: string; url: string }> | null;
+      if (buttons?.length) {
+        reply_markup = { inline_keyboard: [buttons.map((b) => ({ text: b.text, url: b.url }))] };
+      }
+
+      // Common send options
+      const sendOpts: any = {
+        parse_mode: 'HTML' as const,
+        message_thread_id: channel.threadId ?? undefined,
+        reply_markup,
+      };
+
       let messageId: number;
 
       if (post.imageUrl) {
         const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, {
-          caption: post.content,
-          parse_mode: 'HTML',
+          caption: content,
+          ...sendOpts,
         });
         messageId = msg.message_id;
       } else {
-        const msg = await botInstance.api.sendMessage(channel.chatId, post.content, {
-          parse_mode: 'HTML',
-        });
+        const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
         messageId = msg.message_id;
       }
 
@@ -78,6 +96,18 @@ async function publishPendingPosts() {
         telegramMessageId: messageId,
         updatedAt: new Date().toISOString(),
       }).where(eq(posts.id, post.id)).run();
+
+      // Auto-pin
+      if (bot?.autoPin) {
+        try { await botInstance.api.pinChatMessage(channel.chatId, messageId); } catch {}
+      }
+
+      // Auto-delete after N hours
+      if (bot?.autoDeleteHours && bot.autoDeleteHours > 0) {
+        setTimeout(async () => {
+          try { await botInstance.api.deleteMessage(channel.chatId, messageId); } catch {}
+        }, bot.autoDeleteHours * 3600 * 1000);
+      }
 
       console.log(`📨 Published post #${post.id} to channel ${channel.title}`);
     } catch (err) {

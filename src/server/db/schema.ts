@@ -86,6 +86,9 @@ export const bots = sqliteTable('bots', {
   maxPostsPerDay: integer('max_posts_per_day').default(5),
   minPostIntervalMinutes: integer('min_post_interval_minutes').default(60),
   maxPostLength: integer('max_post_length').default(2000),
+  postSignature: text('post_signature'), // Auto-footer, e.g. "\n\n📢 @euc_official"
+  autoPin: integer('auto_pin', { mode: 'boolean' }).notNull().default(false),
+  autoDeleteHours: integer('auto_delete_hours'), // null = don't delete
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -100,6 +103,7 @@ export const channels = sqliteTable('channels', {
   type: text('type', { enum: ['channel', 'group', 'supergroup'] }).notNull().default('channel'),
   isTest: integer('is_test', { mode: 'boolean' }).notNull().default(false),
   isLinked: integer('is_linked', { mode: 'boolean' }).notNull().default(false),
+  threadId: integer('thread_id'), // Forum topic thread_id (null = default/General)
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
@@ -161,6 +165,7 @@ export const posts = sqliteTable('posts', {
   telegramMessageId: integer('telegram_message_id'),
   aiProviderId: integer('ai_provider_id'),
   aiModel: text('ai_model'),
+  inlineButtons: text('inline_buttons', { mode: 'json' }), // [{text, url}] for inline keyboard
   errorMessage: text('error_message'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),

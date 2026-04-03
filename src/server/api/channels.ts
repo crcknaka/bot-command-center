@@ -18,7 +18,7 @@ channelsApi.get('/bots/:botId/channels', async (c) => {
 // POST /api/bots/:botId/channels
 channelsApi.post('/bots/:botId/channels', async (c) => {
   const botId = Number(c.req.param('botId'));
-  const { chatId, isTest } = await c.req.json<{ chatId: string; isTest?: boolean }>();
+  const { chatId, isTest, threadId } = await c.req.json<{ chatId: string; isTest?: boolean; threadId?: number }>();
 
   const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
   if (!botRecord) return c.json({ error: 'Bot not found' }, 404);
@@ -45,6 +45,7 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
     title,
     type,
     isTest: isTest ?? false,
+    threadId: threadId ?? null,
     isLinked,
   }).returning().get();
 

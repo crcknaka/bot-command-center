@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
 import { posts, channels, bots } from '../db/schema.js';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { eq, desc, inArray, and } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { logActivity } from '../services/activity.js';
@@ -125,17 +125,26 @@ postsApi.post('/:id/publish', async (c) => {
   db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
 
   try {
+    // Build content with signature
+    const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+    let content = post.content;
+    if (bot?.postSignature) content += '\n\n' + bot.postSignature;
+
+    // Inline keyboard
+    let reply_markup: any = undefined;
+    const buttons = post.inlineButtons as Array<{ text: string; url: string }> | null;
+    if (buttons?.length) {
+      reply_markup = { inline_keyboard: [buttons.map((b: any) => ({ text: b.text, url: b.url }))] };
+    }
+
+    const sendOpts: any = { parse_mode: 'HTML' as const, message_thread_id: channel.threadId ?? undefined, reply_markup };
+
     let messageId: number;
     if (post.imageUrl) {
-      const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, {
-        caption: post.content,
-        parse_mode: 'HTML',
-      });
+      const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...sendOpts });
       messageId = msg.message_id;
     } else {
-      const msg = await botInstance.api.sendMessage(channel.chatId, post.content, {
-        parse_mode: 'HTML',
-      });
+      const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
       messageId = msg.message_id;
     }
 

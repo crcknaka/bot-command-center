@@ -84,7 +84,7 @@ botsApi.get('/:id', async (c) => {
 botsApi.patch('/:id', async (c) => {
   const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
-  const body = await c.req.json<{ name?: string; aiProviderId?: number | null; searchProviderId?: number | null; systemPrompt?: string | null; postLanguage?: string; maxPostsPerDay?: number; minPostIntervalMinutes?: number; maxPostLength?: number }>();
+  const body = await c.req.json<{ name?: string; aiProviderId?: number | null; searchProviderId?: number | null; systemPrompt?: string | null; postLanguage?: string; maxPostsPerDay?: number; minPostIntervalMinutes?: number; maxPostLength?: number; postSignature?: string | null; autoPin?: boolean; autoDeleteHours?: number | null }>();
 
   const conditions = user.role === 'superadmin'
     ? eq(bots.id, id)

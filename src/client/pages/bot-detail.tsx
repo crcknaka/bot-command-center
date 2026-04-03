@@ -19,6 +19,7 @@ export function BotDetailPage() {
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [channelInput, setChannelInput] = useState('');
   const [isTestChannel, setIsTestChannel] = useState(false);
+  const [threadId, setThreadId] = useState('');
 
   // Add task state
   const [showAddTask, setShowAddTask] = useState<{ channelId: number; channelType: string } | null>(null);
@@ -195,12 +196,22 @@ export function BotDetailPage() {
             Введите юзернейм канала (например, <code>@euc_official</code>) или числовой ID.<br />
             <b>Важно:</b> бот должен быть администратором этого канала, чтобы публиковать пост��.
           </p>
-          <form onSubmit={(e) => { e.preventDefault(); addChannelMut.mutate({ chatId: channelInput, isTest: isTestChannel }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); addChannelMut.mutate({ chatId: channelInput, isTest: isTestChannel, threadId: threadId ? Number(threadId) : undefined }); }}>
             <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
               ID канала
               <InfoTip text="Для публичных каналов: @имя_канала. Для приватных: числовой ID (можно узнать, переслав сообщение боту @userinfobot)." position="right" />
             </label>
             <input value={channelInput} onChange={(e) => setChannelInput(e.target.value)} placeholder="@euc_official" className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+            <div className="mb-3">
+              <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
+                Топик (thread_id)
+                <InfoTip text="Для групп с включёнными топиками (Forum). Если хотите чтобы бот писал в конкретный топик — введите его ID. Оставьте пустым для General." position="right" />
+              </label>
+              <input value={threadId} onChange={(e) => setThreadId(e.target.value)} placeholder="Пусто = General (основной)" className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                Как узнать ID топика: откройте топик → URL будет вида t.me/group/123 — число 123 и есть thread_id.
+              </p>
+            </div>
             <label className="flex items-center gap-2 text-sm mb-4">
               <input type="checkbox" checked={isTestChannel} onChange={(e) => setIsTestChannel(e.target.checked)} />
               Тестовый канал
@@ -590,6 +601,9 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
   const [maxPerDay, setMaxPerDay] = useState(bot.maxPostsPerDay ?? 5);
   const [minInterval, setMinInterval] = useState(bot.minPostIntervalMinutes ?? 60);
   const [maxLength, setMaxLength] = useState(bot.maxPostLength ?? 2000);
+  const [signature, setSignature] = useState(bot.postSignature ?? '');
+  const [autoPin, setAutoPin] = useState(bot.autoPin ?? false);
+  const [autoDeleteHours, setAutoDeleteHours] = useState(bot.autoDeleteHours ?? 0);
   const [saved, setSaved] = useState(false);
 
   const saveMut = useMutation({
@@ -708,6 +722,30 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
             </div>
           </div>
 
+          {/* Publishing settings */}
+          <div className="space-y-3 pt-2 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Подпись к постам
+                <InfoTip text="Автоматически добавляется в конец каждого поста. Например: ссылка на канал, хэштеги, watermark." position="right" />
+              </label>
+              <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Например: 📢 @euc_official" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={autoPin} onChange={(e) => setAutoPin(e.target.checked)} />
+                Закреплять посты
+                <InfoTip text="Автоматически закреплять каждый опубликованный пост в канале/группе." position="top" />
+              </label>
+              <div className="flex items-center gap-2 text-xs">
+                Удалять через
+                <input type="number" min={0} max={720} value={autoDeleteHours} onChange={(e) => setAutoDeleteHours(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                часов
+                <InfoTip text="Автоматически удалить пост через N часов после публикации. 0 = не удалять." position="top" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end">
             <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }}>Отмена</button>
             <button
@@ -719,6 +757,9 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
                 maxPostsPerDay: maxPerDay,
                 minPostIntervalMinutes: minInterval,
                 maxPostLength: maxLength,
+                postSignature: signature || null,
+                autoPin,
+                autoDeleteHours: autoDeleteHours || null,
               })}
               disabled={saveMut.isPending}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
