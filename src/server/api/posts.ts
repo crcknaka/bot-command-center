@@ -62,7 +62,8 @@ postsApi.post('/', async (c) => {
     status?: string;
   }>();
 
-  // Verify channel exists
+  if (!body.content?.trim()) return c.json({ error: 'Текст поста не может быть пустым' }, 400);
+
   const channel = db.select().from(channels).where(eq(channels.id, body.channelId)).limit(1).get();
   if (!channel) return c.json({ error: 'Канал не найден' }, 404);
 

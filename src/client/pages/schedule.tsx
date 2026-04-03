@@ -1,14 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Send, Eye, Pencil } from 'lucide-react';
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+// DnD will be added in future iteration
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
-import { usePublishPost, useUpdatePost } from '../hooks/use-posts.js';
-import { Link } from 'react-router-dom';
+import { useUpdatePost } from '../hooks/use-posts.js';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-zinc-500',
@@ -58,9 +55,8 @@ export function SchedulePage() {
   const postsByDay = useMemo(() => {
     const map: Record<string, any[]> = {};
     (posts ?? []).forEach((post: any) => {
-      const date = post.scheduledFor ?? post.createdAt;
-      if (!date) return;
-      const dayKey = date.slice(0, 10); // YYYY-MM-DD
+      if (!post.scheduledFor) return; // Only show scheduled posts on calendar
+      const dayKey = post.scheduledFor.slice(0, 10); // YYYY-MM-DD
       if (!map[dayKey]) map[dayKey] = [];
       map[dayKey].push(post);
     });
@@ -69,13 +65,7 @@ export function SchedulePage() {
     return map;
   }, [posts]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    // Drag & drop to reorder within a day — update scheduledFor
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    // For now, just swap order visually. Full reordering needs a position field.
-  };
-
+  // Schedule a post to a specific date/hour
   const schedulePost = (postId: number, date: Date, hour: number) => {
     const scheduled = new Date(date);
     scheduled.setHours(hour, 0, 0, 0);

@@ -23,7 +23,7 @@ export function SettingsPage() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold">Настройки</h1>
-        <InfoTip text="Глобальные настройки платформы: общие параметры, AI-модели для генерации постов и Tavily для поиска новостей. Для каждого бота можно переопределить отдельно." position="bottom" />
+        <InfoTip text="Глобальные настройки: общие параметры, AI-модели, поисковые провайдеры, шаблоны постов. Для каждого бота можно переопределить отдельно." position="bottom" />
       </div>
 
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: 'var(--border)' }}>
@@ -504,7 +504,7 @@ function TemplatesTab() {
           <p className="font-medium mb-1">Нет шаблонов</p>
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Шаблоны помогают быстро создавать посты в нужном формате.</p>
           <button onClick={seedDefaults} disabled={createMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-            Добавить стандартные шаблоны
+            {createMut.isPending ? 'Добавляю...' : 'Добавить стандартные шаблоны'}
           </button>
         </div>
       ) : (

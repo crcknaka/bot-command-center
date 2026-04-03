@@ -356,7 +356,7 @@ function AiGenerateModal({ channels, onClose, onSave }: {
     if (!providers?.length) return;
     const provider = providers.find((p: any) => p.isDefault) ?? providers[0];
     generateMut.mutate(
-      { providerId: provider.id, modelId: '', topic, language, useSearch: false },
+      { providerId: provider.id, modelId: '__default__', topic, language, useSearch: false },
       { onSuccess: (data) => setGenerated(data.content) }
     );
   };

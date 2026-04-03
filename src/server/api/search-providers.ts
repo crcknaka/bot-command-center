@@ -60,13 +60,10 @@ searchProvidersApi.post('/:id/test', async (c) => {
   }
 });
 
-/** Test a specific provider by doing a sample search */
 async function testSearchProvider(provider: any) {
-  // Temporarily create a mini search using the provider directly
-  const { tavily } = await import('@tavily/core');
-
   switch (provider.type) {
     case 'tavily': {
+      const { tavily } = await import('@tavily/core');
       const client = tavily({ apiKey: provider.apiKey });
       const res = await client.search('test', { maxResults: 1 });
       return res.results.map((r: any) => ({ title: r.title }));
@@ -88,6 +85,19 @@ async function testSearchProvider(provider: any) {
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       const data = await res.json() as any;
       return (data.web?.results ?? []).map((r: any) => ({ title: r.title }));
+    }
+    case 'serpapi': {
+      const res = await fetch(`https://serpapi.com/search?q=test&api_key=${provider.apiKey}&engine=google&num=1`);
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      const data = await res.json() as any;
+      return (data.organic_results ?? []).map((r: any) => ({ title: r.title }));
+    }
+    case 'google_cse': {
+      const cseId = provider.baseUrl ?? '';
+      const res = await fetch(`https://www.googleapis.com/customsearch/v1?q=test&key=${provider.apiKey}&cx=${cseId}&num=1`);
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      const data = await res.json() as any;
+      return (data.items ?? []).map((r: any) => ({ title: r.title }));
     }
     default:
       throw new Error(`Тест не реализован для типа: ${provider.type}`);

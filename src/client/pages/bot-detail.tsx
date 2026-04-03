@@ -44,7 +44,7 @@ export function BotDetailPage() {
   const addTaskMut = useMutation({
     mutationFn: ({ channelId, ...data }: { channelId: number; type: string; schedule: string }) =>
       apiFetch(`/channels/${channelId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowAddTask(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); },
   });
 
   const runTaskMut = useMutation({

@@ -5,6 +5,7 @@ import { eq, and, or, isNull } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { generatePost, generatePostFromSearch } from '../services/ai/generate.js';
 import { searchWeb } from '../services/search.js';
+import { resolveModel } from '../services/ai/provider.js';
 
 const aiProvidersApi = new Hono();
 aiProvidersApi.use('*', requireAuth);
@@ -99,6 +100,10 @@ aiProvidersApi.post('/generate', async (c) => {
     };
   }>();
 
+  const modelId = (!body.modelId || body.modelId === '__default__')
+    ? resolveModel(undefined, body.providerId)
+    : body.modelId;
+
   const systemPrompt = body.systemPrompt
     ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly.';
 
@@ -116,7 +121,7 @@ aiProvidersApi.post('/generate', async (c) => {
 
       const result = await generatePostFromSearch({
         providerId: body.providerId,
-        modelId: body.modelId,
+        modelId,
         systemPrompt,
         searchResults,
         topic: body.topic,
@@ -134,7 +139,7 @@ aiProvidersApi.post('/generate', async (c) => {
       // Generate directly without search
       const result = await generatePost({
         providerId: body.providerId,
-        modelId: body.modelId,
+        modelId,
         systemPrompt,
         userPrompt: `Create a Telegram post about: ${body.topic}\nLanguage: ${body.language ?? 'Russian'}\nMax length: ${body.maxLength ?? 500} characters`,
       });
