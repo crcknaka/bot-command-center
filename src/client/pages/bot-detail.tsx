@@ -21,7 +21,7 @@ export function BotDetailPage() {
   const [isTestChannel, setIsTestChannel] = useState(false);
 
   // Add task state
-  const [showAddTask, setShowAddTask] = useState<number | null>(null); // channelId
+  const [showAddTask, setShowAddTask] = useState<{ channelId: number; channelType: string } | null>(null);
   const [taskType, setTaskType] = useState('news_feed');
   const [taskSchedule, setTaskSchedule] = useState('0 9 * * *');
 
@@ -171,7 +171,7 @@ export function BotDetailPage() {
                 key={channel.id}
                 channel={channel}
                 botId={botId}
-                onAddTask={() => setShowAddTask(channel.id)}
+                onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
                 onDeleteChannel={() => { if (confirm(`Remove "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
                 onDeleteTask={(taskId: number) => { if (confirm('Удалить эту задачу?')) deleteTaskMut.mutate(taskId); }}
@@ -217,22 +217,36 @@ export function BotDetailPage() {
       )}
 
       {/* Add Task Modal */}
-      {showAddTask !== null && (
-        <Modal title="Create Task" onClose={() => setShowAddTask(null)}>
-          <p className="text-xs mb-5" style={{ color: 'var(--text-muted)' }}>
-            Task — это автоматическое действие, которое бот выполняет для канала.
-          </p>
+      {showAddTask !== null && (() => {
+        const isChannel = showAddTask.channelType === 'channel';
+        const isGroup = showAddTask.channelType === 'group' || showAddTask.channelType === 'supergroup';
+        const allTaskTypes = [
+          { value: 'news_feed', icon: '📰', title: 'Новостная лента', desc: 'Собирает новости из RSS, Reddit, Twitter, YouTube. Генерирует посты через AI и публикует по расписанию.', needsSchedule: true, forChannel: true, forGroup: true },
+          { value: 'auto_reply', icon: '🤖', title: 'Авто-ответы', desc: 'Автоматически отвечает на сообщения по ключевым словам или regex-паттернам.', needsSchedule: false, forChannel: false, forGroup: true },
+          { value: 'welcome', icon: '👋', title: 'Приветствие', desc: 'Отправляет приветственное сообщение новым участникам группы.', needsSchedule: false, forChannel: false, forGroup: true },
+          { value: 'moderation', icon: '🛡️', title: 'Модерация', desc: 'Удаляет сообщения с запрещёнными словами, ограничивает ссылки, предупреждает нарушителей.', needsSchedule: false, forChannel: false, forGroup: true },
+        ];
+        const availableTypes = allTaskTypes.filter((t) => isGroup ? t.forGroup : t.forChannel);
+        const unavailableTypes = allTaskTypes.filter((t) => isGroup ? !t.forGroup : !t.forChannel);
 
-          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask, type: taskType, schedule: taskSchedule }); }}>
-            {/* Task type - visual cards */}
+        return (
+        <Modal title="Создать задачу" onClose={() => setShowAddTask(null)}>
+          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+            Задача — автоматическое действие бота для этого {isChannel ? 'канала' : 'группы'}.
+          </p>
+          <div className="text-[11px] px-2.5 py-1.5 rounded-lg mb-4 flex items-center gap-1.5" style={{ background: isChannel ? 'rgba(59,130,246,0.08)' : 'rgba(168,85,247,0.08)' }}>
+            {isChannel ? '📢' : '👥'}
+            <span style={{ color: 'var(--text-muted)' }}>
+              {isChannel
+                ? 'Это канал — доступна только публикация постов. Авто-ответы, приветствия и модерация работают только в группах.'
+                : 'Это группа — доступны все типы задач: публикация, авто-ответы, приветствия, модерация.'}
+            </span>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, type: taskType, schedule: taskSchedule }); }}>
             <label className="block text-sm font-medium mb-2">Что должен делать бот?</label>
             <div className="space-y-2 mb-5">
-              {[
-                { value: 'news_feed', icon: '📰', title: 'Новостная лента', desc: 'Собирает новости из RSS, Reddit, Twitter, YouTube. Генерирует посты через AI и публикует по расписанию.', needsSchedule: true },
-                { value: 'auto_reply', icon: '🤖', title: 'Авто-ответы', desc: 'Автоматически отвечает на сообщения по ключевым словам или regex-паттернам.', needsSchedule: false },
-                { value: 'welcome', icon: '👋', title: 'Приветствие', desc: 'Отправляет приветственное сообщение новым участникам группы/канала.', needsSchedule: false },
-                { value: 'moderation', icon: '🛡️', title: 'Модерация', desc: 'Удаляет сообщения с запрещёнными словами, ограничивает ссылки, предупреждает нарушителей.', needsSchedule: false },
-              ].map((t) => (
+              {availableTypes.map((t) => (
                 <label key={t.value} className={cn(
                   'flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors',
                   taskType === t.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600'
@@ -244,6 +258,13 @@ export function BotDetailPage() {
                   </div>
                 </label>
               ))}
+              {unavailableTypes.length > 0 && (
+                <div className="p-3 rounded-xl border opacity-40" style={{ borderColor: 'var(--border)' }}>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {unavailableTypes.map((t) => `${t.icon} ${t.title}`).join(' · ')} — только для {isChannel ? 'групп' : 'каналов'}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Schedule - visual presets (only for news_feed) */}
@@ -311,7 +332,8 @@ export function BotDetailPage() {
             </div>
           </form>
         </Modal>
-      )}
+        );
+      })()}
 
       {/* Add Source Modal */}
       {showAddSource !== null && (
@@ -488,7 +510,10 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, on
       {/* Channel header */}
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <Hash size={16} className="text-blue-400" />
+          {channel.type === 'channel'
+            ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">📢 Канал</span>
+            : <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
+          }
           <span className="font-medium text-sm">{channel.title}</span>
           <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
           <button
@@ -505,7 +530,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, on
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={onAddTask} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
+          <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
           </button>
           <button onClick={onDeleteChannel} className="p-1.5 rounded-lg hover:bg-white/5" title="Удалить канал">
@@ -523,7 +548,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, on
             <p className="text-xs mb-4 max-w-xs mx-auto" style={{ color: 'var(--text-muted)' }}>
               Задача определяет, что бот делает с этим каналом — например, ищет новости и публикует посты.
             </p>
-            <button onClick={onAddTask} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors">
+            <button onClick={() => onAddTask(channel.type)} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors">
               <Plus size={14} className="inline mr-1.5" /> Создать задачу
             </button>
           </div>
