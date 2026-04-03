@@ -45,7 +45,7 @@ export function BotDetailPage() {
   const addTaskMut = useMutation({
     mutationFn: ({ channelId, ...data }: { channelId: number; type: string; schedule: string }) =>
       apiFetch(`/channels/${channelId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); },
   });
 
   const runTaskMut = useMutation({
@@ -61,13 +61,13 @@ export function BotDetailPage() {
 
   const deleteTaskMut = useMutation({
     mutationFn: (taskId: number) => apiFetch(`/tasks/${taskId}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bot', botId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); },
   });
 
   const addSourceMut = useMutation({
     mutationFn: ({ taskId, ...data }: { taskId: number; name: string; type: string; url: string }) =>
       apiFetch(`/tasks/${taskId}/sources`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowAddSource(null); setSourceForm({ name: '', type: 'rss', url: '' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); qc.invalidateQueries({ queryKey: ['sources'] }); setShowAddSource(null); setSourceForm({ name: '', type: 'rss', url: '' }); },
   });
 
   const [fetchResult, setFetchResult] = useState<Record<number, { ok: boolean; msg: string }>>({});
