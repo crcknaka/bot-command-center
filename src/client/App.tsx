@@ -7,6 +7,7 @@ import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard.js';
 import { PostsPage } from './pages/posts.js';
 import { SettingsPage } from './pages/settings.js';
+import { SchedulePage } from './pages/schedule.js';
 // integrations moved into settings tabs
 import { BotDetailPage } from './pages/bot-detail.js';
 import { ActivityPage } from './pages/activity.js';
@@ -48,6 +49,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><AppLayout><PostsPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/schedule" element={<ProtectedRoute><AppLayout><SchedulePage /></AppLayout></ProtectedRoute>} />
       <Route path="/integrations" element={<Navigate to="/settings" replace />} />
       <Route path="/ai-providers" element={<Navigate to="/settings" replace />} />
       <Route path="/activity" element={<ProtectedRoute><AppLayout><ActivityPage /></AppLayout></ProtectedRoute>} />

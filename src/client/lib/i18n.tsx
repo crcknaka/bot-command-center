@@ -13,6 +13,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Nav
     'nav.home': 'Главная',
     'nav.posts': 'Посты',
+    'nav.schedule': 'Расписание',
     'nav.activity': 'Журнал',
     'nav.users': 'Пользователи',
     'nav.settings': 'Настройки',
@@ -70,6 +71,7 @@ const translations: Record<Locale, Record<string, string>> = {
   en: {
     'nav.home': 'Dashboard',
     'nav.posts': 'Posts',
+    'nav.schedule': 'Schedule',
     'nav.activity': 'Activity',
     'nav.users': 'Users',
     'nav.settings': 'Settings',
