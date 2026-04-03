@@ -161,4 +161,58 @@ postsApi.post('/:id/publish', async (c) => {
   }
 });
 
+// POST /api/posts/bulk — bulk operations
+postsApi.post('/bulk', async (c) => {
+  const { ids, action } = await c.req.json<{ ids: number[]; action: 'approve' | 'publish' | 'delete' }>();
+
+  if (!ids?.length) return c.json({ error: 'Не выбраны посты' }, 400);
+
+  let ok = 0;
+  let failed = 0;
+
+  for (const id of ids) {
+    const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
+    if (!post) { failed++; continue; }
+
+    try {
+      switch (action) {
+        case 'approve':
+          if (post.status === 'draft') {
+            db.update(posts).set({ status: 'queued', updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+            ok++;
+          } else { failed++; }
+          break;
+
+        case 'publish': {
+          if (post.status === 'published') { failed++; break; }
+          const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
+          if (!channel) { failed++; break; }
+          const botInstance = botManager.getBotInstance(channel.botId);
+          if (!botInstance) { failed++; break; }
+
+          db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
+          const msg = post.imageUrl
+            ? await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: post.content, parse_mode: 'HTML' })
+            : await botInstance.api.sendMessage(channel.chatId, post.content, { parse_mode: 'HTML' });
+
+          db.update(posts).set({ status: 'published', publishedAt: new Date().toISOString(), telegramMessageId: msg.message_id, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+          ok++;
+          break;
+        }
+
+        case 'delete':
+          if (post.status !== 'published') {
+            db.delete(posts).where(eq(posts.id, id)).run();
+            ok++;
+          } else { failed++; }
+          break;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  return c.json({ ok, failed, total: ids.length });
+});
+
 export { postsApi };

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles } from 'lucide-react';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TelegramPreview } from '../components/telegram-preview.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
@@ -35,13 +36,34 @@ export function PostsPage() {
   const [editContent, setEditContent] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
+  const qc = useQueryClient();
   const { data: rawPosts, isLoading } = usePosts(statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const publishMut = usePublishPost();
   const deleteMut = useDeletePost();
   const updateMut = useUpdatePost();
   const createMut = useCreatePost();
+
+  const bulkMut = useMutation({
+    mutationFn: (data: { ids: number[]; action: string }) =>
+      apiFetch('/posts/bulk', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); setSelected(new Set()); },
+  });
+
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selected.size === posts.length) setSelected(new Set());
+    else setSelected(new Set(posts.map((p: any) => p.id)));
+  };
 
   // Build lookups
   const channelMap: Record<number, { botName: string; channelTitle: string; botId: number }> = {};
@@ -166,11 +188,55 @@ export function PostsPage() {
         </div>
       </div>
 
-      {/* Results count */}
-      <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-        {posts.length} {posts.length === 1 ? 'пост' : posts.length < 5 ? 'поста' : 'постов'}
-        {activeFilterCount > 0 && <span> (фильтры применены)</span>}
+      {/* Results count + bulk toolbar */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {posts.length} {posts.length === 1 ? 'пост' : posts.length < 5 ? 'поста' : 'постов'}
+          {activeFilterCount > 0 && <span> (фильтры применены)</span>}
+        </div>
+
+        {posts.length > 0 && (
+          <button onClick={selectAll} className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors">
+            {selected.size === posts.length ? <CheckSquare size={12} /> : <Square size={12} />}
+            {selected.size > 0 ? `Выбрано: ${selected.size}` : 'Выбрать все'}
+          </button>
+        )}
       </div>
+
+      {/* Bulk actions bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 mb-3 px-4 py-2.5 rounded-xl border" style={{ background: 'rgba(59,130,246,0.06)', borderColor: 'var(--border)' }}>
+          <span className="text-xs font-medium">Выбрано: {selected.size}</span>
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={() => { if (confirm(`Одобрить ${selected.size} постов?`)) bulkMut.mutate({ ids: [...selected], action: 'approve' }); }}
+              disabled={bulkMut.isPending}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+            >
+              Одобрить все
+            </button>
+            <button
+              onClick={() => { if (confirm(`Опубликовать ${selected.size} постов?`)) bulkMut.mutate({ ids: [...selected], action: 'publish' }); }}
+              disabled={bulkMut.isPending}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors"
+            >
+              <Send size={10} /> Опубликовать все
+            </button>
+            <button
+              onClick={() => { if (confirm(`Удалить ${selected.size} постов? Это действие нельзя отменить.`)) bulkMut.mutate({ ids: [...selected], action: 'delete' }); }}
+              disabled={bulkMut.isPending}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors"
+            >
+              <Trash2 size={10} /> Удалить все
+            </button>
+            <button onClick={() => setSelected(new Set())} className="px-2 py-1.5 rounded-lg text-[11px] text-zinc-500 hover:text-zinc-300">
+              <X size={12} />
+            </button>
+          </div>
+          {bulkMut.isPending && <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Выполняю...</span>}
+          {bulkMut.isSuccess && <span className="text-[11px] text-green-400">Готово</span>}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
@@ -197,7 +263,14 @@ export function PostsPage() {
             const badge = statusBadge[post.status] ?? { cls: 'bg-zinc-500/15 text-zinc-400', label: post.status };
             const ctx = channelMap[post.channelId];
             return (
-              <div key={post.id} className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <div key={post.id} className={cn('rounded-xl p-4 border flex gap-3', selected.has(post.id) && 'border-blue-500/50')} style={{ background: selected.has(post.id) ? 'rgba(59,130,246,0.04)' : 'var(--bg-card)', borderColor: selected.has(post.id) ? undefined : 'var(--border)' }}>
+                <button onClick={() => toggleSelect(post.id)} className="shrink-0 mt-0.5">
+                  {selected.has(post.id)
+                    ? <CheckSquare size={16} className="text-blue-400" />
+                    : <Square size={16} className="text-zinc-600 hover:text-zinc-400" />
+                  }
+                </button>
+                <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   {ctx && (
                     <Link to={`/bots/${ctx.botId}`} className="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors">
@@ -238,6 +311,7 @@ export function PostsPage() {
                       <Trash2 size={12} /> Удалить
                     </button>
                   )}
+                </div>
                 </div>
               </div>
             );
