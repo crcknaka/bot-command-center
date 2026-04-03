@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X } from 'lucide-react';
-import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost } from '../hooks/use-posts.js';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles } from 'lucide-react';
+import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { TelegramPreview } from '../components/telegram-preview.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
@@ -34,6 +34,7 @@ export function PostsPage() {
   const [editPost, setEditPost] = useState<any>(null);
   const [editContent, setEditContent] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showAiGen, setShowAiGen] = useState(false);
 
   const { data: rawPosts, isLoading } = usePosts(statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
@@ -90,9 +91,14 @@ export function PostsPage() {
           <h1 className="text-2xl font-bold">Посты</h1>
           <InfoTip text="Все посты со всех ботов. Используйте фильтры чтобы найти нужные. Черновик → одобрите → автопубликация." position="bottom" />
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-          <Plus size={16} /> Создать пост
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors">
+            <Sparkles size={16} /> Создать с AI
+          </button>
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+            <Plus size={16} /> Вручную
+          </button>
+        </div>
       </div>
 
       {/* Filters bar */}
@@ -277,6 +283,14 @@ export function PostsPage() {
           isPending={createMut.isPending}
         />
       )}
+
+      {showAiGen && (
+        <AiGenerateModal
+          channels={channelList.map((ch) => ({ id: ch.id, title: ch.title, botName: ch.botName }))}
+          onClose={() => setShowAiGen(false)}
+          onSave={(channelId, content) => { createMut.mutate({ channelId, content, status: 'draft' }); setShowAiGen(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -320,6 +334,105 @@ function CreatePostModal({ channels, onClose, onCreate, isPending }: {
           <button onClick={() => onCreate({ channelId: Number(channelId), content, status: 'draft' })} disabled={isPending || !content || !channelId} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
             {isPending ? 'Создаю...' : 'Создать черновик'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AiGenerateModal({ channels, onClose, onSave }: {
+  channels: Array<{ id: number; title: string; botName: string }>;
+  onClose: () => void;
+  onSave: (channelId: number, content: string) => void;
+}) {
+  const [channelId, setChannelId] = useState<string>(channels[0]?.id?.toString() ?? '');
+  const [topic, setTopic] = useState('');
+  const [language, setLanguage] = useState('Russian');
+  const [generated, setGenerated] = useState('');
+  const { data: providers } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
+  const generateMut = useGeneratePost();
+
+  const handleGenerate = () => {
+    if (!providers?.length) return;
+    const provider = providers.find((p: any) => p.isDefault) ?? providers[0];
+    generateMut.mutate(
+      { providerId: provider.id, modelId: '', topic, language, useSearch: false },
+      { onSuccess: (data) => setGenerated(data.content) }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Sparkles size={18} className="text-purple-400" /> Создать пост с AI</h2>
+        <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Введите тему — AI сгенерирует пост. Без источников, просто по теме.</p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Канал</label>
+            {channels.length === 0 ? (
+              <p className="text-xs text-red-400">Нет каналов. Сначала добавьте канал к боту.</p>
+            ) : (
+              <select value={channelId} onChange={(e) => setChannelId(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.botName} → {ch.title}</option>)}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Тема поста</label>
+            <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Например: Новые электроколёса 2026 года" className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Язык</label>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+              <option value="Russian">Русский</option>
+              <option value="English">English</option>
+              <option value="Ukrainian">Українська</option>
+            </select>
+          </div>
+
+          {!providers?.length && (
+            <div className="text-xs text-yellow-400 bg-yellow-500/10 rounded-lg p-2">
+              Нет AI-провайдеров. Добавьте в Настройки → AI-модели.
+            </div>
+          )}
+
+          <button onClick={handleGenerate} disabled={generateMut.isPending || !topic || !providers?.length} className="w-full py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors bg-purple-500/15 text-purple-400 hover:bg-purple-500/25">
+            <Sparkles size={14} /> {generateMut.isPending ? 'Генерирую...' : 'Сгенерировать'}
+          </button>
+
+          {generateMut.isError && (
+            <div className="text-xs text-red-400 bg-red-500/10 rounded-lg p-2">
+              {(generateMut.error as Error).message}
+            </div>
+          )}
+
+          {generated && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Результат (можно отредактировать)</label>
+              <textarea value={generated} onChange={(e) => setGenerated(e.target.value)} rows={6} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <div className="mt-2">
+                <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
+                <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={{ __html: generated }} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+          {generated && (
+            <>
+              <button onClick={handleGenerate} disabled={generateMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-purple-400 bg-purple-500/10 hover:bg-purple-500/20">
+                Перегенерировать
+              </button>
+              <button onClick={() => onSave(Number(channelId), generated)} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                Сохранить как черновик
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
