@@ -27,8 +27,16 @@ export function BotDetailPage() {
   const [taskType, setTaskType] = useState('news_feed');
   const [taskName, setTaskName] = useState('');
   const [taskSchedule, setTaskSchedule] = useState('0 9 * * *');
-  const [taskUseAi, setTaskUseAi] = useState(true);
-  const [taskRawTemplate, setTaskRawTemplate] = useState('<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
+  const [taskConfig, setTaskConfig] = useState<Record<string, any>>({
+    useAi: true,
+    rawTemplate: '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>',
+    rules: [{ pattern: '', response: '', isRegex: false }],
+    welcomeText: '👋 Привет, {name}! Добро пожаловать!',
+    deleteAfterSeconds: 0,
+    bannedWords: [],
+    maxLinksPerMessage: 3,
+    warnText: '⚠️ {user}, ваше сообщение удалено за нарушение правил.',
+  });
 
   // Add source state
   const [showAddSource, setShowAddSource] = useState<number | null>(null); // taskId
@@ -266,7 +274,15 @@ export function BotDetailPage() {
             </span>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config: taskType === 'news_feed' ? { useAi: taskUseAi, rawTemplate: taskUseAi ? undefined : taskRawTemplate } : {} }); }}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            let config: any = {};
+            if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
+            if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern) };
+            if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0 };
+            if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText };
+            addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
+          }}>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Название задачи</label>
               <input value={taskName} onChange={(e) => setTaskName(e.target.value)} placeholder="Например: Новости EUC, Крипто-дайджест..." className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
@@ -350,43 +366,106 @@ export function BotDetailPage() {
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Как обрабатывать контент?</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setTaskUseAi(true)}
-                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', taskUseAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
-                    style={{ borderColor: taskUseAi ? undefined : 'var(--border)' }}>
+                  <button type="button" onClick={() => setTaskConfig({ ...taskConfig, useAi: true })}
+                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', taskConfig.useAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                    style={{ borderColor: taskConfig.useAi ? undefined : 'var(--border)' }}>
                     <div className="font-medium mb-1">🤖 С AI</div>
-                    <div style={{ color: 'var(--text-muted)' }}>AI перепишет статью в уникальный пост. Нужен AI-провайдер.</div>
+                    <div style={{ color: 'var(--text-muted)' }}>AI перепишет статью в уникальный пост.</div>
                   </button>
-                  <button type="button" onClick={() => setTaskUseAi(false)}
-                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', !taskUseAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
-                    style={{ borderColor: !taskUseAi ? undefined : 'var(--border)' }}>
+                  <button type="button" onClick={() => setTaskConfig({ ...taskConfig, useAi: false })}
+                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', !taskConfig.useAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                    style={{ borderColor: !taskConfig.useAi ? undefined : 'var(--border)' }}>
                     <div className="font-medium mb-1">📋 Без AI</div>
-                    <div style={{ color: 'var(--text-muted)' }}>Заголовок + краткое описание + ссылка. Быстро, бесплатно.</div>
+                    <div style={{ color: 'var(--text-muted)' }}>Заголовок + описание + ссылка.</div>
                   </button>
                 </div>
-
-                {!taskUseAi && (
+                {!taskConfig.useAi && (
                   <div className="mt-3">
                     <label className="block text-xs font-medium mb-1">Шаблон поста</label>
-                    <textarea value={taskRawTemplate} onChange={(e) => setTaskRawTemplate(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                      Переменные: {'{title}'} — заголовок, {'{summary}'} — описание, {'{url}'} — ссылка, {'{author}'} — автор
-                    </p>
-                    <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-                      <div dangerouslySetInnerHTML={safeHtml(taskRawTemplate.replace(/\{title\}/g, 'Заголовок новости').replace(/\{summary\}/g, 'Краткое описание статьи из RSS-фида...').replace(/\{url\}/g, 'https://example.com').replace(/\{author\}/g, 'Автор'))} />
-                    </div>
+                    <textarea value={taskConfig.rawTemplate} onChange={(e) => setTaskConfig({ ...taskConfig, rawTemplate: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{title}'}, {'{summary}'}, {'{url}'}, {'{author}'}</p>
                   </div>
                 )}
               </div>
             )}
 
+            {/* Auto-reply config */}
+            {taskType === 'auto_reply' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
+                <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Когда сообщение содержит ключевое слово — бот отвечает заданным текстом.</p>
+                {taskConfig.rules.map((rule: any, i: number) => (
+                  <div key={i} className="flex gap-2 mb-2 items-start">
+                    <div className="flex-1">
+                      <input value={rule.pattern} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], pattern: e.target.value }; setTaskConfig({ ...taskConfig, rules: r }); }}
+                        placeholder="Ключевое слово (например: цена)" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    </div>
+                    <span className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>→</span>
+                    <div className="flex-1">
+                      <input value={rule.response} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], response: e.target.value }; setTaskConfig({ ...taskConfig, rules: r }); }}
+                        placeholder="Ответ бота" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    </div>
+                    <button type="button" onClick={() => { const r = taskConfig.rules.filter((_: any, j: number) => j !== i); setTaskConfig({ ...taskConfig, rules: r.length ? r : [{ pattern: '', response: '' }] }); }}
+                      className="p-1 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setTaskConfig({ ...taskConfig, rules: [...taskConfig.rules, { pattern: '', response: '', isRegex: false }] })}
+                  className="text-[11px] text-blue-400 hover:text-blue-300">+ Добавить правило</button>
+              </div>
+            )}
+
+            {/* Welcome config */}
+            {taskType === 'welcome' && (
+              <div className="mb-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Текст приветствия</label>
+                  <textarea value={taskConfig.welcomeText} onChange={(e) => setTaskConfig({ ...taskConfig, welcomeText: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя участника, {'{username}'} — @username</p>
+                  <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Превью: </span>
+                    {taskConfig.welcomeText?.replace(/\{name\}/g, 'Иван').replace(/\{username\}/g, '@ivan')}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Удалить приветствие через (секунд)</label>
+                  <input type="number" min={0} value={taskConfig.deleteAfterSeconds} onChange={(e) => setTaskConfig({ ...taskConfig, deleteAfterSeconds: Number(e.target.value) })}
+                    className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = не удалять</span>
+                </div>
+              </div>
+            )}
+
+            {/* Moderation config */}
+            {taskType === 'moderation' && (
+              <div className="mb-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
+                  <textarea value={(taskConfig.bannedWords ?? []).join(', ')} onChange={(e) => setTaskConfig({ ...taskConfig, bannedWords: e.target.value.split(',').map((w: string) => w.trim()).filter(Boolean) })}
+                    rows={2} placeholder="спам, реклама, казино (через запятую)" className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Сообщение с этими словами будет удалено. Через запятую.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Макс. ссылок в сообщении</label>
+                  <input type="number" min={0} max={20} value={taskConfig.maxLinksPerMessage} onChange={(e) => setTaskConfig({ ...taskConfig, maxLinksPerMessage: Number(e.target.value) })}
+                    className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Текст предупреждения</label>
+                  <input value={taskConfig.warnText} onChange={(e) => setTaskConfig({ ...taskConfig, warnText: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{user}'} — имя нарушителя. Предупреждение удалится через 10 секунд.</p>
+                </div>
+              </div>
+            )}
+
             {/* Hint per task type */}
             <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--text-muted)' }}>
-              {taskType === 'news_feed' && taskUseAi && <>💡 <b>Что будет дальше:</b> добавьте источники (RSS, Reddit, Twitter), затем «Запустить сейчас». AI переработает новости в уникальные посты.</>}
-              {taskType === 'news_feed' && !taskUseAi && <>💡 <b>Что будет дальше:</b> добавьте источники. Бот подставит заголовок, описание и ссылку в шаблон — без AI, бесплатно.</>}
-              {taskType === 'auto_reply' && <>💡 <b>Как работает:</b> бот будет отвечать на сообщения в реальном времени. После создания задачи настройте правила (ключевые слова → ответы) в конфиге задачи.</>}
-              {taskType === 'welcome' && <>💡 <b>Как работает:</b> бот отправит приветствие при входе нового участника. Перезапустите бота после создания задачи.</>}
-              {taskType === 'moderation' && <>💡 <b>Как работает:</b> бот удалит сообщения с запрещёнными словами. Настройте список слов в конфиге задачи. Перезапустите бота.</>}
+              {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в уникальные посты.</>}
+              {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон — без AI, бесплатно.</>}
+              {taskType === 'auto_reply' && <>💡 Настройте правила ниже. Бот будет отвечать в реальном времени. <b>Перезапустите бота</b> после создания.</>}
+              {taskType === 'welcome' && <>💡 Задайте текст приветствия ниже. <b>Перезапустите бота</b> после создания.</>}
+              {taskType === 'moderation' && <>💡 Задайте запрещённые слова ниже. <b>Перезапустите бота</b> после создания.</>}
             </div>
 
             <div className="flex gap-3 justify-end">
@@ -444,6 +523,15 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [useAi, setUseAi] = useState(config.useAi !== false);
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
+  // Auto-reply
+  const [rules, setRules] = useState<Array<{ pattern: string; response: string }>>(config.rules ?? [{ pattern: '', response: '' }]);
+  // Welcome
+  const [welcomeText, setWelcomeText] = useState(config.welcomeText ?? '👋 Привет, {name}!');
+  const [deleteAfterSec, setDeleteAfterSec] = useState(config.deleteAfterSeconds ?? 0);
+  // Moderation
+  const [bannedWords, setBannedWords] = useState<string[]>(config.bannedWords ?? []);
+  const [maxLinks, setMaxLinks] = useState(config.maxLinksPerMessage ?? 3);
+  const [warnText, setWarnText] = useState(config.warnText ?? '⚠️ {user}, ваше сообщение удалено.');
 
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
@@ -508,6 +596,59 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           </div>
         )}
 
+        {/* Auto-reply rules */}
+        {task.type === 'auto_reply' && (
+          <div>
+            <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
+            {rules.map((rule, i) => (
+              <div key={i} className="flex gap-2 mb-2">
+                <input value={rule.pattern} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], pattern: e.target.value }; setRules(r); }}
+                  placeholder="Ключевое слово" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <span className="text-xs self-center" style={{ color: 'var(--text-muted)' }}>→</span>
+                <input value={rule.response} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], response: e.target.value }; setRules(r); }}
+                  placeholder="Ответ бота" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <button type="button" onClick={() => setRules(rules.filter((_, j) => j !== i))} className="text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setRules([...rules, { pattern: '', response: '' }])} className="text-[11px] text-blue-400">+ Добавить</button>
+          </div>
+        )}
+
+        {/* Welcome config */}
+        {task.type === 'welcome' && (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Текст приветствия</label>
+              <textarea value={welcomeText} onChange={(e) => setWelcomeText(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Удалить через (сек)</label>
+              <input type="number" min={0} value={deleteAfterSec} onChange={(e) => setDeleteAfterSec(Number(e.target.value))} className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = не удалять</span>
+            </div>
+          </div>
+        )}
+
+        {/* Moderation config */}
+        {task.type === 'moderation' && (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
+              <textarea value={bannedWords.join(', ')} onChange={(e) => setBannedWords(e.target.value.split(',').map(w => w.trim()).filter(Boolean))}
+                rows={2} placeholder="спам, реклама, казино" className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Макс. ссылок</label>
+              <input type="number" min={0} value={maxLinks} onChange={(e) => setMaxLinks(Number(e.target.value))} className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Текст предупреждения</label>
+              <input value={warnText} onChange={(e) => setWarnText(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+          </div>
+        )}
+
         {/* Auto-approve */}
         {task.type === 'news_feed' && (
           <label className="flex items-center gap-2 text-xs">
@@ -519,12 +660,14 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
         <div className="flex gap-3 justify-end pt-2">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
           <button
-            onClick={() => onSave({
-              name: name || null,
-              schedule: schedule || null,
-              enabled,
-              config: { ...config, useAi, rawTemplate: useAi ? undefined : rawTemplate, autoApprove },
-            })}
+            onClick={() => {
+              let cfg: any = config;
+              if (task.type === 'news_feed') cfg = { ...config, useAi, rawTemplate: useAi ? undefined : rawTemplate, autoApprove };
+              if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern) };
+              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec };
+              if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText };
+              onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
+            }}
             disabled={isPending}
             className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}
           >
