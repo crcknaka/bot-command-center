@@ -337,43 +337,143 @@ export function BotDetailPage() {
 
       {/* Add Source Modal */}
       {showAddSource !== null && (
-        <Modal title="Добавить источник" onClose={() => setShowAddSource(null)}>
-          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            Источник — это откуда бот берёт контент. Добавьте RSS-фиды, Reddit-сообщества или YouTube-каналы.
-          </p>
-          <form onSubmit={(e) => { e.preventDefault(); addSourceMut.mutate({ taskId: showAddSource, ...sourceForm }); }}>
-            <label className="block text-sm font-medium mb-1">Название</label>
-            <input value={sourceForm.name} onChange={(e) => setSourceForm({ ...sourceForm, name: e.target.value })} placeholder="Например: Electrek EUC" className="w-full px-3 py-2 rounded-lg border text-sm mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
-
-            <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
-              Тип
-              <InfoTip text="RSS — стандартная лента новостей. Reddit — посты из сабреддита. Twitter/X — твиты аккаунта. YouTube — видео с канала." position="right" />
-            </label>
-            <select value={sourceForm.type} onChange={(e) => setSourceForm({ ...sourceForm, type: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-              <option value="rss">RSS-лента</option>
-              <option value="reddit">Reddit (сабреддит)</option>
-              <option value="twitter">Twitter / X (аккаунт)</option>
-              <option value="telegram">Telegram-канал</option>
-              <option value="youtube">YouTube-канал</option>
-              <option value="web">Веб-страница</option>
-            </select>
-
-            <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
-              URL / адрес
-              <InfoTip text="RSS: ссылка на фид. Reddit: имя сабреддита. Twitter/X: @username. Telegram: @channel_name. YouTube: RSS по channel_id." position="right" />
-            </label>
-            <input value={sourceForm.url} onChange={(e) => setSourceForm({ ...sourceForm, url: e.target.value })} placeholder="https://example.com/feed" className="w-full px-3 py-2 rounded-lg border text-sm font-mono mb-4" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
-
-            <div className="flex gap-3 justify-end">
-              <button type="button" onClick={() => setShowAddSource(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
-              <button type="submit" disabled={addSourceMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-                {addSourceMut.isPending ? 'Добавляю...' : 'Добавить'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <AddSourceModal
+          taskId={showAddSource}
+          form={sourceForm}
+          setForm={setSourceForm}
+          onSubmit={() => addSourceMut.mutate({ taskId: showAddSource, ...sourceForm })}
+          onClose={() => { setShowAddSource(null); setSourceForm({ name: '', type: 'rss', url: '' }); }}
+          isPending={addSourceMut.isPending}
+        />
       )}
     </div>
+  );
+}
+
+// ─── Add Source Modal ────────────────────────────────────────────────────────
+
+const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string; placeholder: string; hint: string }> = {
+  rss: { icon: '📡', label: 'RSS-лента', desc: 'Стандартная новостная лента. Есть у большинства сайтов и блогов.', placeholder: 'https://example.com/feed/', hint: 'Обычно URL сайта + /feed/ или /rss/. Для Google News: news.google.com/rss/search?q=тема' },
+  reddit: { icon: '🔴', label: 'Reddit', desc: 'Горячие посты из сабреддита. Обновляется в реальном времени.', placeholder: 'ElectricUnicycle', hint: 'Имя сабреддита без r/. Например: ElectricUnicycle, ebikes, technology' },
+  twitter: { icon: '𝕏', label: 'Twitter / X', desc: 'Твиты аккаунта через RSS-мосты. Может не работать если мосты лежат.', placeholder: '@username', hint: 'Имя аккаунта с @ или без. Например: @OpenAI, @TechCrunch' },
+  telegram: { icon: '📺', label: 'Telegram-канал', desc: 'Посты из другого TG-канала в реальном времени. Бот должен быть участником.', placeholder: '@channel_name', hint: 'Юзернейм канала. Бот должен быть добавлен в канал-источник.' },
+  youtube: { icon: '▶️', label: 'YouTube', desc: 'Новые видео с канала через RSS. Нужен channel_id из URL канала.', placeholder: 'https://www.youtube.com/feeds/videos.xml?channel_id=...', hint: 'Откройте канал → исходный код → найдите channel_id → вставьте в URL выше' },
+  web: { icon: '🌐', label: 'Веб-страница', desc: 'Парсинг HTML-страницы. Для продвинутых — требует настройки селекторов.', placeholder: 'https://example.com/news', hint: 'URL страницы для парсинга. Результаты зависят от структуры сайта.' },
+};
+
+const rssPresets = [
+  { cat: '⚡ Электротранспорт', items: [
+    { name: 'Electrek', url: 'https://electrek.co/feed/', type: 'rss' },
+    { name: 'InsideEVs', url: 'https://insideevs.com/feed/', type: 'rss' },
+    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit' },
+    { name: 'r/ebikes', url: 'ebikes', type: 'reddit' },
+  ]},
+  { cat: '🤖 AI / ML', items: [
+    { name: 'OpenAI Blog', url: 'https://openai.com/news/rss.xml', type: 'rss' },
+    { name: 'Google AI', url: 'https://ai.googleblog.com/feeds/posts/default', type: 'rss' },
+    { name: 'Hacker News', url: 'https://hnrss.org/frontpage', type: 'rss' },
+    { name: 'r/MachineLearning', url: 'MachineLearning', type: 'reddit' },
+  ]},
+  { cat: '💻 Технологии', items: [
+    { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', type: 'rss' },
+    { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', type: 'rss' },
+    { name: 'Wired', url: 'https://feeds.wired.com/wired/index', type: 'rss' },
+    { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index', type: 'rss' },
+    { name: 'Product Hunt', url: 'https://www.producthunt.com/feed', type: 'rss' },
+  ]},
+  { cat: '💰 Финансы / Крипто', items: [
+    { name: 'CoinDesk', url: 'https://www.coindesk.com/feed', type: 'rss' },
+    { name: 'Cointelegraph', url: 'https://cointelegraph.com/feed', type: 'rss' },
+    { name: 'r/CryptoCurrency', url: 'CryptoCurrency', type: 'reddit' },
+    { name: 'r/Bitcoin', url: 'Bitcoin', type: 'reddit' },
+  ]},
+  { cat: '🔍 Google News (любая тема)', items: [
+    { name: 'Google News: EUC', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss' },
+    { name: 'Google News: AI', url: 'https://news.google.com/rss/search?q=artificial+intelligence&hl=en', type: 'rss' },
+    { name: 'Google News: Crypto', url: 'https://news.google.com/rss/search?q=cryptocurrency&hl=en', type: 'rss' },
+    { name: 'Google News: Tech (RU)', url: 'https://news.google.com/rss/search?q=технологии&hl=ru', type: 'rss' },
+  ]},
+];
+
+function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }: {
+  taskId: number; form: any; setForm: (f: any) => void; onSubmit: () => void; onClose: () => void; isPending: boolean;
+}) {
+  const [showPresets, setShowPresets] = useState(false);
+  const info = sourceTypeInfo[form.type] ?? sourceTypeInfo.rss;
+
+  const applyPreset = (preset: { name: string; url: string; type: string }) => {
+    setForm({ name: preset.name, type: preset.type, url: preset.url });
+    setShowPresets(false);
+  };
+
+  return (
+    <Modal title="Добавить источник" onClose={onClose}>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setShowPresets(false)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors', !showPresets ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500')}>
+          Свой источник
+        </button>
+        <button onClick={() => setShowPresets(true)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors', showPresets ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500')}>
+          Готовые RSS-фиды
+        </button>
+      </div>
+
+      {showPresets ? (
+        <div className="max-h-80 overflow-y-auto space-y-4">
+          {rssPresets.map((cat) => (
+            <div key={cat.cat}>
+              <div className="text-xs font-semibold mb-2">{cat.cat}</div>
+              <div className="space-y-1">
+                {cat.items.map((item) => (
+                  <button key={item.url} onClick={() => applyPreset(item)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-left hover:bg-white/5 transition-colors">
+                    <div>
+                      <span className="font-medium">{item.name}</span>
+                      <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.type === 'reddit' ? `r/${item.url}` : item.url.slice(0, 40)}</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50" style={{ color: 'var(--text-muted)' }}>{item.type}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="rounded-lg p-2 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+            💡 Нажмите на фид чтобы заполнить форму, затем нажмите «Добавить».
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+          <label className="block text-sm font-medium mb-1">Название</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Например: Electrek" className="w-full px-3 py-2 rounded-lg border text-sm mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+
+          <label className="block text-sm font-medium mb-2">Тип источника</label>
+          <div className="grid grid-cols-3 gap-1.5 mb-3">
+            {Object.entries(sourceTypeInfo).map(([key, val]) => (
+              <button key={key} type="button" onClick={() => setForm({ ...form, type: key })}
+                className={cn('p-2 rounded-lg border text-center text-[11px] transition-colors', form.type === key ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                style={{ borderColor: form.type === key ? undefined : 'var(--border)' }}>
+                <div>{val.icon}</div>
+                <div className="font-medium mt-0.5">{val.label}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Type description */}
+          <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+            {info.icon} <b>{info.label}</b> — {info.desc}
+          </div>
+
+          <label className="block text-sm font-medium mb-1">URL / адрес</label>
+          <input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={info.placeholder} className="w-full px-3 py-2 rounded-lg border text-sm font-mono mb-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+          <p className="text-[10px] mb-4" style={{ color: 'var(--text-muted)' }}>{info.hint}</p>
+
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+            <button type="submit" disabled={isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+              {isPending ? 'Добавляю...' : 'Добавить'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
   );
 }
 
