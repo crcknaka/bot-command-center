@@ -1,0 +1,73 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider, useAuth } from './lib/auth.js';
+import { I18nProvider } from './lib/i18n.js';
+import { Sidebar } from './components/layout/sidebar.js';
+import { LoginPage } from './pages/login.js';
+import { DashboardPage } from './pages/dashboard.js';
+import { PostsPage } from './pages/posts.js';
+import { SettingsPage } from './pages/settings.js';
+// integrations moved into settings tabs
+import { BotDetailPage } from './pages/bot-detail.js';
+import { ActivityPage } from './pages/activity.js';
+import { UsersPage } from './pages/users.js';
+import type { ReactNode } from 'react';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { refetchOnWindowFocus: false, retry: 1 },
+  },
+});
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex">
+      <Sidebar />
+      <main className="lg:ml-60 flex-1 p-4 pt-14 lg:p-8 lg:pt-8 min-h-screen">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+function AppRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/posts" element={<ProtectedRoute><AppLayout><PostsPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/integrations" element={<Navigate to="/settings" replace />} />
+      <Route path="/ai-providers" element={<Navigate to="/settings" replace />} />
+      <Route path="/activity" element={<ProtectedRoute><AppLayout><ActivityPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><AppLayout><UsersPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </I18nProvider>
+    </QueryClientProvider>
+  );
+}

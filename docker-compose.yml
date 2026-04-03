@@ -1,0 +1,12 @@
+services:
+  bot-center:
+    build: .
+    container_name: bot-command-center
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - NODE_ENV=production

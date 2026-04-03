@@ -1,0 +1,229 @@
+import type { TaskModule, TaskContext, TaskConfig, TaskRunLog, TaskRunStep } from '../types.js';
+import { db } from '../../db/client.js';
+import { sources, articles, posts, channels, bots } from '../../db/schema.js';
+import { eq } from 'drizzle-orm';
+import { fetchAndStore } from './fetcher.js';
+import { searchWeb } from '../../services/search.js';
+import { generatePostFromSearch, generatePost } from '../../services/ai/generate.js';
+import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
+
+interface NewsFeedConfig {
+  searchQueries?: string[];
+  searchDepth?: 'basic' | 'advanced';
+  maxResults?: number;
+  timeRange?: 'day' | 'week' | 'month' | 'year';
+  includeDomains?: string[];
+  excludeDomains?: string[];
+  aiProviderId?: number;
+  aiModel?: string;
+  systemPrompt?: string;
+  postLanguage?: string;
+  postMaxLength?: number;
+  autoApprove?: boolean;
+}
+
+const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
+
+export class NewsFeedTask implements TaskModule {
+  readonly type = 'news_feed';
+
+  onInit(_ctx: TaskContext): void {}
+
+  async onSchedule(ctx: TaskContext): Promise<TaskRunLog> {
+    const config = ctx.config as NewsFeedConfig;
+    const steps: TaskRunStep[] = [];
+
+    // Resolve bot context for API key chain
+    const channel = db.select().from(channels).where(eq(channels.id, ctx.channelId)).limit(1).get();
+    const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
+    const botId = bot?.id;
+    const ownerId = bot?.ownerId;
+
+    // ── Step 1: Fetch from RSS sources ──────────────────────────────────
+    const taskSources = db.select().from(sources).where(eq(sources.taskId, ctx.taskId)).all();
+
+    if (taskSources.length === 0 && (!config.searchQueries || config.searchQueries.length === 0)) {
+      steps.push({
+        action: 'Проверка источников',
+        status: 'error',
+        detail: 'Нет ни RSS-источников, ни поисковых запросов. Добавьте хотя бы один источник или настройте поисковые запросы в конфиге задачи.',
+      });
+      return { steps };
+    }
+
+    for (const source of taskSources) {
+      if (!source.enabled) {
+        steps.push({ action: `Источник: ${source.name}`, status: 'skipped', detail: 'Отключён' });
+        continue;
+      }
+      try {
+        const count = await fetchAndStore(source.id);
+        steps.push({
+          action: `Источник: ${source.name}`,
+          status: 'ok',
+          detail: count > 0 ? `Найдено ${count} новых статей` : 'Новых статей нет',
+        });
+      } catch (err) {
+        steps.push({
+          action: `Источник: ${source.name}`,
+          status: 'error',
+          detail: `Ошибка: ${(err as Error).message}`,
+        });
+      }
+    }
+
+    // ── Step 2: Tavily search ───────────────────────────────────────────
+    if (config.searchQueries?.length) {
+      for (const query of config.searchQueries) {
+        try {
+          const results = await searchWeb({
+            query,
+            maxResults: config.maxResults ?? 3,
+            timeRange: config.timeRange ?? 'day',
+            includeDomains: config.includeDomains,
+            excludeDomains: config.excludeDomains,
+            botId,
+          });
+
+          if (results.length === 0) {
+            steps.push({ action: `Поиск: "${query}"`, status: 'skipped', detail: 'Ничего не найдено' });
+            continue;
+          }
+
+          steps.push({ action: `Поиск: "${query}"`, status: 'ok', detail: `Найдено ${results.length} результатов` });
+
+          // Generate post
+          const provider = resolveProvider({
+            taskConfigProviderId: config.aiProviderId,
+            botId,
+            ownerId,
+          });
+
+          if (!provider) {
+            steps.push({ action: 'Генерация поста', status: 'error', detail: 'Не настроен AI-провайдер. Перейдите в «AI Модели» и добавьте API-ключ.' });
+            continue;
+          }
+
+          const modelId = resolveModel(config.aiModel, provider.id);
+          const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+
+          const generated = await generatePostFromSearch({
+            providerId: provider.id,
+            modelId,
+            systemPrompt,
+            searchResults: results,
+            topic: query,
+            language: config.postLanguage ?? 'Russian',
+            maxLength: config.postMaxLength ?? 500,
+          });
+
+          db.insert(posts).values({
+            channelId: ctx.channelId,
+            taskId: ctx.taskId,
+            content: generated.content,
+            imageUrl: results[0]?.imageUrl,
+            status: config.autoApprove ? 'queued' : 'draft',
+            aiProviderId: provider.id,
+            aiModel: modelId,
+          }).run();
+
+          steps.push({
+            action: `Генерация: "${query}"`,
+            status: 'ok',
+            detail: `Пост создан (${generated.tokensUsed} токенов, модель: ${modelId}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+          });
+        } catch (err) {
+          steps.push({ action: `Поиск: "${query}"`, status: 'error', detail: (err as Error).message });
+        }
+      }
+    }
+
+    // ── Step 3: Generate posts from unprocessed RSS articles ────────────
+    if (taskSources.length > 0) {
+      const allArticles = taskSources.flatMap((src) =>
+        db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
+      );
+
+      const unprocessed = allArticles.filter((article) => {
+        const existingPost = db.select({ id: posts.id }).from(posts)
+          .where(eq(posts.articleId, article.id)).limit(1).get();
+        return !existingPost;
+      }).slice(0, 5);
+
+      if (unprocessed.length === 0 && taskSources.length > 0) {
+        steps.push({ action: 'Генерация из статей', status: 'skipped', detail: 'Нет новых необработанных статей' });
+      }
+
+      for (const article of unprocessed) {
+        try {
+          const provider = resolveProvider({
+            taskConfigProviderId: config.aiProviderId,
+            botId,
+            ownerId,
+          });
+
+          if (!provider) {
+            steps.push({ action: 'Генерация из статей', status: 'error', detail: 'Не настроен AI-провайдер. Перейдите в «AI Модели» и добавьте API-ключ.' });
+            break;
+          }
+
+          const modelId = resolveModel(config.aiModel, provider.id);
+          const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+
+          const generated = await generatePost({
+            providerId: provider.id,
+            modelId,
+            systemPrompt,
+            userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${config.postLanguage ?? 'Russian'}\nMax length: ${config.postMaxLength ?? 500} characters`,
+          });
+
+          db.insert(posts).values({
+            channelId: ctx.channelId,
+            taskId: ctx.taskId,
+            articleId: article.id,
+            content: generated.content,
+            imageUrl: article.imageUrl,
+            status: config.autoApprove ? 'queued' : 'draft',
+            aiProviderId: provider.id,
+            aiModel: modelId,
+          }).run();
+
+          steps.push({
+            action: `Статья: "${article.title.slice(0, 50)}..."`,
+            status: 'ok',
+            detail: `Пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+          });
+        } catch (err) {
+          steps.push({
+            action: `Статья: "${article.title.slice(0, 50)}..."`,
+            status: 'error',
+            detail: (err as Error).message,
+          });
+        }
+      }
+    }
+
+    if (steps.length === 0) {
+      steps.push({ action: 'Результат', status: 'skipped', detail: 'Нечего делать — нет источников и поисковых запросов.' });
+    }
+
+    return { steps };
+  }
+
+  getConfigSchema(): Record<string, unknown> {
+    return {
+      type: 'object',
+      properties: {
+        searchQueries: { type: 'array', items: { type: 'string' } },
+        aiProviderId: { type: 'number' },
+        aiModel: { type: 'string', default: 'gpt-4o' },
+        systemPrompt: { type: 'string' },
+        postLanguage: { type: 'string', default: 'Russian' },
+        postMaxLength: { type: 'number', default: 500 },
+        autoApprove: { type: 'boolean', default: false },
+      },
+    };
+  }
+
+  validateConfig(_config: TaskConfig): void {}
+}

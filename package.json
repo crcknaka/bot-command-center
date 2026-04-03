@@ -1,0 +1,63 @@
+{
+  "name": "bot-command-center",
+  "version": "0.1.0",
+  "description": "Telegram Bot Command Center — multi-bot management platform",
+  "type": "module",
+  "scripts": {
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "dev": "npx concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "build:client": "vite build",
+    "build": "tsc && vite build",
+    "start": "node dist/server/index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.66",
+    "@ai-sdk/google": "^3.0.57",
+    "@ai-sdk/openai": "^3.0.50",
+    "@hono/node-server": "^1.19.12",
+    "@tanstack/react-query": "^5.96.2",
+    "@tavily/core": "^0.7.2",
+    "ai": "^6.0.145",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
+    "cheerio": "^1.2.0",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.4.0",
+    "drizzle-orm": "^0.45.2",
+    "grammy": "^1.41.1",
+    "hono": "^4.12.10",
+    "lucide-react": "^1.7.0",
+    "node-cron": "^4.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.14.0",
+    "rss-parser": "^3.13.0",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}

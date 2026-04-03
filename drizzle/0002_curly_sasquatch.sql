@@ -1,0 +1,1 @@
+ALTER TABLE `bots` ADD `system_prompt` text;
