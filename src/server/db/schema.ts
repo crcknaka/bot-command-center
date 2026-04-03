@@ -112,6 +112,7 @@ export const channels = sqliteTable('channels', {
 export const tasks = sqliteTable('tasks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  name: text('name'),
   type: text('type', { enum: ['news_feed', 'auto_reply', 'welcome', 'moderation'] }).notNull(),
   config: text('config', { mode: 'json' }).notNull().default('{}'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),

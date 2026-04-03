@@ -25,17 +25,18 @@ tasksApi.get('/channels/:channelId/tasks', async (c) => {
 tasksApi.post('/channels/:channelId/tasks', async (c) => {
   const channelId = Number(c.req.param('channelId'));
   const body = await c.req.json<{
+    name?: string;
     type: string;
     config?: Record<string, unknown>;
     schedule?: string;
     enabled?: boolean;
   }>();
 
-  // Validate task type exists
-  getTaskModule(body.type); // throws if unknown
+  getTaskModule(body.type);
 
   const created = db.insert(tasks).values({
     channelId,
+    name: body.name ?? null,
     type: body.type as any,
     config: body.config ?? {},
     schedule: body.schedule,

@@ -57,6 +57,7 @@
     { "idx": 12, "version": "6", "when": 1775237100000, "tag": "0012_bot_signature", "breakpoints": true },
     { "idx": 13, "version": "6", "when": 1775237200000, "tag": "0013_bot_auto_pin", "breakpoints": true },
     { "idx": 14, "version": "6", "when": 1775237300000, "tag": "0014_bot_auto_delete", "breakpoints": true },
-    { "idx": 15, "version": "6", "when": 1775237400000, "tag": "0015_post_inline_buttons", "breakpoints": true }
+    { "idx": 15, "version": "6", "when": 1775237400000, "tag": "0015_post_inline_buttons", "breakpoints": true },
+    { "idx": 16, "version": "6", "when": 1775238000000, "tag": "0016_task_name", "breakpoints": true }
   ]
 }

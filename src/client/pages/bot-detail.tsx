@@ -25,6 +25,7 @@ export function BotDetailPage() {
   // Add task state
   const [showAddTask, setShowAddTask] = useState<{ channelId: number; channelType: string } | null>(null);
   const [taskType, setTaskType] = useState('news_feed');
+  const [taskName, setTaskName] = useState('');
   const [taskSchedule, setTaskSchedule] = useState('0 9 * * *');
   const [taskUseAi, setTaskUseAi] = useState(true);
   const [taskRawTemplate, setTaskRawTemplate] = useState('<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
@@ -46,9 +47,9 @@ export function BotDetailPage() {
   });
 
   const addTaskMut = useMutation({
-    mutationFn: ({ channelId, ...data }: { channelId: number; type: string; schedule: string; config?: any }) =>
+    mutationFn: ({ channelId, ...data }: { channelId: number; name?: string; type: string; schedule: string; config?: any }) =>
       apiFetch(`/channels/${channelId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); setTaskName(''); },
   });
 
   const runTaskMut = useMutation({
@@ -265,7 +266,13 @@ export function BotDetailPage() {
             </span>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, type: taskType, schedule: taskSchedule, config: taskType === 'news_feed' ? { useAi: taskUseAi, rawTemplate: taskUseAi ? undefined : taskRawTemplate } : {} }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config: taskType === 'news_feed' ? { useAi: taskUseAi, rawTemplate: taskUseAi ? undefined : taskRawTemplate } : {} }); }}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Название задачи</label>
+              <input value={taskName} onChange={(e) => setTaskName(e.target.value)} placeholder="Например: Новости EUC, Крипто-дайджест..." className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Необязательно. Помогает отличать задачи если их несколько.</p>
+            </div>
+
             <label className="block text-sm font-medium mb-2">Что должен делать бот?</label>
             <div className="space-y-2 mb-5">
               {availableTypes.map((t) => (
@@ -431,6 +438,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
 }) {
   const config = task.config ?? {};
+  const [name, setName] = useState(task.name ?? '');
   const [schedule, setSchedule] = useState(task.schedule ?? '');
   const [enabled, setEnabled] = useState(task.enabled ?? true);
   const [useAi, setUseAi] = useState(config.useAi !== false);
@@ -440,6 +448,12 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
       <div className="space-y-4">
+        {/* Name */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Название</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Необязательно" className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
+
         {/* Enabled */}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
@@ -506,6 +520,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
           <button
             onClick={() => onSave({
+              name: name || null,
               schedule: schedule || null,
               enabled,
               config: { ...config, useAi, rawTemplate: useAi ? undefined : rawTemplate, autoApprove },
@@ -1048,7 +1063,7 @@ function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, o
         <div className="flex items-center gap-2">
           <Settings2 size={14} className="text-purple-400" />
           <span className="text-sm font-medium">
-            {{ news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type}
+            {task.name || { news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] || task.type}
           </span>
           {task.type === 'news_feed' && (
             <span className={cn('text-[10px] px-1.5 py-0.5 rounded', (task.config as any)?.useAi === false ? 'bg-zinc-700/50 text-zinc-400' : 'bg-purple-500/10 text-purple-400')}>
