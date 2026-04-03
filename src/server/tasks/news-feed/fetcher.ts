@@ -78,6 +78,10 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
       case 'twitter':
         fetched = await fetchTwitter(source.url);
         break;
+      case 'telegram':
+        // Telegram sources are ingested in real-time via channel_post listener
+        // Manual fetch is not supported — return 0
+        return 0;
       default:
         console.warn(`Unsupported source type: ${source.type}`);
         return 0;

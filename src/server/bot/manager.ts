@@ -4,6 +4,8 @@ import { bots, channels, tasks } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { scheduler } from '../services/scheduler.js';
 import { getTaskModule } from '../tasks/registry.js';
+import { sources } from '../db/schema.js';
+import { registerTelegramSourceListener } from '../tasks/news-feed/telegram-source.js';
 
 interface RunningBot {
   botId: number;
@@ -102,6 +104,20 @@ class BotManager {
             console.error(`❌ Invalid cron "${task.schedule}" for task#${task.id}:`, (err as Error).message);
           }
         }
+      }
+    }
+
+    // Register Telegram channel source listeners
+    const allTaskIds = botChannels.flatMap((ch) =>
+      db.select().from(tasks).where(eq(tasks.channelId, ch.id)).all().map((t) => t.id)
+    );
+    for (const taskId of allTaskIds) {
+      const tgSources = db.select().from(sources)
+        .where(eq(sources.taskId, taskId)).all()
+        .filter((s) => s.type === 'telegram' && s.enabled);
+      for (const src of tgSources) {
+        registerTelegramSourceListener(bot, src.id, src.url);
+        console.log(`📡 Listening to TG channel ${src.url} (source#${src.id})`);
       }
     }
 

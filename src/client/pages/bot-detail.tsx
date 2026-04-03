@@ -353,13 +353,14 @@ export function BotDetailPage() {
               <option value="rss">RSS-лента</option>
               <option value="reddit">Reddit (сабреддит)</option>
               <option value="twitter">Twitter / X (аккаунт)</option>
+              <option value="telegram">Telegram-канал</option>
               <option value="youtube">YouTube-канал</option>
               <option value="web">Веб-страница</option>
             </select>
 
             <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
               URL / адрес
-              <InfoTip text="RSS: ссылка на фид. Reddit: имя сабреддита. Twitter/X: @username или ссылка на профиль. YouTube: RSS по channel_id." position="right" />
+              <InfoTip text="RSS: ссылка на фид. Reddit: имя сабреддита. Twitter/X: @username. Telegram: @channel_name. YouTube: RSS по channel_id." position="right" />
             </label>
             <input value={sourceForm.url} onChange={(e) => setSourceForm({ ...sourceForm, url: e.target.value })} placeholder="https://example.com/feed" className="w-full px-3 py-2 rounded-lg border text-sm font-mono mb-4" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
 
