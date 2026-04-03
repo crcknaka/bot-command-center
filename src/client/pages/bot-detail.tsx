@@ -363,99 +363,99 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
 
 const rssPresets = [
   { cat: '⚡ Электротранспорт / EV', items: [
-    { name: 'Electrek', url: 'https://electrek.co/feed/', type: 'rss' },
-    { name: 'InsideEVs', url: 'https://insideevs.com/feed/', type: 'rss' },
-    { name: 'Electric Bike Report', url: 'https://electricbikereport.com/feed', type: 'rss' },
-    { name: 'CleanTechnica', url: 'https://cleantechnica.com/feed/', type: 'rss' },
-    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit' },
-    { name: 'r/ebikes', url: 'ebikes', type: 'reddit' },
-    { name: 'r/ElectricScooters', url: 'ElectricScooters', type: 'reddit' },
-    { name: 'r/electricvehicles', url: 'electricvehicles', type: 'reddit' },
-    { name: 'r/onewheel', url: 'onewheel', type: 'reddit' },
+    { name: 'Electrek', url: 'https://electrek.co/feed/', type: 'rss', desc: 'Главный сайт про EV, e-bikes, электроскутеры. Ежедневные новости индустрии' },
+    { name: 'InsideEVs', url: 'https://insideevs.com/feed/', type: 'rss', desc: 'Обзоры, тесты и новости электромобилей и электротранспорта' },
+    { name: 'Electric Bike Report', url: 'https://electricbikereport.com/feed', type: 'rss', desc: 'Обзоры электровелосипедов, сравнения, гайды для покупателей' },
+    { name: 'CleanTechnica', url: 'https://cleantechnica.com/feed/', type: 'rss', desc: 'Чистая энергия, EV, солнечные панели, экологичные технологии' },
+    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Сообщество моноколёсщиков: обзоры, вопросы, видео поездок' },
+    { name: 'r/ebikes', url: 'ebikes', type: 'reddit', desc: 'Электровелосипеды: обсуждения, фото, советы по выбору' },
+    { name: 'r/ElectricScooters', url: 'ElectricScooters', type: 'reddit', desc: 'Электросамокаты: обзоры, сравнения, ремонт' },
+    { name: 'r/electricvehicles', url: 'electricvehicles', type: 'reddit', desc: 'Электромобили: Tesla, BYD, новинки, зарядные станции' },
+    { name: 'r/onewheel', url: 'onewheel', type: 'reddit', desc: 'Onewheel: трюки, маршруты, модификации' },
   ]},
   { cat: '🤖 AI / Машинное обучение', items: [
-    { name: 'OpenAI Blog', url: 'https://openai.com/news/rss.xml', type: 'rss' },
-    { name: 'Google AI Blog', url: 'https://ai.googleblog.com/feeds/posts/default', type: 'rss' },
-    { name: 'MIT Tech Review AI', url: 'https://www.technologyreview.com/feed/', type: 'rss' },
-    { name: 'Hacker News', url: 'https://hnrss.org/frontpage', type: 'rss' },
-    { name: 'Towards Data Science', url: 'https://towardsdatascience.com/feed', type: 'rss' },
-    { name: 'r/MachineLearning', url: 'MachineLearning', type: 'reddit' },
-    { name: 'r/ChatGPT', url: 'ChatGPT', type: 'reddit' },
-    { name: 'r/artificial', url: 'artificial', type: 'reddit' },
-    { name: 'r/LocalLLaMA', url: 'LocalLLaMA', type: 'reddit' },
-    { name: '@OpenAI', url: '@OpenAI', type: 'twitter' },
+    { name: 'OpenAI Blog', url: 'https://openai.com/news/rss.xml', type: 'rss', desc: 'Официальные новости от создателей ChatGPT и GPT-4' },
+    { name: 'Google AI Blog', url: 'https://ai.googleblog.com/feeds/posts/default', type: 'rss', desc: 'Исследования Google: Gemini, DeepMind, новые модели' },
+    { name: 'MIT Tech Review', url: 'https://www.technologyreview.com/feed/', type: 'rss', desc: 'Глубокая аналитика MIT по AI, биотеху, климату' },
+    { name: 'Hacker News', url: 'https://hnrss.org/frontpage', type: 'rss', desc: 'Лучшие посты с HN — стартапы, код, AI, наука. Голосование сообщества' },
+    { name: 'Towards Data Science', url: 'https://towardsdatascience.com/feed', type: 'rss', desc: 'Статьи про ML, data science, Python, нейросети на Medium' },
+    { name: 'r/MachineLearning', url: 'MachineLearning', type: 'reddit', desc: 'Научные статьи, новые модели, обсуждения исследований' },
+    { name: 'r/ChatGPT', url: 'ChatGPT', type: 'reddit', desc: 'Промпты, лайфхаки, новости ChatGPT и других LLM' },
+    { name: 'r/artificial', url: 'artificial', type: 'reddit', desc: 'Общие новости AI: регуляция, продукты, мнения' },
+    { name: 'r/LocalLLaMA', url: 'LocalLLaMA', type: 'reddit', desc: 'Локальные модели: Ollama, llama.cpp, fine-tuning, GGUF' },
+    { name: '@OpenAI', url: '@OpenAI', type: 'twitter', desc: 'Официальный Twitter OpenAI: анонсы, релизы' },
   ]},
   { cat: '💻 Технологии', items: [
-    { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', type: 'rss' },
-    { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', type: 'rss' },
-    { name: 'Wired', url: 'https://feeds.wired.com/wired/index', type: 'rss' },
-    { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index', type: 'rss' },
-    { name: 'Engadget', url: 'https://www.engadget.com/rss.xml', type: 'rss' },
-    { name: 'Product Hunt', url: 'https://www.producthunt.com/feed', type: 'rss' },
-    { name: 'The Next Web', url: 'https://thenextweb.com/feed', type: 'rss' },
-    { name: 'r/technology', url: 'technology', type: 'reddit' },
-    { name: 'r/programming', url: 'programming', type: 'reddit' },
-    { name: 'r/gadgets', url: 'gadgets', type: 'reddit' },
-    { name: 'r/apple', url: 'apple', type: 'reddit' },
-    { name: 'r/Android', url: 'Android', type: 'reddit' },
+    { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', type: 'rss', desc: 'Стартапы, венчурные инвестиции, раунды финансирования' },
+    { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', type: 'rss', desc: 'Технологии на пересечении с культурой и дизайном' },
+    { name: 'Wired', url: 'https://feeds.wired.com/wired/index', type: 'rss', desc: 'Глубокая журналистика: наука, безопасность, культура, бизнес' },
+    { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index', type: 'rss', desc: 'Детальные разборы: железо, ПО, наука, политика технологий' },
+    { name: 'Engadget', url: 'https://www.engadget.com/rss.xml', type: 'rss', desc: 'Гаджеты, смартфоны, игры, бытовая электроника' },
+    { name: 'Product Hunt', url: 'https://www.producthunt.com/feed', type: 'rss', desc: 'Новые продукты и стартапы каждый день. Голосование сообщества' },
+    { name: 'The Next Web', url: 'https://thenextweb.com/feed', type: 'rss', desc: 'Европейское техно-медиа: стартапы, AI, финтех' },
+    { name: 'r/technology', url: 'technology', type: 'reddit', desc: 'Главный технологический сабреддит: новости, обсуждения' },
+    { name: 'r/programming', url: 'programming', type: 'reddit', desc: 'Программирование: языки, фреймворки, инструменты, карьера' },
+    { name: 'r/gadgets', url: 'gadgets', type: 'reddit', desc: 'Новые гаджеты, обзоры, странные изобретения' },
+    { name: 'r/apple', url: 'apple', type: 'reddit', desc: 'Apple: iPhone, Mac, iOS, слухи о новых продуктах' },
+    { name: 'r/Android', url: 'Android', type: 'reddit', desc: 'Android: новые версии, приложения, кастомные прошивки' },
   ]},
   { cat: '💰 Финансы / Крипто', items: [
-    { name: 'CoinDesk', url: 'https://www.coindesk.com/feed', type: 'rss' },
-    { name: 'Cointelegraph', url: 'https://cointelegraph.com/feed', type: 'rss' },
-    { name: 'The Block', url: 'https://www.theblock.co/rss.xml', type: 'rss' },
-    { name: 'Decrypt', url: 'https://decrypt.co/feed', type: 'rss' },
-    { name: 'r/CryptoCurrency', url: 'CryptoCurrency', type: 'reddit' },
-    { name: 'r/Bitcoin', url: 'Bitcoin', type: 'reddit' },
-    { name: 'r/ethereum', url: 'ethereum', type: 'reddit' },
-    { name: 'r/defi', url: 'defi', type: 'reddit' },
-    { name: 'r/investing', url: 'investing', type: 'reddit' },
-    { name: 'r/wallstreetbets', url: 'wallstreetbets', type: 'reddit' },
+    { name: 'CoinDesk', url: 'https://www.coindesk.com/feed', type: 'rss', desc: 'Bitcoin, Ethereum, крипто-аналитика, цены, регуляция' },
+    { name: 'Cointelegraph', url: 'https://cointelegraph.com/feed', type: 'rss', desc: 'Блокчейн, DeFi, NFT, крипто-новости на нескольких языках' },
+    { name: 'The Block', url: 'https://www.theblock.co/rss.xml', type: 'rss', desc: 'Крипто-расследования, данные рынка, институциональные инвесторы' },
+    { name: 'Decrypt', url: 'https://decrypt.co/feed', type: 'rss', desc: 'Web3, крипто для начинающих, гайды и объяснения' },
+    { name: 'r/CryptoCurrency', url: 'CryptoCurrency', type: 'reddit', desc: '9.5M+ подписчиков. Главный крипто-хаб: новости, мемы, анализ' },
+    { name: 'r/Bitcoin', url: 'Bitcoin', type: 'reddit', desc: '7M+ подписчиков. Только Bitcoin: новости, холд, Lightning Network' },
+    { name: 'r/ethereum', url: 'ethereum', type: 'reddit', desc: 'Ethereum: обновления сети, L2, стейкинг, смарт-контракты' },
+    { name: 'r/defi', url: 'defi', type: 'reddit', desc: 'Децентрализованные финансы: протоколы, yield farming, ликвидность' },
+    { name: 'r/investing', url: 'investing', type: 'reddit', desc: 'Инвестиции: акции, ETF, дивиденды, портфели, стратегии' },
+    { name: 'r/wallstreetbets', url: 'wallstreetbets', type: 'reddit', desc: 'Мемные инвестиции, YOLO-трейды, опционы. 15M+ подписчиков' },
   ]},
   { cat: '🎮 Игры', items: [
-    { name: 'IGN', url: 'https://feeds.feedburner.com/ign/all', type: 'rss' },
-    { name: 'Kotaku', url: 'https://kotaku.com/rss', type: 'rss' },
-    { name: 'PC Gamer', url: 'https://www.pcgamer.com/rss/', type: 'rss' },
-    { name: 'r/gaming', url: 'gaming', type: 'reddit' },
-    { name: 'r/pcgaming', url: 'pcgaming', type: 'reddit' },
-    { name: 'r/PS5', url: 'PS5', type: 'reddit' },
+    { name: 'IGN', url: 'https://feeds.feedburner.com/ign/all', type: 'rss', desc: 'Крупнейший игровой портал: обзоры, трейлеры, гайды' },
+    { name: 'Kotaku', url: 'https://kotaku.com/rss', type: 'rss', desc: 'Игровая журналистика с мнением: обзоры, культура, индустрия' },
+    { name: 'PC Gamer', url: 'https://www.pcgamer.com/rss/', type: 'rss', desc: 'PC-игры: обзоры, железо, моды, киберспорт' },
+    { name: 'r/gaming', url: 'gaming', type: 'reddit', desc: 'Общий игровой сабреддит: мемы, новости, ностальгия' },
+    { name: 'r/pcgaming', url: 'pcgaming', type: 'reddit', desc: 'PC-гейминг: новости, обсуждения, производительность' },
+    { name: 'r/PS5', url: 'PS5', type: 'reddit', desc: 'PlayStation 5: эксклюзивы, обновления, предложения' },
   ]},
   { cat: '🔬 Наука', items: [
-    { name: 'Nature News', url: 'https://www.nature.com/nature.rss', type: 'rss' },
-    { name: 'Science Daily', url: 'https://www.sciencedaily.com/rss/all.xml', type: 'rss' },
-    { name: 'New Scientist', url: 'https://www.newscientist.com/feed/home/', type: 'rss' },
-    { name: 'r/science', url: 'science', type: 'reddit' },
-    { name: 'r/space', url: 'space', type: 'reddit' },
-    { name: 'r/Futurology', url: 'Futurology', type: 'reddit' },
+    { name: 'Nature News', url: 'https://www.nature.com/nature.rss', type: 'rss', desc: 'Ведущий научный журнал мира. Прорывы, открытия, рецензии' },
+    { name: 'Science Daily', url: 'https://www.sciencedaily.com/rss/all.xml', type: 'rss', desc: 'Новости науки простым языком: физика, биология, медицина, космос' },
+    { name: 'New Scientist', url: 'https://www.newscientist.com/feed/home/', type: 'rss', desc: 'Наука для широкой аудитории: открытия, технологии, климат' },
+    { name: 'r/science', url: 'science', type: 'reddit', desc: 'Научные статьи с модерацией. Только peer-reviewed исследования' },
+    { name: 'r/space', url: 'space', type: 'reddit', desc: 'Космос: SpaceX, NASA, телескопы, планеты, астрономия' },
+    { name: 'r/Futurology', url: 'Futurology', type: 'reddit', desc: 'Будущее технологий: прогнозы, трансгуманизм, сингулярность' },
   ]},
   { cat: '📰 Новости (общие)', items: [
-    { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/rss.xml', type: 'rss' },
-    { name: 'Reuters', url: 'https://www.reutersagency.com/feed/', type: 'rss' },
-    { name: 'CNN', url: 'http://rss.cnn.com/rss/edition.rss', type: 'rss' },
-    { name: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml', type: 'rss' },
-    { name: 'r/worldnews', url: 'worldnews', type: 'reddit' },
-    { name: 'r/news', url: 'news', type: 'reddit' },
+    { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/rss.xml', type: 'rss', desc: 'Британская вещательная корпорация. Мировые новости, объективно' },
+    { name: 'Reuters', url: 'https://www.reutersagency.com/feed/', type: 'rss', desc: 'Крупнейшее информагентство. Быстрые, проверенные новости' },
+    { name: 'CNN', url: 'http://rss.cnn.com/rss/edition.rss', type: 'rss', desc: 'Американское новостное медиа. Политика, бизнес, развлечения' },
+    { name: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml', type: 'rss', desc: 'Международные новости с ближневосточной перспективой' },
+    { name: 'r/worldnews', url: 'worldnews', type: 'reddit', desc: 'Мировые новости (без США). Модерируемый, качественный контент' },
+    { name: 'r/news', url: 'news', type: 'reddit', desc: 'Новости США и мира. Быстрые обсуждения, разные мнения' },
   ]},
   { cat: '💼 Бизнес / Стартапы', items: [
-    { name: 'TechCrunch Startups', url: 'https://techcrunch.com/category/startups/feed/', type: 'rss' },
-    { name: 'Entrepreneur', url: 'https://www.entrepreneur.com/latest.rss', type: 'rss' },
-    { name: 'Harvard Business Review', url: 'https://hbr.org/feed', type: 'rss' },
-    { name: 'r/startups', url: 'startups', type: 'reddit' },
-    { name: 'r/Entrepreneur', url: 'Entrepreneur', type: 'reddit' },
-    { name: 'r/SaaS', url: 'SaaS', type: 'reddit' },
+    { name: 'TechCrunch Startups', url: 'https://techcrunch.com/category/startups/feed/', type: 'rss', desc: 'Стартапы: раунды инвестиций, запуски продуктов, интервью основателей' },
+    { name: 'Entrepreneur', url: 'https://www.entrepreneur.com/latest.rss', type: 'rss', desc: 'Предпринимательство: советы, истории успеха, маркетинг, финансы' },
+    { name: 'Harvard Business Review', url: 'https://hbr.org/feed', type: 'rss', desc: 'Академический бизнес-журнал: лидерство, стратегия, инновации' },
+    { name: 'r/startups', url: 'startups', type: 'reddit', desc: 'Сообщество основателей: советы, питчи, ошибки, метрики' },
+    { name: 'r/Entrepreneur', url: 'Entrepreneur', type: 'reddit', desc: 'Малый бизнес, фриланс, онлайн-проекты, пассивный доход' },
+    { name: 'r/SaaS', url: 'SaaS', type: 'reddit', desc: 'SaaS-бизнес: MRR, churn, pricing, маркетинг, growth' },
   ]},
   { cat: '🎨 Дизайн / UX', items: [
-    { name: 'Smashing Magazine', url: 'https://www.smashingmagazine.com/feed/', type: 'rss' },
-    { name: 'A List Apart', url: 'https://alistapart.com/main/feed/', type: 'rss' },
-    { name: 'r/web_design', url: 'web_design', type: 'reddit' },
-    { name: 'r/UI_Design', url: 'UI_Design', type: 'reddit' },
+    { name: 'Smashing Magazine', url: 'https://www.smashingmagazine.com/feed/', type: 'rss', desc: 'Веб-дизайн, CSS, доступность, UX-паттерны. Глубокие статьи' },
+    { name: 'A List Apart', url: 'https://alistapart.com/main/feed/', type: 'rss', desc: 'Веб-стандарты, контент-стратегия, дизайн. Классика индустрии' },
+    { name: 'r/web_design', url: 'web_design', type: 'reddit', desc: 'Веб-дизайн: вдохновение, критика, инструменты, тренды' },
+    { name: 'r/UI_Design', url: 'UI_Design', type: 'reddit', desc: 'UI-дизайн: интерфейсы, Figma, компоненты, системы дизайна' },
   ]},
-  { cat: '🔍 Google News (свои запросы)', items: [
-    { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss' },
-    { name: 'GN: AI новости', url: 'https://news.google.com/rss/search?q=artificial+intelligence&hl=en', type: 'rss' },
-    { name: 'GN: Крипто', url: 'https://news.google.com/rss/search?q=cryptocurrency&hl=en', type: 'rss' },
-    { name: 'GN: Технологии (RU)', url: 'https://news.google.com/rss/search?q=технологии&hl=ru', type: 'rss' },
-    { name: 'GN: Стартапы (RU)', url: 'https://news.google.com/rss/search?q=стартапы&hl=ru', type: 'rss' },
-    { name: 'GN: Нейросети (RU)', url: 'https://news.google.com/rss/search?q=нейросети&hl=ru', type: 'rss' },
+  { cat: '🔍 Google News (свои запросы)', desc: 'Замените слова в URL на свою тему. Параметр hl= задаёт язык (en, ru, uk, de и т.д.)', items: [
+    { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Новости про моноколёса на английском' },
+    { name: 'GN: AI новости', url: 'https://news.google.com/rss/search?q=artificial+intelligence&hl=en', type: 'rss', desc: 'Искусственный интеллект — все источники Google' },
+    { name: 'GN: Крипто', url: 'https://news.google.com/rss/search?q=cryptocurrency&hl=en', type: 'rss', desc: 'Криптовалюты — агрегатор всех новостных сайтов' },
+    { name: 'GN: Технологии (RU)', url: 'https://news.google.com/rss/search?q=технологии&hl=ru', type: 'rss', desc: 'Технологические новости на русском языке' },
+    { name: 'GN: Стартапы (RU)', url: 'https://news.google.com/rss/search?q=стартапы&hl=ru', type: 'rss', desc: 'Стартапы и предпринимательство на русском' },
+    { name: 'GN: Нейросети (RU)', url: 'https://news.google.com/rss/search?q=нейросети&hl=ru', type: 'rss', desc: 'Нейросети и AI новости на русском' },
   ]},
 ];
 
@@ -483,17 +483,18 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
 
       {showPresets ? (
         <div className="max-h-80 overflow-y-auto space-y-4">
-          {rssPresets.map((cat) => (
+          {rssPresets.map((cat: any) => (
             <div key={cat.cat}>
-              <div className="text-xs font-semibold mb-2">{cat.cat}</div>
+              <div className="text-xs font-semibold mb-1">{cat.cat}</div>
+              {cat.desc && <div className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>{cat.desc}</div>}
               <div className="space-y-1">
-                {cat.items.map((item) => (
-                  <button key={item.url} onClick={() => applyPreset(item)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-left hover:bg-white/5 transition-colors">
-                    <div>
-                      <span className="font-medium">{item.name}</span>
-                      <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.type === 'reddit' ? `r/${item.url}` : item.url.slice(0, 40)}</span>
+                {cat.items.map((item: any) => (
+                  <button key={item.url} onClick={() => applyPreset(item)} className="w-full px-3 py-2 rounded-lg text-left hover:bg-white/5 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{item.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 shrink-0" style={{ color: 'var(--text-muted)' }}>{item.type}</span>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50" style={{ color: 'var(--text-muted)' }}>{item.type}</span>
+                    {item.desc && <div className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{item.desc}</div>}
                   </button>
                 ))}
               </div>
