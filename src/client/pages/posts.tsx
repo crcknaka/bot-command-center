@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square } from 'lucide-react';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2 } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TelegramPreview } from '../components/telegram-preview.js';
@@ -37,6 +37,7 @@ export function PostsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [exportPostId, setExportPostId] = useState<number | null>(null);
 
   const qc = useQueryClient();
   const { data: rawPosts, isLoading } = usePosts(statusFilter !== 'all' ? { status: statusFilter } : undefined);
@@ -305,6 +306,14 @@ export function PostsPage() {
                   <button onClick={() => setPreviewPost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                     <Eye size={12} /> Превью
                   </button>
+                  <div className="relative">
+                    <button onClick={() => setExportPostId(exportPostId === post.id ? null : post.id)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors" title="Экспортировать текст для другой платформы">
+                      <Share2 size={12} /> Экспорт
+                    </button>
+                    {exportPostId === post.id && (
+                      <ExportDropdown content={post.content} onClose={() => setExportPostId(null)} />
+                    )}
+                  </div>
                   {post.status !== 'published' && (
                     <button onClick={() => { setEditPost(post); setEditContent(post.content); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                       <Pencil size={12} /> Редактировать
@@ -524,5 +533,67 @@ function AiGenerateModal({ channels, onClose, onSave }: {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Export Dropdown ─────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+    .replace(/<a\s+href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+const exportFormats = [
+  { id: 'linkedin', label: 'LinkedIn', icon: '💼', transform: (h: string) => htmlToMarkdown(h) },
+  { id: 'twitter', label: 'Twitter / X', icon: '𝕏', transform: (h: string) => { const t = stripHtml(h); return t.length > 280 ? t.slice(0, 277) + '...' : t; } },
+  { id: 'facebook', label: 'Facebook', icon: '📘', transform: (h: string) => stripHtml(h) },
+  { id: 'plain', label: 'Текст', icon: '📄', transform: (h: string) => stripHtml(h) },
+  { id: 'markdown', label: 'Markdown', icon: '📝', transform: (h: string) => htmlToMarkdown(h) },
+  { id: 'html', label: 'HTML', icon: '🏷️', transform: (h: string) => h },
+];
+
+function ExportDropdown({ content, onClose }: { content: string; onClose: () => void }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => { setCopied(null); onClose(); }, 1000);
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full left-0 mt-1 z-50 w-48 rounded-xl border p-1.5 shadow-lg" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+        <div className="text-[10px] px-2 py-1 mb-0.5" style={{ color: 'var(--text-muted)' }}>Скопировать как:</div>
+        {exportFormats.map((fmt) => (
+          <button key={fmt.id} onClick={() => handleCopy(fmt.id, fmt.transform(content))} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-left hover:bg-white/5 transition-colors">
+            <span>{fmt.icon}</span>
+            <span className="flex-1">{fmt.label}</span>
+            {copied === fmt.id && <span className="text-green-400 text-[10px]">✓</span>}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
