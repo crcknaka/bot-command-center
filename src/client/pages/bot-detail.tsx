@@ -88,8 +88,8 @@ export function BotDetailPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['sources'] }); },
   });
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>;
-  if (!bot) return <div>Bot not found</div>;
+  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (!bot) return <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>Бот не найден</div>;
 
   const hasChannels = bot.channels?.length > 0;
 
@@ -172,7 +172,7 @@ export function BotDetailPage() {
                 channel={channel}
                 botId={botId}
                 onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
-                onDeleteChannel={() => { if (confirm(`Remove "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
+                onDeleteChannel={() => { if (confirm(`Удалить канал "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
                 onDeleteTask={(taskId: number) => { if (confirm('Удалить эту задачу?')) deleteTaskMut.mutate(taskId); }}
                 onAddSource={(taskId: number) => setShowAddSource(taskId)}

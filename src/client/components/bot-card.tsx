@@ -18,7 +18,7 @@ export function BotCard({ bot }: BotCardProps) {
   }[bot.status as string] ?? { color: 'bg-zinc-500', label: bot.status, badge: 'bg-zinc-500/15 text-zinc-400' };
 
   return (
-    <div className="rounded-xl p-5 border transition-colors hover:border-zinc-600"
+    <div className="rounded-xl p-4 border transition-colors hover:border-zinc-600"
       style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       <div className="flex items-start justify-between mb-3">
         <div>

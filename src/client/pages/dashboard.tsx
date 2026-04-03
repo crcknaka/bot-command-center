@@ -111,7 +111,7 @@ export function DashboardPage() {
         <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка ботов...</div>
       ) : bots?.length === 0 ? (
         <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-          <BotIcon size={48} className="mx-auto mb-4 text-zinc-600" />
+          <BotIcon size={40} className="mx-auto mb-3 text-zinc-600" />
           <h2 className="text-lg font-semibold mb-2">Пока нет ботов</h2>
           <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
             Добавьте первого Telegram-бота, чтобы начать.
