@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw } from 'lucide-react';
 import { InfoTip } from '../components/ui/tooltip.js';
+import { safeHtml } from '../lib/sanitize.js';
 import { Stepper } from '../components/ui/stepper.js';
 import { useBotAction } from '../hooks/use-bots.js';
 import { apiFetch } from '../lib/api.js';
@@ -25,6 +26,8 @@ export function BotDetailPage() {
   const [showAddTask, setShowAddTask] = useState<{ channelId: number; channelType: string } | null>(null);
   const [taskType, setTaskType] = useState('news_feed');
   const [taskSchedule, setTaskSchedule] = useState('0 9 * * *');
+  const [taskUseAi, setTaskUseAi] = useState(true);
+  const [taskRawTemplate, setTaskRawTemplate] = useState('<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
 
   // Add source state
   const [showAddSource, setShowAddSource] = useState<number | null>(null); // taskId
@@ -43,7 +46,7 @@ export function BotDetailPage() {
   });
 
   const addTaskMut = useMutation({
-    mutationFn: ({ channelId, ...data }: { channelId: number; type: string; schedule: string }) =>
+    mutationFn: ({ channelId, ...data }: { channelId: number; type: string; schedule: string; config?: any }) =>
       apiFetch(`/channels/${channelId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); },
   });
@@ -254,7 +257,7 @@ export function BotDetailPage() {
             </span>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, type: taskType, schedule: taskSchedule }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); addTaskMut.mutate({ channelId: showAddTask.channelId, type: taskType, schedule: taskSchedule, config: taskType === 'news_feed' ? { useAi: taskUseAi, rawTemplate: taskUseAi ? undefined : taskRawTemplate } : {} }); }}>
             <label className="block text-sm font-medium mb-2">Что должен делать бот?</label>
             <div className="space-y-2 mb-5">
               {availableTypes.map((t) => (
@@ -327,9 +330,45 @@ export function BotDetailPage() {
             </details>
             </>}
 
+            {/* AI mode toggle (only for news_feed) */}
+            {taskType === 'news_feed' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Как обрабатывать контент?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setTaskUseAi(true)}
+                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', taskUseAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                    style={{ borderColor: taskUseAi ? undefined : 'var(--border)' }}>
+                    <div className="font-medium mb-1">🤖 С AI</div>
+                    <div style={{ color: 'var(--text-muted)' }}>AI перепишет статью в уникальный пост. Нужен AI-провайдер.</div>
+                  </button>
+                  <button type="button" onClick={() => setTaskUseAi(false)}
+                    className={cn('p-3 rounded-xl border text-left text-xs transition-colors', !taskUseAi ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+                    style={{ borderColor: !taskUseAi ? undefined : 'var(--border)' }}>
+                    <div className="font-medium mb-1">📋 Без AI</div>
+                    <div style={{ color: 'var(--text-muted)' }}>Заголовок + краткое описание + ссылка. Быстро, бесплатно.</div>
+                  </button>
+                </div>
+
+                {!taskUseAi && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium mb-1">Шаблон поста</label>
+                    <textarea value={taskRawTemplate} onChange={(e) => setTaskRawTemplate(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                      Переменные: {'{title}'} — заголовок, {'{summary}'} — описание, {'{url}'} — ссылка, {'{author}'} — автор
+                    </p>
+                    <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
+                      <div dangerouslySetInnerHTML={safeHtml(taskRawTemplate.replace(/\{title\}/g, 'Заголовок новости').replace(/\{summary\}/g, 'Краткое описание статьи из RSS-фида...').replace(/\{url\}/g, 'https://example.com').replace(/\{author\}/g, 'Автор'))} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Hint per task type */}
             <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--text-muted)' }}>
-              {taskType === 'news_feed' && <>💡 <b>Что будет дальше:</b> добавьте источники (RSS, Reddit, Twitter), затем нажмите «Запустить сейчас». Бот соберёт новости, сгенерирует пост через AI и добавит в очередь.</>}
+              {taskType === 'news_feed' && taskUseAi && <>💡 <b>Что будет дальше:</b> добавьте источники (RSS, Reddit, Twitter), затем «Запустить сейчас». AI переработает новости в уникальные посты.</>}
+              {taskType === 'news_feed' && !taskUseAi && <>💡 <b>Что будет дальше:</b> добавьте источники. Бот подставит заголовок, описание и ссылку в шаблон — без AI, бесплатно.</>}
               {taskType === 'auto_reply' && <>💡 <b>Как работает:</b> бот будет отвечать на сообщения в реальном времени. После создания задачи настройте правила (ключевые слова → ответы) в конфиге задачи.</>}
               {taskType === 'welcome' && <>💡 <b>Как работает:</b> бот отправит приветствие при входе нового участника. Перезапустите бота после создания задачи.</>}
               {taskType === 'moderation' && <>💡 <b>Как работает:</b> бот удалит сообщения с запрещёнными словами. Настройте список слов в конфиге задачи. Перезапустите бота.</>}
@@ -889,6 +928,11 @@ function TaskCard({ task, onRun, onDelete, onAddSource, onFetchSource, onDeleteS
           <span className="text-sm font-medium">
             {{ news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type}
           </span>
+          {task.type === 'news_feed' && (
+            <span className={cn('text-[10px] px-1.5 py-0.5 rounded', (task.config as any)?.useAi === false ? 'bg-zinc-700/50 text-zinc-400' : 'bg-purple-500/10 text-purple-400')}>
+              {(task.config as any)?.useAi === false ? '📋 Без AI' : '🤖 AI'}
+            </span>
+          )}
           <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-700/50 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
             🕐 {cronToHuman(task.schedule)}
           </span>

@@ -8,6 +8,8 @@ import { generatePostFromSearch, generatePost } from '../../services/ai/generate
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 
 interface NewsFeedConfig {
+  useAi?: boolean; // true = AI rewrites, false = raw format from template
+  rawTemplate?: string; // Template for non-AI mode: {title}, {summary}, {url}, {author}
   searchQueries?: string[];
   searchDepth?: 'basic' | 'advanced';
   maxResults?: number;
@@ -23,6 +25,19 @@ interface NewsFeedConfig {
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
+
+const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>`;
+
+/** Format article without AI — just fill template */
+function formatRaw(article: { title: string; summary?: string | null; content?: string | null; url: string; author?: string | null }, template: string, maxLen: number): string {
+  const summary = (article.summary || article.content || '').slice(0, maxLen);
+  return template
+    .replace(/\{title\}/g, article.title)
+    .replace(/\{summary\}/g, summary)
+    .replace(/\{content\}/g, article.content?.slice(0, maxLen) ?? '')
+    .replace(/\{url\}/g, article.url)
+    .replace(/\{author\}/g, article.author ?? '');
+}
 
 export class NewsFeedTask implements TaskModule {
   readonly type = 'news_feed';
@@ -41,6 +56,8 @@ export class NewsFeedTask implements TaskModule {
     const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
     const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
     const maxPerDay = bot?.maxPostsPerDay ?? 5;
+    const useAi = config.useAi !== false; // default true for backward compat
+    const rawTemplate = config.rawTemplate ?? DEFAULT_RAW_TEMPLATE;
 
     // Check daily limit
     const todayStart = new Date();
@@ -172,42 +189,50 @@ export class NewsFeedTask implements TaskModule {
 
       for (const article of unprocessed) {
         try {
-          const provider = resolveProvider({
-            taskConfigProviderId: config.aiProviderId,
-            botId,
-            ownerId,
-          });
+          let content: string;
+          let aiModel: string | undefined;
+          let aiPid: number | undefined;
+          let tokensUsed = 0;
 
-          if (!provider) {
-            steps.push({ action: 'Генерация из статей', status: 'error', detail: 'Не настроен AI-провайдер. Перейдите в «AI Модели» и добавьте API-ключ.' });
-            break;
+          if (useAi) {
+            // AI mode — rewrite article into post
+            const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId, ownerId });
+            if (!provider) {
+              steps.push({ action: 'Генерация', status: 'error', detail: 'Режим «С AI» включён, но AI-провайдер не настроен. Добавьте в Настройки → AI-модели, или переключите задачу на «Без AI».' });
+              break;
+            }
+            const modelId = resolveModel(config.aiModel, provider.id);
+            const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+            const generated = await generatePost({
+              providerId: provider.id, modelId, systemPrompt,
+              userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
+            });
+            content = generated.content;
+            aiModel = modelId;
+            aiPid = provider.id;
+            tokensUsed = generated.tokensUsed;
+          } else {
+            // Raw mode — just format from template
+            content = formatRaw(article, rawTemplate, maxLen);
           }
-
-          const modelId = resolveModel(config.aiModel, provider.id);
-          const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-
-          const generated = await generatePost({
-            providerId: provider.id,
-            modelId,
-            systemPrompt,
-            userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
-          });
 
           db.insert(posts).values({
             channelId: ctx.channelId,
             taskId: ctx.taskId,
             articleId: article.id,
-            content: generated.content,
+            content,
             imageUrl: article.imageUrl,
             status: config.autoApprove ? 'queued' : 'draft',
-            aiProviderId: provider.id,
-            aiModel: modelId,
+            aiProviderId: aiPid,
+            aiModel,
           }).run();
 
           steps.push({
             action: `Статья: "${article.title.slice(0, 50)}..."`,
             status: 'ok',
-            detail: `Пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+            detail: useAi
+              ? `AI-пост (${tokensUsed} токенов, ${aiModel}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`
+              : `Пост из шаблона (без AI). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
           });
         } catch (err) {
           steps.push({
