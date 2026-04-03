@@ -1,3 +1,5 @@
+import { sanitizeHtml } from '../lib/sanitize.js';
+
 interface TelegramPreviewProps {
   content: string;
   imageUrl?: string;
@@ -21,7 +23,7 @@ export function TelegramPreview({ content, imageUrl, channelTitle }: TelegramPre
 
       <div
         className="px-3 py-2.5 text-sm leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
 
       <div className="px-3 pb-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>

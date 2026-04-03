@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 // DnD will be added in future iteration
 import { apiFetch } from '../lib/api.js';
+import { safeHtml } from '../lib/sanitize.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 import { useUpdatePost } from '../hooks/use-posts.js';
@@ -114,7 +115,7 @@ export function SchedulePage() {
                       <span className={cn('w-1.5 h-1.5 rounded-full', statusColors[post.status])} />
                       <span className="font-medium truncate">{ctx?.botName ?? '?'}</span>
                     </div>
-                    <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={{ __html: post.content }} />
+                    <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
                   </div>
                 );
               })
@@ -151,7 +152,7 @@ export function SchedulePage() {
                             {time && <span className="font-mono">{time}</span>}
                             <span className="truncate" style={{ color: 'var(--text-muted)' }}>{ctx?.title ?? ''}</span>
                           </div>
-                          <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={{ __html: post.content }} />
+                          <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
                         </div>
                       );
                     })}

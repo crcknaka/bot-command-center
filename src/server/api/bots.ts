@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
 import { bots, channels } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
@@ -19,15 +19,18 @@ botsApi.get('/', async (c) => {
     ? db.select().from(bots).all()
     : db.select().from(bots).where(eq(bots.ownerId, user.id)).all();
 
-  const result = rows.map((bot) => {
-    const botChannels = db.select().from(channels).where(eq(channels.botId, bot.id)).all();
-    return {
-      ...bot,
-      token: undefined,
-      isRunning: botManager.isRunning(bot.id),
-      channels: botChannels,
-    };
-  });
+  // Load all channels in one query to avoid N+1
+  const botIds = rows.map((b) => b.id);
+  const allChannels = botIds.length > 0
+    ? db.select().from(channels).where(inArray(channels.botId, botIds)).all()
+    : [];
+
+  const result = rows.map((bot) => ({
+    ...bot,
+    token: undefined,
+    isRunning: botManager.isRunning(bot.id),
+    channels: allChannels.filter((ch) => ch.botId === bot.id),
+  }));
 
   return c.json(result);
 });

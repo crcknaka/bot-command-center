@@ -38,7 +38,15 @@ class BotManager {
     if (!botRecord) throw new Error(`Bot ${botId} not found`);
 
     const bot = new Bot(botRecord.token);
-    const me = await bot.api.getMe();
+
+    let me;
+    try {
+      me = await bot.api.getMe();
+    } catch (err) {
+      const msg = (err as Error).message;
+      db.update(bots).set({ status: 'error', errorMessage: `Токен недействителен: ${msg}`, updatedAt: new Date().toISOString() }).where(eq(bots.id, botId)).run();
+      throw new Error(`Не удалось подключиться к Telegram: ${msg}`);
+    }
 
     db.update(bots)
       .set({ username: me.username, status: 'active', errorMessage: null, updatedAt: new Date().toISOString() })

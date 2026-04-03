@@ -8,6 +8,7 @@ import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 import { timeAgo } from '../lib/utils.js';
 import { apiFetch } from '../lib/api.js';
+import { safeHtml } from '../lib/sanitize.js';
 import { Link } from 'react-router-dom';
 
 const statusFilters = [
@@ -301,7 +302,7 @@ export function PostsPage() {
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
                   <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(post.createdAt)}</span>
                 </div>
-                <div className="text-sm line-clamp-3 mb-3" dangerouslySetInnerHTML={{ __html: post.content }} />
+                <div className="text-sm line-clamp-3 mb-3" dangerouslySetInnerHTML={safeHtml(post.content)} />
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setPreviewPost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                     <Eye size={12} /> Превью
@@ -361,7 +362,7 @@ export function PostsPage() {
             <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={8} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             <div className="mt-3 mb-4">
               <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-              <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={{ __html: editContent }} />
+              <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(editContent)} />
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
@@ -423,7 +424,7 @@ function CreatePostModal({ channels, onClose, onCreate, isPending }: {
         {content && (
           <div className="mb-4">
             <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-            <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={{ __html: content }} />
+            <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(content)} />
           </div>
         )}
         <div className="flex gap-3 justify-end">
@@ -512,7 +513,7 @@ function AiGenerateModal({ channels, onClose, onSave }: {
               <textarea value={generated} onChange={(e) => setGenerated(e.target.value)} rows={6} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
               <div className="mt-2">
                 <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-                <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={{ __html: generated }} />
+                <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(generated)} />
               </div>
             </div>
           )}
