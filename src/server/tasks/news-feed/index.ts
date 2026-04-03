@@ -38,6 +38,22 @@ export class NewsFeedTask implements TaskModule {
     const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
     const botId = bot?.id;
     const ownerId = bot?.ownerId;
+    const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
+    const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
+    const maxPerDay = bot?.maxPostsPerDay ?? 5;
+
+    // Check daily limit
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const postsToday = db.select().from(posts)
+      .where(eq(posts.channelId, ctx.channelId)).all()
+      .filter((p) => p.createdAt >= todayStart.toISOString()).length;
+
+    if (postsToday >= maxPerDay) {
+      steps.push({ action: 'Лимит', status: 'skipped', detail: `Достигнут лимит ${maxPerDay} постов в день (создано: ${postsToday}). Пропускаю генерацию.` });
+      return { steps };
+    }
+    const remainingToday = maxPerDay - postsToday;
 
     // ── Step 1: Fetch from RSS sources ──────────────────────────────────
     const taskSources = db.select().from(sources).where(eq(sources.taskId, ctx.taskId)).all();
@@ -113,8 +129,8 @@ export class NewsFeedTask implements TaskModule {
             systemPrompt,
             searchResults: results,
             topic: query,
-            language: config.postLanguage ?? 'Russian',
-            maxLength: config.postMaxLength ?? 500,
+            language: lang,
+            maxLength: maxLen,
           });
 
           db.insert(posts).values({
@@ -148,7 +164,7 @@ export class NewsFeedTask implements TaskModule {
         const existingPost = db.select({ id: posts.id }).from(posts)
           .where(eq(posts.articleId, article.id)).limit(1).get();
         return !existingPost;
-      }).slice(0, 5);
+      }).slice(0, remainingToday);
 
       if (unprocessed.length === 0 && taskSources.length > 0) {
         steps.push({ action: 'Генерация из статей', status: 'skipped', detail: 'Нет новых необработанных статей' });
@@ -174,7 +190,7 @@ export class NewsFeedTask implements TaskModule {
             providerId: provider.id,
             modelId,
             systemPrompt,
-            userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${config.postLanguage ?? 'Russian'}\nMax length: ${config.postMaxLength ?? 500} characters`,
+            userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
           });
 
           db.insert(posts).values({

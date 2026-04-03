@@ -1,6 +1,6 @@
 import { db } from '../db/client.js';
-import { posts, channels } from '../db/schema.js';
-import { eq, and, lte } from 'drizzle-orm';
+import { posts, channels, bots } from '../db/schema.js';
+import { eq, and, lte, desc } from 'drizzle-orm';
 import { botManager } from '../bot/manager.js';
 import { scheduler } from './scheduler.js';
 
@@ -38,8 +38,19 @@ async function publishPendingPosts() {
 
     const botInstance = botManager.getBotInstance(channel.botId);
     if (!botInstance) {
-      // Bot not running, skip for now (will retry next tick)
       continue;
+    }
+
+    // Check min interval between posts
+    const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+    const minInterval = bot?.minPostIntervalMinutes ?? 60;
+    const lastPublished = db.select().from(posts)
+      .where(and(eq(posts.channelId, post.channelId), eq(posts.status, 'published')))
+      .orderBy(desc(posts.publishedAt)).limit(1).get();
+
+    if (lastPublished?.publishedAt) {
+      const elapsed = (Date.now() - new Date(lastPublished.publishedAt).getTime()) / 60000;
+      if (elapsed < minInterval) continue; // Too soon, wait
     }
 
     // Mark as publishing

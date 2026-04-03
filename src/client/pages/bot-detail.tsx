@@ -586,6 +586,10 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
   const [aiPid, setAiPid] = useState<string>(bot.aiProviderId?.toString() ?? '');
   const [searchPid, setSearchPid] = useState<string>(bot.searchProviderId?.toString() ?? '');
   const [sysPrompt, setSysPrompt] = useState(bot.systemPrompt ?? '');
+  const [postLang, setPostLang] = useState(bot.postLanguage ?? 'Russian');
+  const [maxPerDay, setMaxPerDay] = useState(bot.maxPostsPerDay ?? 5);
+  const [minInterval, setMinInterval] = useState(bot.minPostIntervalMinutes ?? 60);
+  const [maxLength, setMaxLength] = useState(bot.maxPostLength ?? 2000);
   const [saved, setSaved] = useState(false);
 
   const saveMut = useMutation({
@@ -616,24 +620,22 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
       </div>
 
       {!editing ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div>
             <div style={{ color: 'var(--text-muted)' }}>AI-модель</div>
-            <div className="mt-0.5 font-medium">
-              {currentAiProvider ? currentAiProvider.name : <span style={{ color: 'var(--text-muted)' }}>Глобальный</span>}
-            </div>
+            <div className="mt-0.5 font-medium">{currentAiProvider ? currentAiProvider.name : <span style={{ color: 'var(--text-muted)' }}>Глобальный</span>}</div>
           </div>
           <div>
             <div style={{ color: 'var(--text-muted)' }}>Поиск</div>
-            <div className="mt-0.5 font-medium">
-              {currentSearchProvider ? currentSearchProvider.name : <span style={{ color: 'var(--text-muted)' }}>Глобальный</span>}
-            </div>
+            <div className="mt-0.5 font-medium">{currentSearchProvider ? currentSearchProvider.name : <span style={{ color: 'var(--text-muted)' }}>Глобальный</span>}</div>
           </div>
           <div>
-            <div style={{ color: 'var(--text-muted)' }}>Промпт</div>
-            <div className="mt-0.5 font-medium">
-              {bot.systemPrompt ? <span className="truncate block max-w-40">{bot.systemPrompt.slice(0, 40)}...</span> : <span style={{ color: 'var(--text-muted)' }}>Глобальный</span>}
-            </div>
+            <div style={{ color: 'var(--text-muted)' }}>Язык</div>
+            <div className="mt-0.5 font-medium">{bot.postLanguage ?? 'Russian'}</div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)' }}>Лимиты</div>
+            <div className="mt-0.5 font-medium">{bot.maxPostsPerDay ?? 5}/день, {bot.minPostIntervalMinutes ?? 60}мин</div>
           </div>
         </div>
       ) : (
@@ -670,6 +672,42 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
               style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
             />
           </div>
+          {/* Content settings */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div>
+              <label className="block text-xs font-medium mb-1">Язык постов</label>
+              <select value={postLang} onChange={(e) => setPostLang(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                <option value="Russian">Русский</option>
+                <option value="English">English</option>
+                <option value="Ukrainian">Українська</option>
+                <option value="German">Deutsch</option>
+                <option value="Spanish">Español</option>
+                <option value="French">Français</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Макс. в день
+                <InfoTip text="Максимум постов, которые бот может создать за сутки. Защита от спама." position="top" />
+              </label>
+              <input type="number" min={1} max={50} value={maxPerDay} onChange={(e) => setMaxPerDay(Number(e.target.value))} className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Интервал (мин)
+                <InfoTip text="Минимальные минуты между публикациями. Чтобы посты не шли подряд." position="top" />
+              </label>
+              <input type="number" min={1} max={1440} value={minInterval} onChange={(e) => setMinInterval(Number(e.target.value))} className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Макс. символов
+                <InfoTip text="Максимальная длина поста. Telegram лимит: 4096. Рекомендуется 500-2000." position="top" />
+              </label>
+              <input type="number" min={100} max={4096} value={maxLength} onChange={(e) => setMaxLength(Number(e.target.value))} className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end">
             <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }}>Отмена</button>
             <button
@@ -677,6 +715,10 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
                 aiProviderId: aiPid ? Number(aiPid) : null,
                 searchProviderId: searchPid ? Number(searchPid) : null,
                 systemPrompt: sysPrompt || null,
+                postLanguage: postLang,
+                maxPostsPerDay: maxPerDay,
+                minPostIntervalMinutes: minInterval,
+                maxPostLength: maxLength,
               })}
               disabled={saveMut.isPending}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"

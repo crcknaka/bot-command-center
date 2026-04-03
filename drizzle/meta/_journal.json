@@ -50,6 +50,10 @@
       "when": 1775235000000,
       "tag": "0006_indexes",
       "breakpoints": true
-    }
+    },
+    { "idx": 7, "version": "6", "when": 1775236000000, "tag": "0007_bot_content_settings", "breakpoints": true },
+    { "idx": 8, "version": "6", "when": 1775236100000, "tag": "0008_bot_limits", "breakpoints": true },
+    { "idx": 9, "version": "6", "when": 1775236200000, "tag": "0009_bot_interval", "breakpoints": true },
+    { "idx": 10, "version": "6", "when": 1775236300000, "tag": "0010_bot_max_length", "breakpoints": true }
   ]
 }

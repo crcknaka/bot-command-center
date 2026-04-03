@@ -81,6 +81,11 @@ export const bots = sqliteTable('bots', {
   aiProviderId: integer('ai_provider_id').references(() => aiProviders.id, { onDelete: 'set null' }),
   searchProviderId: integer('search_provider_id').references(() => searchProviders.id, { onDelete: 'set null' }),
   systemPrompt: text('system_prompt'),
+  // Content settings
+  postLanguage: text('post_language').default('Russian'),
+  maxPostsPerDay: integer('max_posts_per_day').default(5),
+  minPostIntervalMinutes: integer('min_post_interval_minutes').default(60),
+  maxPostLength: integer('max_post_length').default(2000),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
