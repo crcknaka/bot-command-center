@@ -463,12 +463,27 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
   taskId: number; form: any; setForm: (f: any) => void; onSubmit: () => void; onClose: () => void; isPending: boolean;
 }) {
   const [showPresets, setShowPresets] = useState(false);
+  const [presetSearch, setPresetSearch] = useState('');
   const info = sourceTypeInfo[form.type] ?? sourceTypeInfo.rss;
 
   const applyPreset = (preset: { name: string; url: string; type: string }) => {
     setForm({ name: preset.name, type: preset.type, url: preset.url });
     setShowPresets(false);
+    setPresetSearch('');
   };
+
+  // Filter presets by search
+  const filteredPresets = presetSearch.trim()
+    ? rssPresets.map((cat: any) => ({
+        ...cat,
+        items: cat.items.filter((item: any) =>
+          item.name.toLowerCase().includes(presetSearch.toLowerCase()) ||
+          (item.desc ?? '').toLowerCase().includes(presetSearch.toLowerCase())
+        ),
+      })).filter((cat: any) => cat.items.length > 0)
+    : rssPresets;
+
+  const totalResults = filteredPresets.reduce((sum: number, cat: any) => sum + cat.items.length, 0);
 
   return (
     <Modal title="Добавить источник" onClose={onClose}>
@@ -482,8 +497,26 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
       </div>
 
       {showPresets ? (
-        <div className="max-h-80 overflow-y-auto space-y-4">
-          {rssPresets.map((cat: any) => (
+        <div>
+          {/* Search */}
+          <div className="relative mb-3">
+            <input
+              value={presetSearch}
+              onChange={(e) => setPresetSearch(e.target.value)}
+              placeholder="Поиск по фидам..."
+              className="w-full px-3 py-2 rounded-lg border text-xs outline-none focus:border-blue-500"
+              style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+              autoFocus
+            />
+            {presetSearch && (
+              <span className="absolute right-3 top-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {totalResults} найдено
+              </span>
+            )}
+          </div>
+
+          <div className="max-h-72 overflow-y-auto space-y-4">
+          {filteredPresets.map((cat: any) => (
             <div key={cat.cat}>
               <div className="text-xs font-semibold mb-1">{cat.cat}</div>
               {cat.desc && <div className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>{cat.desc}</div>}
@@ -500,7 +533,8 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
               </div>
             </div>
           ))}
-          <div className="rounded-lg p-2 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+          </div>
+          <div className="rounded-lg p-2 mt-3 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
             💡 Нажмите на фид чтобы заполнить форму, затем нажмите «Добавить».
           </div>
         </div>
