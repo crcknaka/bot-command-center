@@ -417,7 +417,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
       </div>
 
       {!editing ? (
-        <div className="grid grid-cols-3 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div>
             <div style={{ color: 'var(--text-muted)' }}>AI-модель</div>
             <div className="mt-0.5 font-medium">
@@ -515,8 +515,8 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onRunTask, on
             ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">📢 Канал</span>
             : <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
           }
-          <span className="font-medium text-sm">{channel.title}</span>
-          <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
+          <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">{channel.title}</span>
+          <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
           <button
             onClick={() => toggleTestMut.mutate()}
             className={cn('text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors', channel.isTest ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25' : 'bg-green-500/15 text-green-400 hover:bg-green-500/25')}

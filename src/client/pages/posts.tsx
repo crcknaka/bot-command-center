@@ -46,10 +46,12 @@ export function PostsPage() {
   const updateMut = useUpdatePost();
   const createMut = useCreatePost();
 
+  const [bulkError, setBulkError] = useState('');
   const bulkMut = useMutation({
     mutationFn: (data: { ids: number[]; action: string }) =>
       apiFetch('/posts/bulk', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); setSelected(new Set()); },
+    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['posts'] }); setSelected(new Set()); if (data.failed > 0) setBulkError(`${data.ok} успешно, ${data.failed} ошибок`); },
+    onError: (err) => setBulkError((err as Error).message),
   });
 
   const toggleSelect = (id: number) => {
@@ -114,11 +116,11 @@ export function PostsPage() {
           <InfoTip text="Все посты со всех ботов. Используйте фильтры чтобы найти нужные. Черновик → одобрите → автопубликация." position="bottom" />
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors">
-            <Sparkles size={16} /> Создать с AI
+          <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors" title="Ввести тему — AI сгенерирует пост">
+            <Sparkles size={16} /> <span className="hidden sm:inline">Создать с</span> AI
           </button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-            <Plus size={16} /> Вручную
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }} title="Написать пост вручную">
+            <Plus size={16} /> <span className="hidden sm:inline">Вручную</span>
           </button>
         </div>
       </div>
@@ -234,7 +236,8 @@ export function PostsPage() {
             </button>
           </div>
           {bulkMut.isPending && <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Выполняю...</span>}
-          {bulkMut.isSuccess && <span className="text-[11px] text-green-400">Готово</span>}
+          {bulkMut.isSuccess && !bulkError && <span className="text-[11px] text-green-400">Готово</span>}
+          {bulkError && <span className="text-[11px] text-yellow-400">{bulkError}</span>}
         </div>
       )}
 
@@ -251,11 +254,22 @@ export function PostsPage() {
               ? 'Попробуйте изменить фильтры или сбросить их.'
               : 'Посты появятся после запуска задачи или создания вручную.'}
           </p>
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters} className="mt-3 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">
-              Сбросить фильтры
-            </button>
-          )}
+          <div className="flex gap-2 mt-3 justify-center">
+            {activeFilterCount > 0 ? (
+              <button onClick={clearFilters} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">
+                Сбросить фильтры
+              </button>
+            ) : (
+              <>
+                <button onClick={() => setShowAiGen(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/15 text-purple-400">
+                  <Sparkles size={12} className="inline mr-1" /> Создать с AI
+                </button>
+                <button onClick={() => setShowCreate(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">
+                  <Plus size={12} className="inline mr-1" /> Вручную
+                </button>
+              </>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-3">

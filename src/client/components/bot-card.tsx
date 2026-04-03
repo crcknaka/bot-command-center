@@ -57,7 +57,7 @@ export function BotCard({ bot }: BotCardProps) {
             disabled={action.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors"
           >
-            <Play size={14} /> Запустить
+            <Play size={14} /> {action.isPending ? 'Запуск...' : 'Запустить'}
           </button>
         )}
         {bot.status === 'active' && (
@@ -67,7 +67,7 @@ export function BotCard({ bot }: BotCardProps) {
               disabled={action.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25 transition-colors"
             >
-              <Square size={14} /> Остановить
+              <Square size={14} /> {action.isPending ? '...' : 'Остановить'}
             </button>
             <button
               onClick={() => action.mutate({ id: bot.id, action: 'restart' })}

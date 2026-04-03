@@ -85,6 +85,11 @@ export function SchedulePage() {
           <InfoTip text="Визуальный календарь публикаций. Перетащите черновик на день/час чтобы запланировать. Посты автоматически публикуются в назначенное время." position="bottom" />
         </div>
         <div className="flex items-center gap-2">
+          {unscheduled.length > 0 && (
+            <span className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-yellow-500/10 text-yellow-400">
+              {unscheduled.length} незапланир.
+            </span>
+          )}
           <button onClick={() => setWeekOffset((w) => w - 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronLeft size={18} /></button>
           <button onClick={() => setWeekOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5" style={{ color: weekOffset === 0 ? 'var(--primary)' : 'var(--text-muted)' }}>Сегодня</button>
           <button onClick={() => setWeekOffset((w) => w + 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronRight size={18} /></button>
@@ -92,8 +97,8 @@ export function SchedulePage() {
       </div>
 
       <div className="flex gap-4">
-        {/* Unscheduled sidebar */}
-        <div className="w-56 shrink-0">
+        {/* Unscheduled sidebar — hidden on mobile */}
+        <div className="hidden md:block w-56 shrink-0">
           <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
             Незапланированные ({unscheduled.length})
           </h3>
@@ -119,7 +124,7 @@ export function SchedulePage() {
 
         {/* Week grid */}
         <div className="flex-1 overflow-x-auto">
-          <div className="grid grid-cols-7 gap-2 min-w-[700px]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
             {weekDays.map((day, i) => {
               const dayKey = day.toISOString().slice(0, 10);
               const dayPosts = postsByDay[dayKey] ?? [];

@@ -103,7 +103,10 @@ export function UsersPage() {
             {inviteResult ? (
               <>
                 <div className="rounded-lg p-3 text-xs bg-green-500/10 text-green-400 whitespace-pre-wrap mb-4">{inviteResult}</div>
-                <button onClick={() => setShowInvite(false)} className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Закрыть</button>
+                <div className="flex gap-2">
+                  <button onClick={() => { navigator.clipboard.writeText(inviteResult ?? ''); }} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400">Скопировать</button>
+                  <button onClick={() => setShowInvite(false)} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Закрыть</button>
+                </div>
               </>
             ) : (
               <form onSubmit={(e) => { e.preventDefault(); inviteMut.mutate(inviteEmail); }}>
