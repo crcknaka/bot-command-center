@@ -21,18 +21,34 @@ export interface GeneratePostResult {
 export async function generatePost(options: GeneratePostOptions): Promise<GeneratePostResult> {
   const model = createModelFromProvider(options.providerId, options.modelId);
 
-  const result = await generateText({
-    model,
-    system: options.systemPrompt,
-    prompt: options.userPrompt,
-    maxOutputTokens: options.maxTokens ?? 1000,
-  });
+  try {
+    const result = await generateText({
+      model,
+      system: options.systemPrompt,
+      prompt: options.userPrompt,
+      maxOutputTokens: options.maxTokens ?? 1000,
+      maxRetries: 1, // Don't retry on quota errors
+    });
 
-  return {
-    content: result.text,
-    model: options.modelId,
-    tokensUsed: (result.usage?.totalTokens) ?? 0,
-  };
+    return {
+      content: result.text,
+      model: options.modelId,
+      tokensUsed: (result.usage?.totalTokens) ?? 0,
+    };
+  } catch (err) {
+    const msg = (err as Error).message;
+    // Make error messages more user-friendly
+    if (msg.includes('quota') || msg.includes('rate') || msg.includes('limit')) {
+      throw new Error(`Лимит API исчерпан (${options.modelId}). Подождите или смените провайдера.`);
+    }
+    if (msg.includes('not found') || msg.includes('not supported')) {
+      throw new Error(`Модель ${options.modelId} не найдена. Проверьте настройки AI-провайдера.`);
+    }
+    if (msg.includes('API key') || msg.includes('authentication') || msg.includes('401')) {
+      throw new Error(`Неверный API-ключ для ${options.modelId}. Проверьте в Настройки → AI-модели.`);
+    }
+    throw err;
+  }
 }
 
 /**

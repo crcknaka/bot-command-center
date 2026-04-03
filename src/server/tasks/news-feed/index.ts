@@ -235,11 +235,13 @@ export class NewsFeedTask implements TaskModule {
               : `Пост из шаблона (без AI). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
           });
         } catch (err) {
-          steps.push({
-            action: `Статья: "${article.title.slice(0, 50)}..."`,
-            status: 'error',
-            detail: (err as Error).message,
-          });
+          const errMsg = (err as Error).message;
+          steps.push({ action: `Статья: "${article.title.slice(0, 50)}..."`, status: 'error', detail: errMsg });
+          // Stop on quota/rate limit errors — no point trying more
+          if (errMsg.includes('Лимит') || errMsg.includes('quota') || errMsg.includes('rate')) {
+            steps.push({ action: 'Остановка', status: 'skipped', detail: 'Лимит API исчерпан — остальные статьи пропущены.' });
+            break;
+          }
         }
       }
     }
