@@ -161,6 +161,19 @@ export const posts = sqliteTable('posts', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
 
+// ─���─ Post Templates ─────────────────────────────────────────────────────────
+
+export const postTemplates = sqliteTable('post_templates', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'cascade' }), // null = global
+  name: text('name').notNull(),
+  description: text('description'),
+  content: text('content').notNull(), // HTML template with {placeholders}
+  systemPrompt: text('system_prompt'), // AI prompt for this template
+  category: text('category'), // news, review, announcement, poll, etc.
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
 // ─── Activity Log ───────────────────────────────────────────────────────────
 
 export const activityLog = sqliteTable('activity_log', {

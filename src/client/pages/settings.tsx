@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Check, Plus, Trash2, Zap, X, Settings2, Cpu, Search } from 'lucide-react';
+import { Save, Check, Plus, Trash2, Zap, X, Settings2, Cpu, Search, FileText, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
@@ -11,6 +11,7 @@ const tabs = [
   { id: 'general', label: 'Общие', icon: Settings2 },
   { id: 'ai', label: 'AI-модели', icon: Cpu },
   { id: 'search', label: 'Поиск', icon: Search },
+  { id: 'templates', label: 'Шаблоны', icon: FileText },
 ] as const;
 
 type TabId = (typeof tabs)[number]['id'];
@@ -49,6 +50,7 @@ export function SettingsPage() {
       {activeTab === 'general' && <GeneralTab />}
       {activeTab === 'ai' && <AIModelsTab />}
       {activeTab === 'search' && <SearchTab />}
+      {activeTab === 'templates' && <TemplatesTab />}
     </div>
   );
 }
@@ -439,6 +441,123 @@ function SearchTab() {
               <div className="flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
                 <button type="submit" disabled={createMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>{createMut.isPending ? 'Добавляю...' : 'Добавить'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Templates Tab ───────────────────────────────────────────────────────────
+
+const defaultTemplates = [
+  { name: '📰 Новость', description: 'Стандартный новостной пост', content: '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Источник</a>', systemPrompt: 'Напиши новостной пост для Telegram. Краткий, информативный. HTML-форматирование.', category: 'news' },
+  { name: '📝 Обзор', description: 'Обзор продукта или события', content: '<b>Обзор: {title}</b>\n\n{content}\n\n👍 Плюсы:\n👎 Минусы:\n\n⭐ Итог:', systemPrompt: 'Напиши обзор для Telegram. Структура: описание, плюсы, минусы, итог. HTML-форматирование.', category: 'review' },
+  { name: '📢 Анонс', description: 'Анонс события или релиза', content: '<b>🔥 {title}</b>\n\n{summary}\n\n📅 Дата:\n📍 Где:\n\n<a href="{url}">Подробнее</a>', systemPrompt: 'Напиши анонс для Telegram. Кратко, с эмодзи, HTML-форматирование.', category: 'announcement' },
+  { name: '❓ Опрос', description: 'Вопрос аудитории', content: '<b>{title}</b>\n\n{question}\n\nОтвет 1️⃣:\nОтвет 2️⃣:\nОтвет 3️⃣:', systemPrompt: 'Создай интерактивный пост-опрос для Telegram. С вариантами ответов.', category: 'poll' },
+];
+
+function TemplatesTab() {
+  const qc = useQueryClient();
+  const { data: templates, isLoading } = useQuery({ queryKey: ['templates'], queryFn: () => apiFetch('/templates') });
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', content: '', systemPrompt: '', category: '' });
+  const [editId, setEditId] = useState<number | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => apiFetch('/templates', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); setShowAdd(false); resetForm(); },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...data }: any) => apiFetch(`/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); setEditId(null); resetForm(); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/templates/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['templates'] }),
+  });
+
+  const resetForm = () => setForm({ name: '', description: '', content: '', systemPrompt: '', category: '' });
+
+  const seedDefaults = () => {
+    defaultTemplates.forEach((t) => createMut.mutate(t));
+  };
+
+  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Шаблоны используются при создании постов вручную и через AI. Определяют структуру и стиль поста.
+        </p>
+        <button onClick={() => { resetForm(); setShowAdd(true); setEditId(null); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
+          <Plus size={14} /> Создать
+        </button>
+      </div>
+
+      {templates?.length === 0 ? (
+        <div className="text-center py-12 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <FileText size={40} className="mx-auto mb-3 text-zinc-600" />
+          <p className="font-medium mb-1">Нет шаблонов</p>
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Шаблоны помогают быстро создавать посты в нужном формате.</p>
+          <button onClick={seedDefaults} disabled={createMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+            Добавить стандартные шаблоны
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {templates?.map((t: any) => (
+            <div key={t.id} className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-sm">{t.name}</div>
+                  {t.description && <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.description}</div>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setForm(t); setEditId(t.id); setShowAdd(true); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/5"><Pencil size={14} /></button>
+                  <button onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(t.id); }} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={14} /></button>
+                </div>
+              </div>
+              {t.content && (
+                <div className="mt-2 text-[11px] p-2 rounded-lg font-mono line-clamp-2" style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)' }}>
+                  {t.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { setShowAdd(false); setEditId(null); }}>
+          <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">{editId ? 'Редактировать шаблон' : 'Новый шаблон'}</h2>
+            <form onSubmit={(e) => { e.preventDefault(); editId ? updateMut.mutate({ id: editId, ...form }) : createMut.mutate(form); }} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Название</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="📰 Новость" className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Описание</label>
+                <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Для чего этот шаблон" className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">HTML-шаблон</label>
+                <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={4} placeholder="<b>{title}</b>\n\n{summary}" className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Плейсхолдеры: {'{title}'}, {'{summary}'}, {'{content}'}, {'{url}'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">AI-промпт (для генерации)</label>
+                <textarea value={form.systemPrompt ?? ''} onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })} rows={2} placeholder="Напиши новостной пост для Telegram..." className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => { setShowAdd(false); setEditId(null); }} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+                <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                  {editId ? 'Сохранить' : 'Создать'}
+                </button>
               </div>
             </form>
           </div>

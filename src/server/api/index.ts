@@ -15,6 +15,7 @@ import { settingsApi } from './settings.js';
 import { statsApi } from './stats.js';
 import { activityApi } from './activity.js';
 import { usersApi } from './users.js';
+import { templatesApi } from './templates.js';
 
 export const api = new Hono();
 
@@ -39,6 +40,7 @@ api.route('/api/settings', settingsApi);
 api.route('/api/stats', statsApi);
 api.route('/api/activity', activityApi);
 api.route('/api/users', usersApi);
+api.route('/api/templates', templatesApi);
 
 // 404 fallback for API
 api.all('/api/*', (c) => {
