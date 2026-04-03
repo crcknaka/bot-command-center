@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { login, logout, createUser } from '../auth/index.js';
 import { requireAuth, requireSuperadmin } from '../auth/middleware.js';
 import { db } from '../db/client.js';
-import { invites } from '../db/schema.js';
+import { invites, users } from '../db/schema.js';
+import { logActivity } from '../services/activity.js';
 import { eq } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
@@ -16,6 +17,8 @@ auth.post('/login', async (c) => {
   if (!result) {
     return c.json({ error: 'Invalid email or password' }, 401);
   }
+
+  logActivity({ userId: result.user.id, action: 'user.login', details: { email } });
 
   return c.json({
     user: { id: result.user.id, email: result.user.email, name: result.user.name, role: result.user.role },
@@ -40,6 +43,25 @@ auth.get('/me', requireAuth, async (c) => {
     role: user.role,
     avatarUrl: user.avatarUrl,
   });
+});
+
+// POST /api/auth/change-password
+auth.post('/change-password', requireAuth, async (c) => {
+  const user = (c as any).get('user');
+  const { currentPassword, newPassword } = await c.req.json<{ currentPassword: string; newPassword: string }>();
+
+  const bcrypt = await import('bcryptjs');
+  const fullUser = db.select().from(users).where(eq(users.id, user.id)).limit(1).get();
+  if (!fullUser) return c.json({ error: 'Пользователь не найден' }, 404);
+
+  const valid = await bcrypt.default.compare(currentPassword, fullUser.passwordHash);
+  if (!valid) return c.json({ error: 'Неверный текущий пароль' }, 400);
+
+  const newHash = await bcrypt.default.hash(newPassword, 12);
+  db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id)).run();
+  logActivity({ userId: user.id, action: 'user.password_changed' });
+
+  return c.json({ ok: true });
 });
 
 // POST /api/auth/invite (superadmin only) — create invite link for a client

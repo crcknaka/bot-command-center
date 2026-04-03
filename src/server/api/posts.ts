@@ -4,6 +4,7 @@ import { posts, channels, bots } from '../db/schema.js';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
+import { logActivity } from '../services/activity.js';
 
 const postsApi = new Hono();
 postsApi.use('*', requireAuth);
@@ -147,6 +148,7 @@ postsApi.post('/:id/publish', async (c) => {
       .where(eq(posts.id, id))
       .run();
 
+    logActivity({ userId: (c as any).get('user')?.id, botId: channel.botId, action: 'post.published', details: { postId: id, channelTitle: channel.title } });
     return c.json({ ok: true, messageId });
   } catch (err) {
     db.update(posts)

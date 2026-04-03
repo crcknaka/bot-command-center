@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
+import { logActivity } from '../services/activity.js';
 
 const botsApi = new Hono();
 
@@ -47,6 +48,7 @@ botsApi.post('/', async (c) => {
       username: me.username,
     }).returning().get();
 
+    logActivity({ userId: user.id, botId: created.id, action: 'bot.created', details: { name: created.name, username: created.username } });
     return c.json({ ...created, token: undefined }, 201);
   } catch {
     return c.json({ error: 'Invalid bot token' }, 400);
@@ -121,6 +123,7 @@ botsApi.post('/:id/start', async (c) => {
   const id = Number(c.req.param('id'));
   try {
     await botManager.startBot(id);
+    logActivity({ userId: (c as any).get('user')?.id, botId: id, action: 'bot.started' });
     return c.json({ ok: true, status: 'active' });
   } catch (err) {
     db.update(bots)
@@ -135,6 +138,7 @@ botsApi.post('/:id/start', async (c) => {
 botsApi.post('/:id/stop', async (c) => {
   const id = Number(c.req.param('id'));
   await botManager.stopBot(id);
+  logActivity({ userId: (c as any).get('user')?.id, botId: id, action: 'bot.stopped' });
   return c.json({ ok: true, status: 'stopped' });
 });
 

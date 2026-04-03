@@ -13,6 +13,8 @@ import { aiProvidersApi } from './ai-providers.js';
 import { searchProvidersApi } from './search-providers.js';
 import { settingsApi } from './settings.js';
 import { statsApi } from './stats.js';
+import { activityApi } from './activity.js';
+import { usersApi } from './users.js';
 
 export const api = new Hono();
 
@@ -35,6 +37,8 @@ api.route('/api/ai-providers', aiProvidersApi);
 api.route('/api/search-providers', searchProvidersApi);
 api.route('/api/settings', settingsApi);
 api.route('/api/stats', statsApi);
+api.route('/api/activity', activityApi);
+api.route('/api/users', usersApi);
 
 // 404 fallback for API
 api.all('/api/*', (c) => {

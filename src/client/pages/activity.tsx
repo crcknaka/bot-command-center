@@ -1,45 +1,68 @@
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bot, FileText, User, Settings2, Zap } from 'lucide-react';
+import { Activity, User, Bot, FileText, Zap, LogIn, UserPlus } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { timeAgo } from '../lib/utils.js';
 
-const actionIcons: Record<string, any> = {
-  'bot.started': { icon: Zap, color: 'text-green-400' },
-  'bot.stopped': { icon: Zap, color: 'text-zinc-400' },
-  'post.published': { icon: FileText, color: 'text-blue-400' },
-  'post.failed': { icon: FileText, color: 'text-red-400' },
-  'task.created': { icon: Settings2, color: 'text-purple-400' },
-  'task.run': { icon: Settings2, color: 'text-yellow-400' },
-  'user.login': { icon: User, color: 'text-blue-400' },
-};
-
-const actionLabels: Record<string, string> = {
-  'bot.started': 'Бот запущен',
-  'bot.stopped': 'Бот остановлен',
-  'post.published': 'Пост опубликован',
-  'post.failed': 'Ошибка публикации',
-  'task.created': 'Задача создана',
-  'task.run': 'Задача запущена',
-  'user.login': 'Вход в систему',
+const actionMeta: Record<string, { icon: any; label: string; color: string }> = {
+  'user.login': { icon: LogIn, label: 'Вход в систему', color: 'text-blue-400' },
+  'user.registered': { icon: UserPlus, label: 'Регистрация', color: 'text-green-400' },
+  'bot.created': { icon: Bot, label: 'Бот создан', color: 'text-purple-400' },
+  'bot.started': { icon: Zap, label: 'Бот запущен', color: 'text-green-400' },
+  'bot.stopped': { icon: Zap, label: 'Бот остановлен', color: 'text-zinc-400' },
+  'bot.deleted': { icon: Bot, label: 'Бот удалён', color: 'text-red-400' },
+  'post.published': { icon: FileText, label: 'Пост опубликован', color: 'text-green-400' },
+  'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
 };
 
 export function ActivityPage() {
-  // For now show a placeholder — activity_log table exists but we haven't wired up logging yet
+  const { data: logs, isLoading } = useQuery({
+    queryKey: ['activity'],
+    queryFn: () => apiFetch('/activity'),
+    refetchInterval: 30000,
+  });
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold">Журнал действий</h1>
-        <InfoTip text="Здесь отображаются все действия: запуск/остановка ботов, публикация постов, создание задач, входы пользователей." position="bottom" />
+        <InfoTip text="Все действия в системе: входы, запуски ботов, публикации постов. Обновляется автоматически каждые 30 секунд." position="bottom" />
       </div>
 
-      <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-        <Activity size={40} className="mx-auto mb-3 text-zinc-600" />
-        <p className="font-medium mb-1">Журнал пока пуст</p>
-        <p className="text-xs max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
-          Действия будут записываться сюда автоматически: запуск ботов, публикация постов, изменения настроек и т.д.
-        </p>
-      </div>
+      {isLoading ? (
+        <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
+      ) : !logs?.length ? (
+        <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <Activity size={40} className="mx-auto mb-3 text-zinc-600" />
+          <p className="font-medium mb-1">Журнал пока пуст</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Действия будут записываться автоматически.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log: any) => {
+            const meta = actionMeta[log.action] ?? { icon: Activity, label: log.action, color: 'text-zinc-400' };
+            const Icon = meta.icon;
+            return (
+              <div key={log.id} className="rounded-xl p-3 border flex items-center gap-3" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <Icon size={16} className={meta.color} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm">
+                    <span className="font-medium">{meta.label}</span>
+                    {log.userName && <span style={{ color: 'var(--text-muted)' }}> — {log.userName}</span>}
+                    {log.botName && <span className="text-purple-400"> [{log.botName}]</span>}
+                  </div>
+                  {log.details && (
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {Object.entries(log.details as Record<string, unknown>).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>{timeAgo(log.createdAt)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

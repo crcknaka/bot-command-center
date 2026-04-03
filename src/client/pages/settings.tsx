@@ -100,6 +100,57 @@ function GeneralTab() {
       <button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors" style={{ background: saved ? 'var(--success)' : 'var(--primary)' }}>
         {saved ? <><Check size={16} /> Сохранено</> : <><Save size={16} /> {saveMut.isPending ? 'Сохраняю...' : 'Сохранить'}</>}
       </button>
+
+      {/* Change password */}
+      <ChangePassword />
+    </div>
+  );
+}
+
+function ChangePassword() {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  const changeMut = useMutation({
+    mutationFn: () => apiFetch('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: current, newPassword: newPwd }) }),
+    onSuccess: () => { setDone(true); setCurrent(''); setNewPwd(''); setTimeout(() => { setDone(false); setOpen(false); }, 2000); },
+    onError: (err) => setError((err as Error).message),
+  });
+
+  if (!open) {
+    return (
+      <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
+        <button onClick={() => setOpen(true)} className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+          Сменить пароль
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <h3 className="text-sm font-semibold mb-3">Смена пароля</h3>
+      {error && <div className="text-xs text-red-400 bg-red-500/10 rounded-lg p-2 mb-3">{error}</div>}
+      {done && <div className="text-xs text-green-400 bg-green-500/10 rounded-lg p-2 mb-3">Пароль изменён</div>}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">Текущий пароль</label>
+          <input type="password" value={current} onChange={(e) => { setCurrent(e.target.value); setError(''); }} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Новый пароль</label>
+          <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { setOpen(false); setError(''); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+          <button onClick={() => changeMut.mutate()} disabled={changeMut.isPending || !current || !newPwd} className="px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: 'var(--primary)' }}>
+            {changeMut.isPending ? 'Меняю...' : 'Сменить пароль'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
