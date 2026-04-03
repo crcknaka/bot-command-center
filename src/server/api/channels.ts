@@ -55,7 +55,7 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
 // PATCH /api/channels/:id
 channelsApi.patch('/channels/:id', async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json<{ title?: string; isTest?: boolean }>();
+  const body = await c.req.json<{ title?: string; isTest?: boolean; threadId?: number | null }>();
 
   const updated = db.update(channels).set(body).where(eq(channels.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);

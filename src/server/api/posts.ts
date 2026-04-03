@@ -86,6 +86,7 @@ postsApi.patch('/:id', async (c) => {
     imageUrl?: string;
     status?: string;
     scheduledFor?: string;
+    inlineButtons?: Array<{ text: string; url: string }>;
   }>();
 
   const updated = db.update(posts)
@@ -200,9 +201,18 @@ postsApi.post('/bulk', async (c) => {
           if (!botInstance) { failed++; break; }
 
           db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
+
+          const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+          let content = post.content;
+          if (bot?.postSignature) content += '\n\n' + bot.postSignature;
+          let reply_markup: any = undefined;
+          const btns = post.inlineButtons as Array<{ text: string; url: string }> | null;
+          if (btns?.length) reply_markup = { inline_keyboard: [btns.map((b: any) => ({ text: b.text, url: b.url }))] };
+          const opts: any = { parse_mode: 'HTML' as const, message_thread_id: channel.threadId ?? undefined, reply_markup };
+
           const msg = post.imageUrl
-            ? await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: post.content, parse_mode: 'HTML' })
-            : await botInstance.api.sendMessage(channel.chatId, post.content, { parse_mode: 'HTML' });
+            ? await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...opts })
+            : await botInstance.api.sendMessage(channel.chatId, content, opts);
 
           db.update(posts).set({ status: 'published', publishedAt: new Date().toISOString(), telegramMessageId: msg.message_id, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
           ok++;
