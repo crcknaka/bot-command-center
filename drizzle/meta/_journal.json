@@ -67,6 +67,7 @@
     { "idx": 22, "version": "6", "when": 1775238600000, "tag": "0022_ai_provider_model", "breakpoints": true },
     { "idx": 23, "version": "6", "when": 1775238700000, "tag": "0023_message_stats", "breakpoints": true },
     { "idx": 24, "version": "6", "when": 1775238800000, "tag": "0024_message_stats_indexes", "breakpoints": true },
-    { "idx": 25, "version": "6", "when": 1775238900000, "tag": "0025_message_stats_user_idx", "breakpoints": true }
+    { "idx": 25, "version": "6", "when": 1775238900000, "tag": "0025_message_stats_user_idx", "breakpoints": true },
+    { "idx": 26, "version": "6", "when": 1775239000000, "tag": "0026_message_stats_thread", "breakpoints": true }
   ]
 }

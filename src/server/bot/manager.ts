@@ -103,6 +103,7 @@ class BotManager {
           userName: from.first_name,
           username: from.username ?? null,
           messageType,
+          threadId: (msg as any).message_thread_id ?? null,
           textLength,
         }).run();
 

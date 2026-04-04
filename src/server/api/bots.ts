@@ -327,8 +327,13 @@ botsApi.get('/:id/members', async (c) => {
     }
   }
 
+  const threadId = c.req.query('threadId');
+
   // Get unique users from message_stats
-  const msgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
+  let msgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
+  if (threadId && threadId !== 'all') {
+    msgs = msgs.filter(m => String(m.threadId ?? '') === threadId);
+  }
   const usersMap: Record<number, { userId: number; userName: string; username: string | null; messageCount: number; lastSeen: string }> = {};
 
   for (const m of msgs) {

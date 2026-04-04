@@ -212,6 +212,7 @@ export const messageStats = sqliteTable('message_stats', {
   userName: text('user_name'),
   username: text('username'),
   messageType: text('message_type').notNull(), // text, photo, video, sticker, voice, video_note, forward, other
+  threadId: integer('thread_id'), // forum topic ID (null = general/no topics)
   textLength: integer('text_length').default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });

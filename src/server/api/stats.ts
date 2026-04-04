@@ -117,21 +117,33 @@ statsApi.get('/moderation', async (c) => {
   return c.json({ deleted, muted, warned, total: logs.length, topViolators });
 });
 
-// GET /api/stats/chat/:chatId/top-users — top users by message count
-statsApi.get('/chat/:chatId/top-users', async (c) => {
-  const chatId = c.req.param('chatId');
-  const period = c.req.query('period') ?? 'week'; // week, month, all
-
+/** Helper: get filtered messages for a chat */
+function getChatMessages(chatId: string, period: string, threadId?: string) {
   let since = '';
   const now = new Date();
   if (period === 'week') { now.setDate(now.getDate() - 7); since = now.toISOString(); }
   else if (period === 'month') { now.setDate(now.getDate() - 30); since = now.toISOString(); }
 
-  const allMsgs = db.select().from(messageStats)
+  let msgs = db.select().from(messageStats)
     .where(since
       ? and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, since))
       : eq(messageStats.chatId, chatId)
     ).all();
+
+  // Filter by thread if specified
+  if (threadId && threadId !== 'all') {
+    msgs = msgs.filter(m => String(m.threadId ?? '') === threadId);
+  }
+  return msgs;
+}
+
+// GET /api/stats/chat/:chatId/top-users — top users by message count
+statsApi.get('/chat/:chatId/top-users', async (c) => {
+  const chatId = c.req.param('chatId');
+  const period = c.req.query('period') ?? 'week';
+  const threadId = c.req.query('threadId');
+
+  const allMsgs = getChatMessages(chatId, period, threadId);
 
   // Group by user
   const users: Record<number, { userId: number; userName: string; username: string | null; count: number; types: Record<string, number>; textLength: number }> = {};
@@ -153,7 +165,10 @@ statsApi.get('/chat/:chatId/top-users', async (c) => {
 statsApi.get('/chat/:chatId/activity', async (c) => {
   const chatId = c.req.param('chatId');
   const period = c.req.query('period') ?? 'week';
+  const threadId = c.req.query('threadId');
   const days = period === 'month' ? 30 : 7;
+
+  const allMsgs = getChatMessages(chatId, 'all', threadId);
 
   const result: { date: string; count: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
@@ -165,11 +180,7 @@ statsApi.get('/chat/:chatId/activity', async (c) => {
     nextDay.setDate(nextDay.getDate() + 1);
     const dayEnd = nextDay.toISOString();
 
-    const cnt = db.select().from(messageStats)
-      .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, dayStart)))
-      .all().filter(m => m.createdAt < dayEnd).length;
-
-    result.push({ date: dayStart.slice(0, 10), count: cnt });
+    result.push({ date: dayStart.slice(0, 10), count: allMsgs.filter(m => m.createdAt >= dayStart && m.createdAt < dayEnd).length });
   }
 
   return c.json(result);
@@ -179,18 +190,9 @@ statsApi.get('/chat/:chatId/activity', async (c) => {
 statsApi.get('/chat/:chatId/types', async (c) => {
   const chatId = c.req.param('chatId');
   const period = c.req.query('period') ?? 'week';
+  const threadId = c.req.query('threadId');
 
-  let since = '';
-  const now = new Date();
-  if (period === 'week') { now.setDate(now.getDate() - 7); since = now.toISOString(); }
-  else if (period === 'month') { now.setDate(now.getDate() - 30); since = now.toISOString(); }
-
-  const msgs = db.select().from(messageStats)
-    .where(since
-      ? and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, since))
-      : eq(messageStats.chatId, chatId)
-    ).all();
-
+  const msgs = getChatMessages(chatId, period, threadId);
   const types: Record<string, number> = {};
   for (const m of msgs) types[m.messageType] = (types[m.messageType] ?? 0) + 1;
 
@@ -200,14 +202,10 @@ statsApi.get('/chat/:chatId/types', async (c) => {
 // GET /api/stats/chat/:chatId/summary — overview numbers
 statsApi.get('/chat/:chatId/summary', async (c) => {
   const chatId = c.req.param('chatId');
+  const threadId = c.req.query('threadId');
 
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
-
-  const weekMsgs = db.select().from(messageStats)
-    .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, weekAgo.toISOString()))).all();
-  const monthMsgs = db.select().from(messageStats)
-    .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, monthAgo.toISOString()))).all();
+  const weekMsgs = getChatMessages(chatId, 'week', threadId);
+  const monthMsgs = getChatMessages(chatId, 'month', threadId);
 
   const uniqueUsersWeek = new Set(weekMsgs.map(m => m.userId)).size;
   const uniqueUsersMonth = new Set(monthMsgs.map(m => m.userId)).size;
@@ -225,6 +223,30 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
     month: { messages: monthMsgs.length, users: uniqueUsersMonth, avgPerDay: Math.round(monthMsgs.length / 30) },
     peakHour: peakHour ? { hour: Number(peakHour[0]), count: peakHour[1] } : null,
   });
+});
+
+// GET /api/stats/chat/:chatId/threads — list known threads/topics
+statsApi.get('/chat/:chatId/threads', async (c) => {
+  const chatId = c.req.param('chatId');
+  const msgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
+
+  const threads: Record<string, number> = {};
+  for (const m of msgs) {
+    const key = String(m.threadId ?? 'general');
+    threads[key] = (threads[key] ?? 0) + 1;
+  }
+
+  // Try to get thread names from channels table
+  const allChannels = db.select().from(channels).all();
+
+  const result = Object.entries(threads).map(([tid, count]) => {
+    let title = tid === 'general' ? 'Общий' : `Топик #${tid}`;
+    const ch = allChannels.find(c => c.chatId === chatId && String(c.threadId) === tid);
+    if (ch?.threadTitle) title = ch.threadTitle;
+    return { threadId: tid, title, messageCount: count };
+  }).sort((a, b) => b.messageCount - a.messageCount);
+
+  return c.json(result);
 });
 
 // GET /api/stats/chats — list chats with stats

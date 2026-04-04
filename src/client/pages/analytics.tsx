@@ -20,26 +20,34 @@ const typeColors: Record<string, string> = {
 export function AnalyticsPage() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [period, setPeriod] = useState<'week' | 'month' | 'all'>('week');
+  const [selectedThread, setSelectedThread] = useState<string>('all');
+
+  const threadParam = selectedThread !== 'all' ? `&threadId=${selectedThread}` : '';
 
   const { data: chats } = useQuery({ queryKey: ['stats-chats'], queryFn: () => apiFetch('/stats/chats') });
+  const { data: threads } = useQuery({
+    queryKey: ['stats-threads', selectedChat],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/threads`),
+    enabled: !!selectedChat,
+  });
   const { data: summary } = useQuery({
-    queryKey: ['stats-summary', selectedChat],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/summary`),
+    queryKey: ['stats-summary', selectedChat, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/summary?${threadParam.slice(1)}`),
     enabled: !!selectedChat,
   });
   const { data: topUsers } = useQuery({
-    queryKey: ['stats-top', selectedChat, period],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/top-users?period=${period}`),
+    queryKey: ['stats-top', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/top-users?period=${period}${threadParam}`),
     enabled: !!selectedChat,
   });
   const { data: activity } = useQuery({
-    queryKey: ['stats-activity', selectedChat, period],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/activity?period=${period}`),
+    queryKey: ['stats-activity', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/activity?period=${period}${threadParam}`),
     enabled: !!selectedChat,
   });
   const { data: types } = useQuery({
-    queryKey: ['stats-types', selectedChat, period],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/types?period=${period}`),
+    queryKey: ['stats-types', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/types?period=${period}${threadParam}`),
     enabled: !!selectedChat,
   });
 
@@ -75,14 +83,23 @@ export function AnalyticsPage() {
 
       {selectedChat && summary && (
         <div>
-          {/* Period selector */}
-          <div className="flex gap-2 mb-4">
+          {/* Period + Thread selector */}
+          <div className="flex gap-2 mb-4 flex-wrap items-center">
             {([['week', 'Неделя'], ['month', 'Месяц'], ['all', 'Всё время']] as const).map(([v, l]) => (
               <button key={v} onClick={() => setPeriod(v)}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-medium', period === v ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500 hover:text-zinc-300')}>
                 {l}
               </button>
             ))}
+            {threads && threads.length > 0 && (
+              <select value={selectedThread} onChange={(e) => setSelectedThread(e.target.value)}
+                className="ml-2 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                <option value="all">Все топики</option>
+                {threads.map((t: any) => (
+                  <option key={t.threadId} value={t.threadId}>{t.title} ({t.messageCount})</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Summary cards */}
