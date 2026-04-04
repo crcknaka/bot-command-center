@@ -110,7 +110,14 @@ export function BotDetailPage() {
   const fetchSourceMut = useMutation({
     mutationFn: (sourceId: number) => apiFetch(`/sources/${sourceId}/fetch`, { method: 'POST' }),
     onSuccess: (data, sourceId) => {
-      setFetchResult((prev) => ({ ...prev, [sourceId]: { ok: true, msg: `Загружено новых статей: ${data.newArticles}` } }));
+      let msg = `Источник работает. ${data.totalArticles} статей в фиде.`;
+      if (data.filterInfo) {
+        const fi = data.filterInfo;
+        msg += fi.matched > 0
+          ? ` Фильтр: ${fi.matched} из ${fi.total} подходят (${fi.keywords.join(', ')})`
+          : ` Фильтр: 0 из ${fi.total} подходят (${fi.keywords.join(', ')})`;
+      }
+      setFetchResult((prev) => ({ ...prev, [sourceId]: { ok: true, msg } }));
       qc.invalidateQueries({ queryKey: ['sources'] });
       setTimeout(() => setFetchResult((prev) => { const n = { ...prev }; delete n[sourceId]; return n; }), 5000);
     },

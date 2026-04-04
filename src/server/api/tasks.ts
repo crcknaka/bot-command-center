@@ -4,7 +4,7 @@ import { tasks, sources, channels, bots } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
-import { fetchAndStore } from '../tasks/news-feed/fetcher.js';
+import { fetchAndStore, fetchOnly } from '../tasks/news-feed/fetcher.js';
 import { botManager } from '../bot/manager.js';
 import cron from 'node-cron';
 
@@ -210,12 +210,28 @@ tasksApi.delete('/sources/:id', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /api/sources/:id/fetch — manually fetch this source
+// POST /api/sources/:id/fetch — test source (fetch without storing)
 tasksApi.post('/sources/:id/fetch', async (c) => {
   const id = Number(c.req.param('id'));
   try {
-    const count = await fetchAndStore(id);
-    return c.json({ ok: true, newArticles: count });
+    const articles = await fetchOnly(id);
+
+    // Check filter keywords from parent task
+    const source = db.select().from(sources).where(eq(sources.id, id)).limit(1).get();
+    let filterInfo: { total: number; matched: number; keywords: string[] } | undefined;
+    if (source) {
+      const task = db.select().from(tasks).where(eq(tasks.id, source.taskId)).limit(1).get();
+      const keywords: string[] = (task?.config as any)?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
+      if (keywords.length > 0) {
+        const matched = articles.filter((a) => {
+          const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
+          return keywords.some((kw) => text.includes(kw.toLowerCase()));
+        });
+        filterInfo = { total: articles.length, matched: matched.length, keywords };
+      }
+    }
+
+    return c.json({ ok: true, totalArticles: articles.length, filterInfo });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
   }

@@ -135,6 +135,28 @@ export async function fetchWeb(url: string): Promise<FetchedArticle[]> {
 }
 
 /**
+ * Fetch articles from a source WITHOUT storing. For testing/preview only.
+ */
+export async function fetchOnly(sourceId: number): Promise<FetchedArticle[]> {
+  const source = db.select().from(sources).where(eq(sources.id, sourceId)).limit(1).get();
+  if (!source) return [];
+
+  switch (source.type) {
+    case 'rss':
+    case 'youtube':
+      return fetchRSS(source.url);
+    case 'reddit':
+      return fetchRedditRSS(source.url);
+    case 'twitter':
+      return fetchTwitter(source.url);
+    case 'web':
+      return fetchWeb(source.url);
+    default:
+      return [];
+  }
+}
+
+/**
  * Fetch and store new articles from a source.
  * Returns count of new articles inserted.
  */
