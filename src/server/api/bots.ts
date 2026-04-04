@@ -28,20 +28,30 @@ botsApi.get('/:id/avatar/:userId', async (c) => {
 
   try {
     const photos = await botInstance.api.getUserProfilePhotos(userId, { limit: 1 });
-    if (!photos.total_count || !photos.photos[0]?.[0]) return c.body(null, 404);
+    if (!photos.total_count || !photos.photos[0]?.[0]) {
+      console.log(`[avatar] No photo for user ${userId}`);
+      return c.body(null, 404);
+    }
     const photo = photos.photos[0][0];
     const file = await botInstance.api.getFile(photo.file_id);
-    if (!file.file_path) return c.body(null, 404);
+    if (!file.file_path) {
+      console.log(`[avatar] No file_path for user ${userId}`);
+      return c.body(null, 404);
+    }
 
     const url = `https://api.telegram.org/file/bot${botRecord.token}/${file.file_path}`;
     const imgRes = await fetch(url);
-    if (!imgRes.ok) return c.body(null, 404);
+    if (!imgRes.ok) {
+      console.log(`[avatar] Telegram file fetch failed for user ${userId}: ${imgRes.status}`);
+      return c.body(null, 404);
+    }
 
     const buffer = await imgRes.arrayBuffer();
     c.header('Content-Type', imgRes.headers.get('content-type') ?? 'image/jpeg');
     c.header('Cache-Control', 'public, max-age=3600');
     return c.body(new Uint8Array(buffer));
-  } catch {
+  } catch (err) {
+    console.error(`[avatar] Error for user ${userId}:`, (err as Error).message);
     return c.body(null, 404);
   }
 });
