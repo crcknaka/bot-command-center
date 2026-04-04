@@ -322,54 +322,8 @@ export function BotDetailPage() {
               )}
             </div>
 
-            {/* Schedule - visual presets (only for news_feed) */}
-            {taskType === 'news_feed' && <>
-            <label className="block text-sm font-medium mb-2">Как часто запускать?</label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {[
-                { label: 'Каждый день в 9:00', value: '0 9 * * *', desc: 'Один раз утром' },
-                { label: 'Два раза в день', value: '0 9,18 * * *', desc: '9:00 и 18:00' },
-                { label: 'Каждые 6 часов', value: '0 */6 * * *', desc: '4 раза в сутки' },
-                { label: 'Каждый час', value: '0 * * * *', desc: 'Для активных каналов' },
-              ].map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => setTaskSchedule(preset.value)}
-                  className={cn(
-                    'p-2.5 rounded-xl border text-left transition-colors',
-                    taskSchedule === preset.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600'
-                  )}
-                  style={{ borderColor: taskSchedule === preset.value ? undefined : 'var(--border)' }}
-                >
-                  <div className="text-xs font-medium">{preset.label}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{preset.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Custom cron - collapsible */}
-            <details className="mb-5">
-              <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                Или введите своё расписание (cron)
-              </summary>
-              <div className="mt-2">
-                <input
-                  value={taskSchedule}
-                  onChange={(e) => setTaskSchedule(e.target.value)}
-                  placeholder="0 9 * * *"
-                  className="w-full px-3 py-2 rounded-lg border text-sm font-mono"
-                  style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
-                />
-                <div className="text-[10px] mt-1.5 space-y-0.5" style={{ color: 'var(--text-muted)' }}>
-                  <div>Формат: <code>минута час день месяц день_недели</code></div>
-                  <div><code>0 9 * * *</code> — каждый день в 9:00</div>
-                  <div><code>*/30 * * * *</code> — каждые 30 минут</div>
-                  <div><code>0 9 * * 1-5</code> — по будням в 9:00</div>
-                </div>
-              </div>
-            </details>
-            </>}
+            {/* Schedule (only for news_feed) */}
+            {taskType === 'news_feed' && <SchedulePicker value={taskSchedule} onChange={setTaskSchedule} />}
 
             {/* AI mode toggle (only for news_feed) */}
             {taskType === 'news_feed' && (
@@ -516,12 +470,137 @@ export function BotDetailPage() {
 
 // ─── Edit Task Modal ─────────────────────────────────────────────────────────
 
-const schedulePresets = [
-  { label: 'Каждый день в 9:00', value: '0 9 * * *' },
-  { label: 'Два раза в день', value: '0 9,18 * * *' },
-  { label: 'Каждые 6 часов', value: '0 */6 * * *' },
-  { label: 'Каждый час', value: '0 * * * *' },
-];
+// ─── Schedule Picker ─────────────────────────────────────────────────────────
+
+type ScheduleMode = 'daily' | 'multi' | 'interval' | 'custom';
+
+function SchedulePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  // Parse current cron to detect mode
+  const detectMode = (): ScheduleMode => {
+    if (!value || value === '0 * * * *') return 'interval';
+    if (value.match(/^0 \d+,/) ) return 'multi';
+    if (value.match(/^0 \*\/\d+ \* \* \*$/)) return 'interval';
+    if (value.match(/^0 \d+ \* \* \*$/)) return 'daily';
+    return 'custom';
+  };
+
+  const [mode, setMode] = useState<ScheduleMode>(detectMode);
+  const [dailyHour, setDailyHour] = useState(() => {
+    const m = value.match(/^0 (\d+) \* \* \*$/);
+    return m ? Number(m[1]) : 9;
+  });
+  const [multiHours, setMultiHours] = useState<number[]>(() => {
+    const m = value.match(/^0 ([\d,]+) \* \* \*$/);
+    return m ? m[1].split(',').map(Number) : [9, 18];
+  });
+  const [intervalH, setIntervalH] = useState(() => {
+    const m = value.match(/^0 \*\/(\d+) \* \* \*$/);
+    return m ? Number(m[1]) : 6;
+  });
+
+  const applyDaily = (h: number) => { setDailyHour(h); onChange(`0 ${h} * * *`); };
+  const applyMulti = (hours: number[]) => { setMultiHours(hours); onChange(`0 ${hours.sort((a, b) => a - b).join(',')} * * *`); };
+  const applyInterval = (h: number) => { setIntervalH(h); onChange(`0 */${h} * * *`); };
+  const toggleMultiHour = (h: number) => {
+    const next = multiHours.includes(h) ? multiHours.filter((x) => x !== h) : [...multiHours, h];
+    if (next.length > 0) applyMulti(next);
+  };
+
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+
+  return (
+    <div className="mb-5">
+      <label className="block text-sm font-medium mb-2">Расписание</label>
+
+      {/* Mode selector */}
+      <div className="flex gap-1.5 mb-3 flex-wrap">
+        {[
+          { id: 'daily' as ScheduleMode, label: 'Раз в день' },
+          { id: 'multi' as ScheduleMode, label: 'Несколько раз' },
+          { id: 'interval' as ScheduleMode, label: 'Каждые N часов' },
+          { id: 'custom' as ScheduleMode, label: 'Cron' },
+        ].map((m) => (
+          <button key={m.id} type="button" onClick={() => {
+            setMode(m.id);
+            if (m.id === 'daily') applyDaily(dailyHour);
+            if (m.id === 'multi') applyMulti(multiHours);
+            if (m.id === 'interval') applyInterval(intervalH);
+          }}
+            className={cn('px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors', mode === m.id ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500 hover:text-zinc-300')}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Daily: single hour picker */}
+      {mode === 'daily' && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs">Каждый день в</span>
+            <select value={dailyHour} onChange={(e) => applyDaily(Number(e.target.value))}
+              className="px-2 py-1 rounded-lg border text-sm font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+              {hours.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+            </select>
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Бот запустится один раз в день в выбранное время.</p>
+        </div>
+      )}
+
+      {/* Multi: multiple hours */}
+      {mode === 'multi' && (
+        <div>
+          <p className="text-xs mb-2">Выберите часы (нажмите на нужные):</p>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {hours.map((h) => (
+              <button key={h} type="button" onClick={() => toggleMultiHour(h)}
+                className={cn('w-10 py-1 rounded text-[11px] font-mono transition-colors', multiHours.includes(h) ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300')}>
+                {String(h).padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Выбрано: {multiHours.sort((a, b) => a - b).map((h) => `${String(h).padStart(2, '0')}:00`).join(', ') || 'ничего'}
+          </p>
+        </div>
+      )}
+
+      {/* Interval */}
+      {mode === 'interval' && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs">Каждые</span>
+            <select value={intervalH} onChange={(e) => applyInterval(Number(e.target.value))}
+              className="px-2 py-1 rounded-lg border text-sm" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+              {[1, 2, 3, 4, 6, 8, 12].map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+            <span className="text-xs">часов</span>
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {intervalH === 1 ? '24 раза в сутки' : `${Math.floor(24 / intervalH)} раз в сутки`}
+          </p>
+        </div>
+      )}
+
+      {/* Custom cron */}
+      {mode === 'custom' && (
+        <div>
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="0 9 * * *"
+            className="w-full px-3 py-2 rounded-lg border text-sm font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <div className="text-[10px] mt-1.5 space-y-0.5" style={{ color: 'var(--text-muted)' }}>
+            <div>Формат: <code>минута час день месяц день_недели</code></div>
+            <div><code>0 9 * * 1-5</code> — по будням в 9:00</div>
+            <div><code>30 14 * * *</code> — каждый день в 14:30</div>
+          </div>
+        </div>
+      )}
+
+      {/* Current cron display */}
+      <div className="mt-2 text-[10px] font-mono px-2 py-1 rounded bg-zinc-800" style={{ color: 'var(--text-muted)' }}>
+        cron: {value}
+      </div>
+    </div>
+  );
+}
 
 function EditTaskModal({ task, onSave, onClose, isPending }: {
   task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
@@ -560,24 +639,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
         </label>
 
         {/* Schedule */}
-        {task.type === 'news_feed' && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Расписание</label>
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-              {schedulePresets.map((p) => (
-                <button key={p.value} type="button" onClick={() => setSchedule(p.value)}
-                  className={cn('p-2 rounded-lg border text-[11px] text-left transition-colors', schedule === p.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
-                  style={{ borderColor: schedule === p.value ? undefined : 'var(--border)' }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <details>
-              <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>Cron-выражение</summary>
-              <input value={schedule} onChange={(e) => setSchedule(e.target.value)} className="w-full px-3 py-1.5 rounded-lg border text-xs font-mono mt-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-            </details>
-          </div>
-        )}
+        {task.type === 'news_feed' && <SchedulePicker value={schedule} onChange={setSchedule} />}
 
         {/* AI mode */}
         {task.type === 'news_feed' && (
