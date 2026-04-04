@@ -3,20 +3,13 @@ import { db } from '../../db/client.js';
 import { sources, articles, posts, channels, bots } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { fetchAndStore } from './fetcher.js';
-import { searchWeb } from '../../services/search.js';
-import { generatePostFromSearch, generatePost } from '../../services/ai/generate.js';
+import { generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 
 interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
   rawTemplate?: string; // Template for non-AI mode: {title}, {summary}, {url}, {author}
-  filterKeywords?: string[]; // Only process articles containing these keywords (in title or content)
-  searchQueries?: string[];
-  searchDepth?: 'basic' | 'advanced';
-  maxResults?: number;
-  timeRange?: 'day' | 'week' | 'month' | 'year';
-  includeDomains?: string[];
-  excludeDomains?: string[];
+  filterKeywords?: string[]; // Only process articles containing these keywords
   aiProviderId?: number;
   aiModel?: string;
   systemPrompt?: string;
@@ -76,11 +69,11 @@ export class NewsFeedTask implements TaskModule {
     // ── Step 1: Fetch from RSS sources ──────────────────────────────────
     const taskSources = db.select().from(sources).where(eq(sources.taskId, ctx.taskId)).all();
 
-    if (taskSources.length === 0 && (!config.searchQueries || config.searchQueries.length === 0)) {
+    if (taskSources.length === 0) {
       steps.push({
         action: 'Проверка источников',
         status: 'error',
-        detail: 'Нет ни RSS-источников, ни поисковых запросов. Добавьте хотя бы один источник или настройте поисковые запросы в конфиге задачи.',
+        detail: 'Нет источников. Добавьте хотя бы один RSS-фид, Reddit, Twitter или другой источник.',
       });
       return { steps };
     }
@@ -106,100 +99,7 @@ export class NewsFeedTask implements TaskModule {
       }
     }
 
-    // ── Step 2: Tavily search ───────────────────────────────────────────
-    if (config.searchQueries?.length) {
-      for (const query of config.searchQueries) {
-        try {
-          const results = await searchWeb({
-            query,
-            maxResults: config.maxResults ?? 3,
-            timeRange: config.timeRange ?? 'day',
-            includeDomains: config.includeDomains,
-            excludeDomains: config.excludeDomains,
-            botId,
-          });
-
-          if (results.length === 0) {
-            steps.push({ action: `Поиск: "${query}"`, status: 'skipped', detail: 'Ничего не найдено' });
-            continue;
-          }
-
-          steps.push({ action: `Поиск: "${query}"`, status: 'ok', detail: `Найдено ${results.length} результатов` });
-
-          if (useAi) {
-            // AI mode — generate post from search results
-            const provider = resolveProvider({
-              taskConfigProviderId: config.aiProviderId,
-              botId,
-              ownerId,
-            });
-
-            if (!provider) {
-              steps.push({ action: 'Генерация поста', status: 'error', detail: 'Режим «С AI» — но AI-провайдер не настроен. Добавьте в Настройки → AI-модели, или переключите на «Без AI».' });
-              continue;
-            }
-
-            const modelId = resolveModel(config.aiModel, provider.id);
-            const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-
-            const generated = await generatePostFromSearch({
-              providerId: provider.id,
-              modelId,
-              systemPrompt,
-              searchResults: results,
-              topic: query,
-              language: lang,
-              maxLength: maxLen,
-            });
-
-            db.insert(posts).values({
-              channelId: ctx.channelId,
-              taskId: ctx.taskId,
-              content: generated.content,
-              imageUrl: results[0]?.imageUrl,
-              status: config.autoApprove ? 'queued' : 'draft',
-              aiProviderId: provider.id,
-              aiModel: modelId,
-            }).run();
-
-            steps.push({
-              action: `Генерация: "${query}"`,
-              status: 'ok',
-              detail: `AI-пост (${generated.tokensUsed} токенов, ${modelId}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
-            });
-          } else {
-            // Raw mode — create posts from search results using template
-            for (const sr of results.slice(0, remainingToday)) {
-              const content = formatRaw({
-                title: sr.title,
-                summary: sr.content,
-                content: sr.content,
-                url: sr.url,
-                author: null,
-              }, rawTemplate, maxLen);
-
-              db.insert(posts).values({
-                channelId: ctx.channelId,
-                taskId: ctx.taskId,
-                content,
-                imageUrl: sr.imageUrl,
-                status: config.autoApprove ? 'queued' : 'draft',
-              }).run();
-            }
-
-            steps.push({
-              action: `Поиск: "${query}"`,
-              status: 'ok',
-              detail: `${results.length} постов из шаблона (без AI). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
-            });
-          }
-        } catch (err) {
-          steps.push({ action: `Поиск: "${query}"`, status: 'error', detail: (err as Error).message });
-        }
-      }
-    }
-
-    // ── Step 3: Generate posts from unprocessed RSS articles ────────────
+    // ── Step 2: Generate posts from unprocessed RSS articles ────────────
     if (taskSources.length > 0) {
       const allArticles = taskSources.flatMap((src) =>
         db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
@@ -214,8 +114,12 @@ export class NewsFeedTask implements TaskModule {
           })
         : allArticles;
 
-      if (keywords.length > 0 && filtered.length < allArticles.length) {
-        steps.push({ action: 'Фильтр по ключевым словам', status: 'ok', detail: `${filtered.length} из ${allArticles.length} статей прошли фильтр (${keywords.join(', ')})` });
+      if (keywords.length > 0) {
+        if (filtered.length === 0) {
+          steps.push({ action: 'Фильтр', status: 'skipped', detail: `Ни одна из ${allArticles.length} статей не содержит: ${keywords.join(', ')}. Попробуйте расширить ключевые слова.` });
+        } else {
+          steps.push({ action: 'Фильтр', status: 'ok', detail: `${filtered.length} из ${allArticles.length} статей содержат: ${keywords.join(', ')}` });
+        }
       }
 
       const unprocessed = filtered.filter((article) => {
@@ -224,8 +128,8 @@ export class NewsFeedTask implements TaskModule {
         return !existingPost;
       }).slice(0, remainingToday);
 
-      if (unprocessed.length === 0 && taskSources.length > 0) {
-        steps.push({ action: 'Генерация из статей', status: 'skipped', detail: 'Нет новых необработанных статей' });
+      if (unprocessed.length === 0) {
+        steps.push({ action: 'Посты', status: 'skipped', detail: keywords.length > 0 ? 'Все подходящие статьи уже обработаны.' : 'Нет новых статей для обработки.' });
       }
 
       for (const article of unprocessed) {

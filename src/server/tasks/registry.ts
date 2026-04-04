@@ -3,9 +3,11 @@ import { NewsFeedTask } from './news-feed/index.js';
 import { AutoReplyTask } from './auto-reply/index.js';
 import { WelcomeTask } from './welcome/index.js';
 import { ModerationTask } from './moderation/index.js';
+import { WebSearchTask } from './web-search/index.js';
 
 const modules: Record<string, TaskModule> = {
   news_feed: new NewsFeedTask(),
+  web_search: new WebSearchTask(),
   auto_reply: new AutoReplyTask(),
   welcome: new WelcomeTask(),
   moderation: new ModerationTask(),

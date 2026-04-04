@@ -304,6 +304,7 @@ export function BotDetailPage() {
         const isGroup = showAddTask.channelType === 'group' || showAddTask.channelType === 'supergroup';
         const allTaskTypes = [
           { value: 'news_feed', icon: '📰', title: 'Новостная лента', desc: 'Собирает новости из RSS, Reddit, Twitter, YouTube. Генерирует посты через AI и публикует по расписанию.', needsSchedule: true, forChannel: true, forGroup: true },
+          { value: 'web_search', icon: '🔍', title: 'Мониторинг тем', desc: 'Ищет статьи в интернете по ключевым запросам. Нужен поисковый провайдер (Tavily, Serper и др.).', needsSchedule: true, forChannel: true, forGroup: true },
           { value: 'auto_reply', icon: '🤖', title: 'Авто-ответы', desc: 'Автоматически отвечает на сообщения по ключевым словам или regex-паттернам.', needsSchedule: false, forChannel: false, forGroup: true },
           { value: 'welcome', icon: '👋', title: 'Приветствие', desc: 'Отправляет приветственное сообщение новым участникам группы.', needsSchedule: false, forChannel: false, forGroup: true },
           { value: 'moderation', icon: '🛡️', title: 'Модерация', desc: 'Удаляет сообщения с запрещёнными словами, ограничивает ссылки, предупреждает нарушителей.', needsSchedule: false, forChannel: false, forGroup: true },
@@ -332,6 +333,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -468,10 +470,16 @@ export function BotDetailPage() {
               <ModerationConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} />
             )}
 
+            {/* Web Search config */}
+            {taskType === 'web_search' && (
+              <WebSearchConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} />
+            )}
+
             {/* Hint per task type */}
             <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--text-muted)' }}>
               {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в уникальные посты.</>}
               {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон — без AI, бесплатно.</>}
+              {taskType === 'web_search' && <>💡 Задайте поисковые запросы. Бот найдёт свежие статьи в интернете и создаст посты.</>}
               {taskType === 'auto_reply' && <>💡 Настройте правила. Бот перезапустится автоматически при сохранении.</>}
               {taskType === 'welcome' && <>💡 Задайте текст приветствия. Бот перезапустится автоматически.</>}
               {taskType === 'moderation' && <>💡 Задайте настройки модерации. Бот перезапустится автоматически.</>}
@@ -691,6 +699,92 @@ function WarnConfig({ label, warnKey, value, onChange }: {
           {texts.length > 1 && <span className="text-[9px] ml-2" style={{ color: 'var(--text-muted)' }}>(рандомно)</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Web Search Config UI ────────────────────────────────────────────────────
+
+function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch: any) => void }) {
+  const [newQ, setNewQ] = useState('');
+  const queries: string[] = config.queries ?? [];
+  const { data: searchProviders } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
+
+  return (
+    <div className="mb-4 space-y-4">
+      {/* Search provider status */}
+      {!searchProviders?.length && (
+        <div className="rounded-lg p-3 text-xs bg-yellow-500/10 text-yellow-400">
+          ⚠️ Поисковый провайдер не подключён. Перейдите в <b>Настройки → Поиск</b> и добавьте Tavily, Serper или другой.
+        </div>
+      )}
+
+      {/* Queries */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Поисковые запросы</label>
+        <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
+          Бот будет искать статьи в интернете по этим запросам. Чем конкретнее запрос — тем точнее результат.
+        </p>
+        <div className="flex gap-2 mb-2">
+          <input value={newQ} onChange={(e) => setNewQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } } }}
+            placeholder="Например: electric unicycle news 2026"
+            className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <button type="button" onClick={() => { if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
+            Добавить
+          </button>
+        </div>
+        {queries.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {queries.map((q: string, i: number) => (
+              <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
+                🔍 {q}
+                <button type="button" onClick={() => onChange({ queries: queries.filter((_: string, j: number) => j !== i) })} className="hover:text-blue-300">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* AI mode */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Как делать пост из результатов?</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => onChange({ useAi: true })}
+            className={cn('p-3 rounded-xl border text-left text-xs transition-colors', (config.useAi !== false) ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+            style={{ borderColor: (config.useAi !== false) ? undefined : 'var(--border)' }}>
+            <div className="font-medium mb-1">🤖 С AI</div>
+            <div style={{ color: 'var(--text-muted)' }}>AI напишет уникальный пост на основе найденных статей. Нужен AI-провайдер.</div>
+          </button>
+          <button type="button" onClick={() => onChange({ useAi: false })}
+            className={cn('p-3 rounded-xl border text-left text-xs transition-colors', config.useAi === false ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+            style={{ borderColor: config.useAi === false ? undefined : 'var(--border)' }}>
+            <div className="font-medium mb-1">📋 Без AI</div>
+            <div style={{ color: 'var(--text-muted)' }}>Заголовок + текст + ссылка из шаблона. Бесплатно, без AI.</div>
+          </button>
+        </div>
+      </div>
+
+      {/* Time range */}
+      <div className="flex items-center gap-2 text-xs">
+        <span style={{ color: 'var(--text-muted)' }}>Искать за:</span>
+        <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
+          className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+          <option value="day">Последний день</option>
+          <option value="week">Неделю</option>
+          <option value="month">Месяц</option>
+        </select>
+        <span style={{ color: 'var(--text-muted)' }}>Макс. результатов:</span>
+        <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
+          className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+      </div>
+
+      {/* Auto-approve */}
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={config.autoApprove ?? false} onChange={(e) => onChange({ autoApprove: e.target.checked })} />
+        Авто-одобрение (сразу в очередь, без ручной проверки)
+      </label>
     </div>
   );
 }
@@ -953,7 +1047,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
 }) {
   const config = task.config ?? {};
-  const defaultName = { news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type;
+  const defaultName = { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type;
   const [name, setName] = useState(task.name || defaultName);
   const [schedule, setSchedule] = useState(task.schedule ?? '');
   const [enabled, setEnabled] = useState(task.enabled ?? true);
@@ -963,9 +1057,6 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
   const [filterKeywords, setFilterKeywords] = useState<string[]>(config.filterKeywords ?? []);
   const [newFilterKw, setNewFilterKw] = useState('');
-  const [searchQueries, setSearchQueries] = useState<string[]>(config.searchQueries ?? []);
-  const [newQuery, setNewQuery] = useState('');
-  const { data: searchProvidersList } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
   // Auto-reply
   const [rules, setRules] = useState<Array<{ pattern: string; response: string; isRegex?: boolean; replyInDm?: boolean }>>(config.rules ?? [{ pattern: '', response: '' }]);
   const [cooldownSec, setCooldownSec] = useState(config.cooldownSeconds ?? 0);
@@ -996,6 +1087,16 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
     muteOnViolation: config.muteOnViolation ?? false,
     muteDurationMinutes: config.muteDurationMinutes ?? 5,
   });
+  // Web search
+  const [webSearchConfig, setWebSearchConfig] = useState<Record<string, any>>({
+    queries: config.queries ?? [],
+    useAi: config.useAi ?? true,
+    systemPrompt: config.systemPrompt,
+    rawTemplate: config.rawTemplate,
+    autoApprove: config.autoApprove ?? false,
+    maxResults: config.maxResults ?? 3,
+    timeRange: config.timeRange ?? 'day',
+  });
 
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
@@ -1013,7 +1114,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
         </label>
 
         {/* Schedule */}
-        {task.type === 'news_feed' && <SchedulePicker value={schedule} onChange={setSchedule} />}
+        {(task.type === 'news_feed' || task.type === 'web_search') && <SchedulePicker value={schedule} onChange={setSchedule} />}
 
         {/* AI mode */}
         {task.type === 'news_feed' && (
@@ -1105,6 +1206,11 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <ModerationConfigUI config={modConfig} onChange={(patch: any) => setModConfig((prev: any) => ({ ...prev, ...patch }))} />
         )}
 
+        {/* Web Search config */}
+        {task.type === 'web_search' && (
+          <WebSearchConfigUI config={webSearchConfig} onChange={(patch: any) => setWebSearchConfig((prev: any) => ({ ...prev, ...patch }))} />
+        )}
+
         {/* Filter keywords */}
         {task.type === 'news_feed' && (
           <div>
@@ -1136,40 +1242,6 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
         )}
 
         {/* Search queries */}
-        {task.type === 'news_feed' && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Поисковые запросы</label>
-            <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
-              Бот будет искать статьи в интернете по этим запросам. С AI — перепишет в пост. Без AI — подставит в шаблон.
-              {searchProvidersList?.length ? (
-                <span className="text-green-400"> Поисковый провайдер подключён.</span>
-              ) : (
-                <span className="text-yellow-400"> Для работы нужен поисковый провайдер (Tavily, Serper и др.) — добавьте в Настройки → Поиск.</span>
-              )}
-            </p>
-            <div className="flex gap-2 mb-2">
-              <input value={newQuery} onChange={(e) => setNewQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newQuery.trim()) { setSearchQueries([...searchQueries, newQuery.trim()]); setNewQuery(''); } } }}
-                placeholder="Например: electric unicycle news"
-                className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <button type="button" onClick={() => { if (newQuery.trim()) { setSearchQueries([...searchQueries, newQuery.trim()]); setNewQuery(''); } }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
-                Добавить
-              </button>
-            </div>
-            {searchQueries.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {searchQueries.map((q, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
-                    🔍 {q}
-                    <button type="button" onClick={() => setSearchQueries(searchQueries.filter((_, j) => j !== i))} className="hover:text-blue-300">×</button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Auto-approve */}
         {task.type === 'news_feed' && (
           <label className="flex items-center gap-2 text-xs">
@@ -1183,10 +1255,11 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined, searchQueries: searchQueries.length ? searchQueries : undefined };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };
+              if (task.type === 'web_search') cfg = { ...webSearchConfig, queries: (webSearchConfig.queries ?? []).filter((q: string) => q.trim()) };
               onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
             }}
             disabled={isPending}
@@ -1809,14 +1882,14 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
         <div className="flex items-center gap-2">
           <Settings2 size={14} className="text-purple-400" />
           <span className="text-sm font-medium">
-            {task.name || { news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] || task.type}
+            {task.name || { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] || task.type}
           </span>
           {task.type === 'news_feed' && (
             <span className={cn('text-[10px] px-1.5 py-0.5 rounded', (task.config as any)?.useAi === false ? 'bg-zinc-700/50 text-zinc-400' : 'bg-purple-500/10 text-purple-400')}>
               {(task.config as any)?.useAi === false ? '📋 Без AI' : '🤖 AI'}
             </span>
           )}
-          {task.type === 'news_feed' && task.schedule && (
+          {(task.type === 'news_feed' || task.type === 'web_search') && task.schedule && (
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-700/50 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
               🕐 {cronToHuman(task.schedule)}
             </span>
@@ -1830,7 +1903,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
               title={task.enabled ? 'Выключить задачу' : 'Включить задачу'}>
               {task.enabled ? '✓ Вкл' : '✗ Выкл'}
             </button>
-            {task.type === 'news_feed' && (
+            {(task.type === 'news_feed' || task.type === 'web_search') && (
               <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
                 <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить'}
               </button>
@@ -1938,7 +2011,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
                       )}
                       <button onClick={() => onFetchSource(source.id)} disabled={fetchingSourceId === source.id} className="px-2 py-0.5 rounded text-blue-400 hover:bg-blue-500/15 flex items-center gap-1">
                         <RefreshCw size={10} className={fetchingSourceId === source.id ? 'animate-spin' : ''} />
-                        {fetchingSourceId === source.id ? '...' : 'Загрузить'}
+                        {fetchingSourceId === source.id ? '...' : 'Проверить'}
                       </button>
                       <button onClick={() => onDeleteSource(source.id)} className="p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10" title="Удалить источник">
                         <Trash2 size={10} />
