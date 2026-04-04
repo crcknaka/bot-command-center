@@ -21,9 +21,9 @@ export class WelcomeTask implements TaskModule {
     if (!ctx.bot) return;
 
     if (config.welcomeText) {
-      ctx.bot.on('chat_member', async (msgCtx) => {
+      ctx.bot.on('chat_member', async (msgCtx, next) => {
         const newMember = msgCtx.chatMember?.new_chat_member;
-        if (!newMember || newMember.status !== 'member') return;
+        if (!newMember || newMember.status !== 'member') { await next(); return; }
 
         const name = newMember.user.first_name;
         const username = newMember.user.username ? `@${newMember.user.username}` : name;
@@ -68,15 +68,16 @@ export class WelcomeTask implements TaskModule {
             } catch (e) { console.error('[welcome] delete message error:', e); }
           }, config.deleteAfterSeconds * 1000);
         }
+        await next();
       });
     }
 
     // Farewell message
     if (config.farewellText) {
-      ctx.bot.on('chat_member', async (msgCtx) => {
+      ctx.bot.on('chat_member', async (msgCtx, next) => {
         const oldMember = msgCtx.chatMember?.old_chat_member;
         const newMember = msgCtx.chatMember?.new_chat_member;
-        if (!oldMember || !newMember) return;
+        if (!oldMember || !newMember) { await next(); return; }
         // User left or was kicked
         if ((oldMember.status === 'member' || oldMember.status === 'administrator') && (newMember.status === 'left' || newMember.status === 'kicked')) {
           const name = oldMember.user.first_name;
@@ -91,6 +92,7 @@ export class WelcomeTask implements TaskModule {
             setTimeout(() => { msgCtx.api.deleteMessage(msg.chat.id, msg.message_id).catch(() => {}); }, 30000);
           } catch (e) { console.error('[welcome] farewell error:', e); }
         }
+        await next();
       });
     }
   }

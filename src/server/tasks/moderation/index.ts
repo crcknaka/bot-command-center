@@ -217,45 +217,50 @@ export class ModerationTask implements TaskModule {
       await next();
     });
 
-    // Block forwards
+    // Block forwards (non-text, e.g. forwarded photos)
     if (config.blockForwards) {
-      ctx.bot.on('message:forward_origin', async (msgCtx) => {
+      ctx.bot.on('message:forward_origin', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
           await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
+        await next();
       });
     }
 
     // Block stickers
     if (config.blockStickers) {
-      ctx.bot.on('message:sticker', async (msgCtx) => {
+      ctx.bot.on('message:sticker', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
           await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] sticker error:', e); }
+        await next();
       });
-      ctx.bot.on('message:animation', async (msgCtx) => {
+      ctx.bot.on('message:animation', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
           await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] animation error:', e); }
+        await next();
       });
     }
 
     // Block voice/video notes
     if (config.blockVoice) {
-      ctx.bot.on('message:voice', async (msgCtx) => {
+      ctx.bot.on('message:voice', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
           await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] voice error:', e); }
+        await next();
       });
-      ctx.bot.on('message:video_note', async (msgCtx) => {
+      ctx.bot.on('message:video_note', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
           await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] video_note error:', e); }
+        await next();
       });
     }
   }
