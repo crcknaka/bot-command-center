@@ -396,25 +396,31 @@ botsApi.post('/:id/moderate', async (c) => {
         await botInstance.api.restrictChatMember(numChatId, userId, { permissions: muted, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
       case 'unmute': {
-        // Restore all permissions by calling raw API
+        // Get the group's default permissions and apply them to user
+        const chatInfo = await botInstance.api.getChat(numChatId) as any;
+        const groupPerms = chatInfo.permissions ?? {};
+        // Merge: set everything the group allows to true
+        const restorePerms = {
+          can_send_messages: groupPerms.can_send_messages ?? true,
+          can_send_audios: groupPerms.can_send_audios ?? true,
+          can_send_documents: groupPerms.can_send_documents ?? true,
+          can_send_photos: groupPerms.can_send_photos ?? true,
+          can_send_videos: groupPerms.can_send_videos ?? true,
+          can_send_video_notes: groupPerms.can_send_video_notes ?? true,
+          can_send_voice_notes: groupPerms.can_send_voice_notes ?? true,
+          can_send_polls: groupPerms.can_send_polls ?? true,
+          can_send_other_messages: groupPerms.can_send_other_messages ?? true,
+          can_add_web_page_previews: groupPerms.can_add_web_page_previews ?? true,
+          can_invite_users: groupPerms.can_invite_users ?? true,
+          can_pin_messages: groupPerms.can_pin_messages ?? true,
+          can_manage_topics: groupPerms.can_manage_topics ?? true,
+          can_change_info: groupPerms.can_change_info ?? true,
+        };
+        console.log('[unmute] Restoring permissions for user', userId, 'in chat', numChatId, ':', JSON.stringify(restorePerms));
         await botInstance.api.raw.restrictChatMember({
           chat_id: numChatId,
           user_id: userId,
-          permissions: {
-            can_send_messages: true,
-            can_send_audios: true,
-            can_send_documents: true,
-            can_send_photos: true,
-            can_send_videos: true,
-            can_send_video_notes: true,
-            can_send_voice_notes: true,
-            can_send_polls: true,
-            can_send_other_messages: true,
-            can_add_web_page_previews: true,
-            can_invite_users: true,
-            can_pin_messages: true,
-            can_manage_topics: true,
-          },
+          permissions: restorePerms,
         });
         break;
       }
