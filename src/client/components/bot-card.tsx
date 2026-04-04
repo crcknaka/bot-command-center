@@ -84,11 +84,11 @@ export function BotCard({ bot }: BotCardProps) {
               <Square size={14} /> {action.isPending ? '...' : 'Остановить'}
             </button>
             <button
-              onClick={() => action.mutate({ id: bot.id, action: 'restart' })}
+              onClick={() => confirm({ title: 'Перезапустить бота?', message: 'Бот будет остановлен и запущен заново. Задачи перезагрузятся.', confirmLabel: 'Перезапуск', variant: 'warning', onConfirm: () => action.mutate({ id: bot.id, action: 'restart' }) })}
               disabled={action.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors"
             >
-              <RotateCw size={14} /> Перезапуск
+              <RotateCw size={14} /> {action.isPending ? '...' : 'Перезапуск'}
             </button>
           </>
         )}

@@ -561,4 +561,66 @@ statsApi.get('/chats', async (c) => {
   return c.json(result);
 });
 
+// ─── Post Analytics ──────────────────────────────────────────────────────────
+
+// GET /api/stats/posts/top — top posts by reactions
+statsApi.get('/posts/top', async (c) => {
+  const channelId = c.req.query('channelId');
+  const limit = Number(c.req.query('limit') ?? 10);
+
+  const conditions = [eq(posts.status, 'published')];
+  if (channelId) conditions.push(eq(posts.channelId, Number(channelId)));
+
+  const topPosts = db.select().from(posts)
+    .where(and(...conditions))
+    .all()
+    .filter(p => (p.reactionCount ?? 0) > 0)
+    .sort((a, b) => (b.reactionCount ?? 0) - (a.reactionCount ?? 0))
+    .slice(0, limit);
+
+  const allChannels = db.select().from(channels).all();
+  const channelMap: Record<number, string> = {};
+  for (const ch of allChannels) channelMap[ch.id] = ch.title;
+
+  return c.json(topPosts.map(p => ({
+    id: p.id,
+    channelId: p.channelId,
+    channelTitle: channelMap[p.channelId] ?? '',
+    content: p.content.slice(0, 200),
+    imageUrl: p.imageUrl,
+    reactions: p.reactions,
+    reactionCount: p.reactionCount,
+    publishedAt: p.publishedAt,
+  })));
+});
+
+// GET /api/stats/posts/best-time — best publishing time based on reactions
+statsApi.get('/posts/best-time', async (c) => {
+  const channelId = c.req.query('channelId');
+  const tzOffset = Number(c.req.query('tz') ?? 0);
+
+  const conditions = [eq(posts.status, 'published')];
+  if (channelId) conditions.push(eq(posts.channelId, Number(channelId)));
+
+  const published = db.select().from(posts).where(and(...conditions)).all().filter(p => p.publishedAt);
+
+  const hourData: Record<number, { posts: number; reactions: number }> = {};
+  for (const p of published) {
+    const utcMs = new Date(p.publishedAt!).getTime();
+    const h = new Date(utcMs - tzOffset * 60000).getUTCHours();
+    if (!hourData[h]) hourData[h] = { posts: 0, reactions: 0 };
+    hourData[h].posts++;
+    hourData[h].reactions += p.reactionCount ?? 0;
+  }
+
+  const hours = Array.from({ length: 24 }, (_, h) => ({
+    hour: h,
+    posts: hourData[h]?.posts ?? 0,
+    reactions: hourData[h]?.reactions ?? 0,
+    avgReactions: hourData[h] ? Math.round((hourData[h].reactions / hourData[h].posts) * 10) / 10 : 0,
+  }));
+
+  return c.json(hours);
+});
+
 export { statsApi };

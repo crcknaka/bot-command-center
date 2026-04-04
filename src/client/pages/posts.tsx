@@ -343,6 +343,15 @@ export function PostsPage() {
                     <span className="font-medium">Ошибка:</span> {post.errorMessage}
                   </div>
                 )}
+                {post.reactions && Object.keys(post.reactions).length > 0 && (
+                  <div className="flex gap-1.5 mb-2 flex-wrap">
+                    {Object.entries(post.reactions as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([emoji, count]) => (
+                      <span key={emoji} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] bg-white/5" style={{ color: 'var(--text-muted)' }}>
+                        {emoji} <span className="font-medium">{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-3">
                   {post.imageUrl && (
                     <img src={post.imageUrl} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />

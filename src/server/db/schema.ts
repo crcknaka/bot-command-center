@@ -174,6 +174,8 @@ export const posts = sqliteTable('posts', {
   inlineButtons: text('inline_buttons', { mode: 'json' }), // [{text, url}] for inline keyboard
   deleteAt: text('delete_at'), // Auto-delete: when to remove from Telegram
   errorMessage: text('error_message'),
+  reactions: text('reactions', { mode: 'json' }).$type<Record<string, number>>(), // {"👍": 5, "❤️": 3}
+  reactionCount: integer('reaction_count').default(0), // total reactions for sorting
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });

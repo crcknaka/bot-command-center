@@ -1,7 +1,7 @@
 import { Bot } from 'grammy';
 import { db } from '../db/client.js';
-import { bots, channels, tasks, messageStats } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { bots, channels, tasks, messageStats, posts } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 import { scheduler } from '../services/scheduler.js';
 import { getTaskModule } from '../tasks/registry.js';
 import { sources } from '../db/schema.js';
@@ -147,6 +147,31 @@ class BotManager {
             textLength: 0,
             textPreview: emoji,
           }).run();
+        }
+
+        // Update post reactions if this message is a published post
+        const messageId = reaction.message_id;
+        const chatId = String(reaction.chat.id);
+        const post = db.select().from(posts)
+          .where(and(eq(posts.telegramMessageId, messageId), eq(posts.status, 'published')))
+          .limit(1).get();
+        if (post) {
+          const currentReactions: Record<string, number> = (post.reactions as Record<string, number>) ?? {};
+          // Decrement old reactions
+          for (const r of (reaction.old_reaction ?? [])) {
+            const emoji = (r as any).emoji ?? (r as any).custom_emoji_id ?? '?';
+            if (currentReactions[emoji]) {
+              currentReactions[emoji] = Math.max(0, currentReactions[emoji] - 1);
+              if (currentReactions[emoji] === 0) delete currentReactions[emoji];
+            }
+          }
+          // Increment new reactions
+          for (const r of newReactions) {
+            const emoji = (r as any).emoji ?? (r as any).custom_emoji_id ?? '?';
+            currentReactions[emoji] = (currentReactions[emoji] ?? 0) + 1;
+          }
+          const totalCount = Object.values(currentReactions).reduce((s, n) => s + n, 0);
+          db.update(posts).set({ reactions: currentReactions as any, reactionCount: totalCount }).where(eq(posts.id, post.id)).run();
         }
       } catch (e) { console.error('[stats] reaction error:', e); }
     });
