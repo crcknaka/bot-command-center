@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Book, Rss, Search, Bot, Zap, Globe, MessageSquare, Copy, Check } from 'lucide-react';
+import { Book, Rss, Search, Bot, Zap, Globe, MessageSquare, Copy, Check, Shield, BarChart3, Users, FileText } from 'lucide-react';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 
@@ -9,6 +9,11 @@ const sections = [
   { id: 'feeds', label: 'Каталог RSS-фидов', icon: Globe },
   { id: 'ai', label: 'AI-модели', icon: Bot },
   { id: 'tasks', label: 'Типы задач', icon: MessageSquare },
+  { id: 'websearch', label: 'Мониторинг тем', icon: Search },
+  { id: 'moderation', label: 'Модерация', icon: Shield },
+  { id: 'posts', label: 'Статусы постов', icon: FileText },
+  { id: 'analytics', label: 'Аналитика', icon: BarChart3 },
+  { id: 'members', label: 'Участники', icon: Users },
 ] as const;
 
 function CopyBtn({ text }: { text: string }) {
@@ -206,7 +211,7 @@ export function DocsPage() {
                   <TaskDoc icon="📰" name="Новостная лента" scope="Каналы и группы" desc="Собирает контент из источников (RSS, Reddit, Twitter, Telegram, YouTube, веб-страницы), генерирует пост через AI или по шаблону, добавляет в очередь. Поддерживает поисковые запросы через Tavily/Serper. Работает по расписанию (cron)." />
                   <TaskDoc icon="🤖" name="Авто-ответы" scope="Только группы" desc="Отвечает на сообщения по ключевым словам или regex-паттернам. Поддерживает переменные: {user}, {username}, {chatTitle}. Можно отвечать в ЛС. Настраиваемый cooldown между ответами." />
                   <TaskDoc icon="👋" name="Приветствие" scope="Только группы" desc="Приветствие новым участникам с картинкой/GIF, inline-кнопками (ссылки на правила), и прощание при выходе. Шаблоны: {name}, {username}. Авто-удаление через N секунд." />
-                  <TaskDoc icon="🛡️" name="Модерация" scope="Только группы" desc="Запрещённые слова, ограничение ссылок (http, t.me, @mention), анти-флуд, блокировка пересылок/стикеров/голосовых/видео-кружков. Мут нарушителей на N минут. Настраиваемые предупреждения." />
+                  <TaskDoc icon="🛡️" name="Модерация" scope="Только группы" desc="Фильтры контента, анти-спам, система наказаний. Подробнее — в разделе «Модерация»." />
                 </div>
               </Section>
 
@@ -215,7 +220,6 @@ export function DocsPage() {
                   <TaskDoc icon="✉️" name="Написать от бота" scope="Каналы и группы" desc="Кнопка отправки на карточке канала. Отправляет сообщение от имени бота с поддержкой HTML и картинок." />
                   <TaskDoc icon="📋" name="Дублирование" scope="Каналы и задачи" desc="Кнопка копирования на канале и задаче. При дублировании канала копируются все задачи и источники. Задачи создаются выключенными." />
                   <TaskDoc icon="✨" name="Перегенерация поста" scope="Страница постов" desc="Для AI-постов в статусе черновик/очередь — кнопка 'Перегенерировать'. AI перепишет пост другими словами, сохранив смысл." />
-                  <TaskDoc icon="🔍" name="Поисковые запросы" scope="Новостная лента" desc="В настройках задачи можно добавить запросы для веб-поиска. Требуется поисковый провайдер (Tavily, Serper и др.) в Настройки → Поиск." />
                 </div>
               </Section>
 
@@ -227,6 +231,141 @@ export function DocsPage() {
                   <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-400">Бот</span>
                   <span style={{ color: 'var(--text-muted)' }}>→</span>
                   <span className="px-2 py-1 rounded bg-zinc-700/50">Глобальные</span>
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {active === 'websearch' && (
+            <div className="space-y-6">
+              <Section title="Мониторинг тем (веб-поиск)">
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Задача «Новостная лента» может искать информацию в интернете через поисковые провайдеры (Serper, Tavily и др.) и создавать посты на основе найденных результатов.
+                </p>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Настройка</h3>
+                <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div className="flex items-start gap-2"><span className="text-blue-400 shrink-0">1.</span> Настройки → Поиск → добавьте API-ключ провайдера (Serper, Tavily и др.).</div>
+                  <div className="flex items-start gap-2"><span className="text-blue-400 shrink-0">2.</span> В задаче → вкладка «Поисковые запросы» → добавьте ключевые фразы для мониторинга.</div>
+                  <div className="flex items-start gap-2"><span className="text-blue-400 shrink-0">3.</span> Выберите язык и страну для локализации результатов.</div>
+                  <div className="flex items-start gap-2"><span className="text-blue-400 shrink-0">4.</span> Включите AI-режим для генерации постов или используйте сырые результаты.</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Параметры поиска</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Запросы</b> — ключевые фразы для поиска (каждая строка — отдельный запрос).</div>
+                  <div><b className="text-zinc-300">Язык</b> — язык результатов (ru, en, de и др.).</div>
+                  <div><b className="text-zinc-300">Страна</b> — географическая привязка результатов.</div>
+                  <div><b className="text-zinc-300">Фильтр доменов</b> — ограничить поиск конкретными сайтами или исключить нежелательные.</div>
+                  <div><b className="text-zinc-300">Период</b> — временной диапазон (за час, день, неделю и т.д.).</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Режимы генерации</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">AI-режим</b> — найденные статьи обрабатываются AI-моделью, которая генерирует готовый пост по промпту.</div>
+                  <div><b className="text-zinc-300">Сырой режим</b> — результаты поиска формируются в пост как есть (заголовок + ссылка).</div>
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {active === 'moderation' && (
+            <div className="space-y-6">
+              <Section title="Модерация">
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Задача модерации защищает группу от спама и нежелательного контента. Бот должен быть администратором группы с правами на удаление сообщений и ограничение участников.
+                </p>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Фильтры контента</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Ссылки</b> — блокировка http/https ссылок, t.me ссылок, @упоминаний.</div>
+                  <div><b className="text-zinc-300">Пересылки</b> — запрет пересланных сообщений из других чатов.</div>
+                  <div><b className="text-zinc-300">Стикеры</b> — блокировка стикеров и GIF.</div>
+                  <div><b className="text-zinc-300">Голосовые / видео-кружки</b> — запрет голосовых сообщений и видео-заметок.</div>
+                  <div><b className="text-zinc-300">Мин. длина сообщения</b> — сообщения короче N символов удаляются.</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Анти-спам</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Макс. сообщений в минуту</b> — ограничение частоты сообщений от одного пользователя. При превышении — автоматическое наказание.</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Система наказаний</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Только предупреждение</b> — бот отправляет предупреждение, сообщение не удаляется.</div>
+                  <div><b className="text-zinc-300">Система страйков</b> — после N предупреждений — мут на заданное время.</div>
+                  <div><b className="text-zinc-300">Мгновенный мут</b> — мут без предупреждений при нарушении.</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Тексты предупреждений</h3>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Настраиваемые сообщения при нарушениях. Поддерживается переменная <code className="text-blue-400">{'{user}'}</code> — имя нарушителя. Можно настроить режим: удалять сообщение + предупреждение или только предупреждение без удаления.
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {active === 'posts' && (
+            <div className="space-y-6">
+              <Section title="Статусы постов">
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Каждый пост проходит через цепочку статусов от создания до публикации.
+                </p>
+
+                <div className="flex items-center gap-2 text-xs flex-wrap mb-4">
+                  <span className="px-2 py-1 rounded bg-zinc-700/50 text-zinc-400">Черновик</span>
+                  <span style={{ color: 'var(--text-muted)' }}>→</span>
+                  <span className="px-2 py-1 rounded bg-green-500/15 text-green-400">Одобрен</span>
+                  <span style={{ color: 'var(--text-muted)' }}>→</span>
+                  <span className="px-2 py-1 rounded bg-blue-500/15 text-blue-400">В очереди</span>
+                  <span style={{ color: 'var(--text-muted)' }}>→</span>
+                  <span className="px-2 py-1 rounded bg-purple-500/15 text-purple-400">Опубликован</span>
+                </div>
+
+                <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Черновик (Draft)</b> — пост создан задачей или вручную. Можно редактировать, перегенерировать, удалить.</div>
+                  <div><b className="text-zinc-300">Одобрен (Approved)</b> — контент проверен и утверждён. Пост готов к планированию, но дата/время ещё не назначены.</div>
+                  <div><b className="text-zinc-300">В очереди (Queued)</b> — пост запланирован на конкретную дату и время. Бот опубликует его автоматически.</div>
+                  <div><b className="text-zinc-300">Опубликован (Published)</b> — пост отправлен в канал/группу.</div>
+                </div>
+
+                <h3 className="text-sm font-semibold mt-4 mb-2">Действия</h3>
+                <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Одобрить</b> — подтвердить контент поста (без назначения времени).</div>
+                  <div><b className="text-zinc-300">Запланировать</b> — назначить дату и время публикации. Пост переходит в статус «В очереди».</div>
+                  <div><b className="text-zinc-300">Опубликовать сейчас</b> — немедленная отправка в канал/группу.</div>
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {active === 'analytics' && (
+            <div className="space-y-6">
+              <Section title="Аналитика">
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Статистика активности чатов и групп, подключённых к боту.
+                </p>
+
+                <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Статистика сообщений</b> — количество сообщений по каждому чату/группе за выбранный период.</div>
+                  <div><b className="text-zinc-300">Уровни вовлечённости</b> — пользователи распределяются по уровням активности (новички, активные, суперактивные и т.д.).</div>
+                  <div><b className="text-zinc-300">Распределение по часам и дням</b> — графики активности по часам суток и дням недели.</div>
+                  <div><b className="text-zinc-300">Реакции на посты</b> — отслеживание реакций (лайки, эмоции) на опубликованные посты.</div>
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {active === 'members' && (
+            <div className="space-y-6">
+              <Section title="Участники">
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Просмотр и управление участниками групп, подключённых к боту.
+                </p>
+
+                <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <div><b className="text-zinc-300">Список участников</b> — все участники группы с информацией об активности и последнем сообщении.</div>
+                  <div><b className="text-zinc-300">Модерационные действия</b> — бан, мут (ограничение на время), разбан, ограничение прав участника.</div>
                 </div>
               </Section>
             </div>
