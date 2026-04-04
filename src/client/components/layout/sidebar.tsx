@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
+import { apiFetch } from '../../lib/api.js';
 
 const navItems = [
   { path: '/', labelKey: 'nav.home', icon: LayoutDashboard },
@@ -24,6 +26,15 @@ export function Sidebar() {
   const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const { data: bots } = useQuery({
+    queryKey: ['bots'],
+    queryFn: () => apiFetch('/bots'),
+    refetchInterval: 30000,
+  });
+  const totalBots = bots?.length ?? 0;
+  const activeBots = bots?.filter((b: any) => b.status === 'active').length ?? 0;
+  const hasErrors = bots?.some((b: any) => b.status === 'error') ?? false;
+
   const nav = (
     <>
       <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
@@ -33,6 +44,14 @@ export function Sidebar() {
           <span className="sm:hidden">CC</span>
         </h1>
         <div className="flex items-center gap-2">
+          {totalBots > 0 && (
+            <Link to="/bots" className={cn('text-[10px] px-2 py-1 rounded-lg font-medium flex items-center gap-1',
+              hasErrors ? 'bg-red-500/15 text-red-400' : activeBots > 0 ? 'bg-green-500/15 text-green-400' : 'bg-zinc-700/50 text-zinc-500'
+            )} title={`${activeBots} из ${totalBots} ботов работает`}>
+              <span className={cn('w-1.5 h-1.5 rounded-full', hasErrors ? 'bg-red-500' : activeBots > 0 ? 'bg-green-500' : 'bg-zinc-500')} />
+              {activeBots}/{totalBots}
+            </Link>
+          )}
           <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1 rounded-lg hover:bg-white/5">
             <X size={18} />
           </button>
