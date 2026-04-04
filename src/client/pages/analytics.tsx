@@ -21,8 +21,9 @@ const typeColors: Record<string, string> = {
 
 export function AnalyticsPage() {
   const qc = useQueryClient();
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChat, setSelectedChat] = useState<string | null>(() => localStorage.getItem('analytics:chat'));
   const [period, setPeriod] = useState<string>('week');
+  const selectChat = (chatId: string) => { setSelectedChat(chatId); localStorage.setItem('analytics:chat', chatId); };
   const [selectedThread, setSelectedThread] = useState<string>('all');
   const [editThread, setEditThread] = useState<{ id: string; title: string } | null>(null);
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
@@ -96,7 +97,7 @@ export function AnalyticsPage() {
           </div>
         )}
         {chats?.map((chat: any) => (
-          <button key={chat.chatId} onClick={() => { setSelectedChat(chat.chatId); setSelectedThread('all'); }}
+          <button key={chat.chatId} onClick={() => { selectChat(chat.chatId); setSelectedThread('all'); }}
             className={cn('px-4 py-3 rounded-xl border text-left transition-colors', selectedChat === chat.chatId ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
             style={{ borderColor: selectedChat === chat.chatId ? undefined : 'var(--border)', background: selectedChat === chat.chatId ? undefined : 'var(--bg-card)' }}>
             <div className="text-sm font-medium">{chat.type === 'channel' ? '📢' : '👥'} {chat.title}</div>

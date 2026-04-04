@@ -21,8 +21,9 @@ const durations = [
 export function MembersPage() {
   const { data: chats } = useQuery({ queryKey: ['stats-chats'], queryFn: () => apiFetch('/stats/chats') });
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [selectedBotId, setSelectedBotId] = useState<number | null>(null);
+  const [selectedChat, setSelectedChat] = useState<string | null>(() => localStorage.getItem('members:chat'));
+  const [selectedBotId, setSelectedBotId] = useState<number | null>(() => { const v = localStorage.getItem('members:botId'); return v ? Number(v) : null; });
+  const selectChat = (chatId: string, botId: number) => { setSelectedChat(chatId); setSelectedBotId(botId); localStorage.setItem('members:chat', chatId); localStorage.setItem('members:botId', String(botId)); };
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [actionUser, setActionUser] = useState<any>(null);
@@ -39,9 +40,8 @@ export function MembersPage() {
   };
 
   const handleSelectChat = (chatId: string) => {
-    setSelectedChat(chatId);
     const bot = findBot(chatId);
-    setSelectedBotId(bot?.id ?? null);
+    selectChat(chatId, bot?.id ?? 0);
   };
 
   const { data: members, isLoading } = useQuery({
