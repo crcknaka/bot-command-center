@@ -136,7 +136,11 @@ function getChatMessages(chatId: string, period: string, threadId?: string) {
     ).all();
 
   if (threadId && threadId !== 'all') {
-    msgs = msgs.filter(m => String(m.threadId ?? '') === threadId);
+    if (threadId === 'general') {
+      msgs = msgs.filter(m => m.threadId === null || m.threadId === undefined);
+    } else {
+      msgs = msgs.filter(m => String(m.threadId) === threadId);
+    }
   }
   return msgs;
 }

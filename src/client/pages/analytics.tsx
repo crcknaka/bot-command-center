@@ -22,6 +22,7 @@ export function AnalyticsPage() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>('week');
   const [selectedThread, setSelectedThread] = useState<string>('all');
+  const [editThread, setEditThread] = useState<{ id: string; title: string } | null>(null);
 
   const threadParam = selectedThread !== 'all' ? `&threadId=${selectedThread}` : '';
 
@@ -104,12 +105,7 @@ export function AnalyticsPage() {
                 {selectedThread !== 'all' && (
                   <button onClick={() => {
                     const current = threads.find((t: any) => t.threadId === selectedThread);
-                    const name = prompt('Название топика:', current?.title ?? '');
-                    if (name !== null && selectedChat) {
-                      apiFetch(`/stats/chat/${selectedChat}/threads/${selectedThread}`, {
-                        method: 'PATCH', body: JSON.stringify({ title: name }),
-                      }).then(() => qc.invalidateQueries({ queryKey: ['stats-threads'] }));
-                    }
+                    setEditThread({ id: selectedThread, title: current?.title ?? '' });
                   }} className="p-1 rounded hover:bg-white/5" title="Переименовать топик">
                     <Pencil size={11} className="text-zinc-500" />
                   </button>
@@ -222,6 +218,33 @@ export function AnalyticsPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit thread name modal */}
+      {editThread && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEditThread(null)}>
+          <div className="w-full max-w-sm p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold mb-3">Переименовать топик</h3>
+            <input value={editThread.title} onChange={(e) => setEditThread({ ...editThread, title: e.target.value })} autoFocus
+              placeholder="Название топика"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && selectedChat) {
+                  apiFetch(`/stats/chat/${selectedChat}/threads/${editThread.id}`, { method: 'PATCH', body: JSON.stringify({ title: editThread.title }) })
+                    .then(() => { qc.invalidateQueries({ queryKey: ['stats-threads'] }); setEditThread(null); });
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none mb-4" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setEditThread(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+              <button onClick={() => {
+                if (selectedChat) {
+                  apiFetch(`/stats/chat/${selectedChat}/threads/${editThread.id}`, { method: 'PATCH', body: JSON.stringify({ title: editThread.title }) })
+                    .then(() => { qc.invalidateQueries({ queryKey: ['stats-threads'] }); setEditThread(null); });
+                }
+              }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Сохранить</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
