@@ -238,27 +238,34 @@ export function BotDetailPage() {
 
       {/* Add Channel Modal */}
       {showAddChannel && (
-        <Modal title="Добавить канал" onClose={() => setShowAddChannel(false)}>
+        <Modal title="Добавить канал / группу" onClose={() => setShowAddChannel(false)}>
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            Введите юзернейм канала (например, <code>@euc_official</code>) или числовой ID.<br />
-            <b>Важно:</b> бот должен быть администратором этого канала, чтобы публиковать пост��.
+            Вставьте ссылку на канал/группу или топик.<br />
+            <b>Важно:</b> бот должен быть добавлен в канал/группу как администратор.
           </p>
-          <form onSubmit={(e) => { e.preventDefault(); if (!channelInput.trim()) return; addChannelMut.mutate({ chatId: channelInput.trim(), threadId: threadId ? Number(threadId) : undefined }); }}>
-            <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
-              ID канала
-              <InfoTip text="Для публичных каналов: @имя_канала. Для приватных: числовой ID (можно узнать, переслав сообщение боту @userinfobot)." position="right" />
-            </label>
-            <input value={channelInput} onChange={(e) => setChannelInput(e.target.value)} placeholder="@euc_official" className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
-            <div className="mb-3">
-              <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
-                Топик (thread_id)
-                <InfoTip text="Для групп с включёнными топиками (Forum). Если хотите чтобы бот писал в конкретный топик — введите его ID. Оставьте пустым для General." position="right" />
-              </label>
-              <input value={threadId} onChange={(e) => setThreadId(e.target.value)} placeholder="Пусто = General (основной)" className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                Как узнать ID топика: откройте топик → URL будет вида t.me/group/123 — число 123 и есть thread_id.
-              </p>
-            </div>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const raw = channelInput.trim();
+            if (!raw) return;
+            // Parse t.me links: https://t.me/channel_name/123 → chatId=@channel_name, threadId=123
+            const tmeMatch = raw.match(/(?:https?:\/\/)?t\.me\/([^\/\s]+)(?:\/(\d+))?/);
+            let chatId = raw;
+            let parsedThread = threadId ? Number(threadId) : undefined;
+            if (tmeMatch) {
+              chatId = `@${tmeMatch[1]}`;
+              if (tmeMatch[2]) parsedThread = Number(tmeMatch[2]);
+            } else if (!raw.startsWith('@') && !raw.startsWith('-') && !/^\d+$/.test(raw)) {
+              chatId = `@${raw}`;
+            }
+            addChannelMut.mutate({ chatId, threadId: parsedThread });
+          }}>
+            <label className="block text-sm font-medium mb-1">Канал или группа</label>
+            <input value={channelInput} onChange={(e) => setChannelInput(e.target.value)}
+              placeholder="https://t.me/my_channel/123 или @my_channel"
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+            <p className="text-[10px] mb-3" style={{ color: 'var(--text-muted)' }}>
+              Ссылка t.me — топик определится автоматически. Или @username, или числовой ID.
+            </p>
             <div className="flex gap-3 justify-end">
               <button type="button" onClick={() => setShowAddChannel(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
               <button type="submit" disabled={addChannelMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
