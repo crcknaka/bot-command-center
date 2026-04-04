@@ -77,6 +77,16 @@ auth.post('/invite', requireAuth, requireSuperadmin, async (c) => {
   return c.json({ inviteId: id, email, expiresAt });
 });
 
+// GET /api/auth/invite/:id — check invite validity
+auth.get('/invite/:id', async (c) => {
+  const id = c.req.param('id');
+  const invite = db.select().from(invites).where(eq(invites.id, id)).limit(1).get();
+  if (!invite) return c.json({ error: 'Инвайт не найден' }, 404);
+  if (invite.usedAt) return c.json({ error: 'Инвайт уже использован' }, 400);
+  if (new Date(invite.expiresAt) < new Date()) return c.json({ error: 'Инвайт истёк' }, 400);
+  return c.json({ email: invite.email, expiresAt: invite.expiresAt });
+});
+
 // POST /api/auth/register — register via invite
 auth.post('/register', async (c) => {
   const { inviteId, name, password } = await c.req.json<{ inviteId: string; name: string; password: string }>();

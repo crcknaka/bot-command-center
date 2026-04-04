@@ -9,14 +9,14 @@ import { cn } from '../lib/utils.js';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
-const tabs = [
+const tabs: readonly { id: string; label: string; icon: any; disabled?: boolean }[] = [
   { id: 'general', label: 'Общие', icon: Settings2 },
   { id: 'ai', label: 'AI-модели', icon: Cpu },
   { id: 'search', label: 'Поиск', icon: Search },
-  { id: 'templates', label: 'Шаблоны', icon: FileText },
-] as const;
+  { id: 'templates', label: 'Шаблоны (скоро)', icon: FileText, disabled: true },
+];
 
-type TabId = (typeof tabs)[number]['id'];
+type TabId = 'general' | 'ai' | 'search' | 'templates';
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
@@ -31,15 +31,19 @@ export function SettingsPage() {
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: 'var(--border)' }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
+          const isDisabled = 'disabled' in tab && tab.disabled;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => !isDisabled && setActiveTab(tab.id as TabId)}
+              disabled={isDisabled}
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                isDisabled
+                  ? 'border-transparent text-zinc-600 cursor-not-allowed opacity-50'
+                  : activeTab === tab.id
+                    ? 'border-blue-500 text-blue-400'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
               )}
             >
               <Icon size={16} />

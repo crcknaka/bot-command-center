@@ -72,16 +72,24 @@ postsApi.get('/', async (c) => {
   return c.json(rows.map(p => ({ ...p, taskName: p.taskId ? taskNames[p.taskId] ?? null : null })));
 });
 
+/** Check if user can access this post */
+function checkPostAccess(user: any, post: { channelId: number }): boolean {
+  return getAllowedChannelIds(user).includes(post.channelId);
+}
+
 // GET /api/posts/:id
 postsApi.get('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
   const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
   if (!post) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
   return c.json(post);
 });
 
 // POST /api/posts
 postsApi.post('/', async (c) => {
+  const user = (c as any).get('user');
   const body = await c.req.json<{
     channelId: number;
     content: string;
@@ -91,6 +99,12 @@ postsApi.post('/', async (c) => {
   }>();
 
   if (!body.content?.trim()) return c.json({ error: 'Текст поста не может быть пустым' }, 400);
+  if (!getAllowedChannelIds(user).includes(body.channelId)) return c.json({ error: 'Forbidden' }, 403);
+
+  // Normalize scheduledFor timezone — ensure UTC 'Z' suffix
+  if (body.scheduledFor && !body.scheduledFor.endsWith('Z')) {
+    body.scheduledFor = body.scheduledFor + 'Z';
+  }
 
   const channel = db.select().from(channels).where(eq(channels.id, body.channelId)).limit(1).get();
   if (!channel) return c.json({ error: 'Канал не найден' }, 404);
@@ -108,7 +122,13 @@ postsApi.post('/', async (c) => {
 
 // PATCH /api/posts/:id
 postsApi.patch('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+
+  const existing = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
+  if (!existing) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, existing)) return c.json({ error: 'Forbidden' }, 403);
+
   const body = await c.req.json<{
     content?: string;
     imageUrl?: string;
@@ -116,6 +136,27 @@ postsApi.patch('/:id', async (c) => {
     scheduledFor?: string;
     inlineButtons?: Array<{ text: string; url: string }>;
   }>();
+
+  // Status transition validation
+  if (body.status && body.status !== existing.status) {
+    const allowedTransitions: Record<string, string[]> = {
+      draft: ['approved', 'queued', 'publishing'],
+      approved: ['queued', 'publishing', 'draft'],
+      queued: ['publishing', 'failed', 'approved'],
+      publishing: ['published', 'failed'],
+      published: [],
+      failed: ['queued', 'draft'],
+    };
+    const allowed = allowedTransitions[existing.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({ error: `Нельзя сменить статус с "${existing.status}" на "${body.status}"` }, 400);
+    }
+  }
+
+  // Normalize scheduledFor timezone — ensure UTC 'Z' suffix
+  if (body.scheduledFor && !body.scheduledFor.endsWith('Z')) {
+    body.scheduledFor = body.scheduledFor + 'Z';
+  }
 
   const updated = db.update(posts)
     .set({ ...body, updatedAt: new Date().toISOString() } as any)
@@ -128,9 +169,11 @@ postsApi.patch('/:id', async (c) => {
 
 // DELETE /api/posts/:id
 postsApi.delete('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
   const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
   if (!post) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
   if (post.status === 'published') return c.json({ error: 'Cannot delete published post' }, 400);
 
   db.delete(posts).where(eq(posts.id, id)).run();

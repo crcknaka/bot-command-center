@@ -101,7 +101,7 @@ export function BotsPage() {
                 value={botSearch}
                 onChange={(e) => setBotSearch(e.target.value)}
                 placeholder="Поиск по ботам..."
-                className="px-3 py-1.5 rounded-lg border text-xs outline-none w-64"
+                className="px-3 py-1.5 rounded-lg border text-xs outline-none w-full sm:w-64"
                 style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
               />
             </div>

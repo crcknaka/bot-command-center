@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Clock, X } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { apiFetch } from '../lib/api.js';
 import { Spinner } from '../components/ui/spinner.js';
@@ -12,7 +12,10 @@ import { TelegramPreview } from '../components/telegram-preview.js';
 import { postStatusConfig } from '../lib/constants.js';
 
 export function SchedulePage() {
+  const [view, setView] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const { data: posts, isLoading: postsLoading } = useQuery({ queryKey: ['posts'], queryFn: () => apiFetch('/posts') });
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const updateMut = useUpdatePost();
@@ -41,6 +44,45 @@ export function SchedulePage() {
 
   const dayNamesAll = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+  const monthNamesFull = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+  // Month calendar data
+  const monthDate = useMemo(() => {
+    const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    return d;
+  }, [monthOffset]);
+
+  const monthDays = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    // Monday-based: 0=Mon..6=Sun
+    let startDow = firstDay.getDay() - 1;
+    if (startDow < 0) startDow = 6;
+
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
+
+    // Days from previous month
+    for (let i = startDow - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ date: d, isCurrentMonth: false });
+    }
+
+    // Days of current month
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
+    }
+
+    // Fill remaining cells to complete the grid (up to 42 = 6 rows)
+    while (days.length % 7 !== 0) {
+      const next = new Date(year, month + 1, days.length - startDow - lastDay.getDate() + 1);
+      days.push({ date: next, isCurrentMonth: false });
+    }
+
+    return days;
+  }, [monthDate]);
 
   // Group posts by day
   const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -117,13 +159,57 @@ export function SchedulePage() {
                 {unscheduled.length} незапланир.
               </span>
             )}
-            <button onClick={() => setWeekOffset((w) => w - 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronLeft size={18} /></button>
-            <button onClick={() => setWeekOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5" style={{ color: weekOffset === 0 ? 'var(--primary)' : 'var(--text-muted)' }}>Сегодня</button>
-            <button onClick={() => setWeekOffset((w) => w + 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronRight size={18} /></button>
+            <button onClick={() => view === 'week' ? setWeekOffset((w) => w - 1) : setMonthOffset((m) => m - 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronLeft size={18} /></button>
+            <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={() => { setView('week'); setSelectedDay(null); }} className={cn('px-3 py-1.5 text-xs font-medium transition-colors', view === 'week' ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-white/5')} style={{ color: view === 'week' ? undefined : 'var(--text-muted)' }}>Неделя</button>
+              <button onClick={() => { setView('month'); setSelectedDay(null); }} className={cn('px-3 py-1.5 text-xs font-medium transition-colors', view === 'month' ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-white/5')} style={{ color: view === 'month' ? undefined : 'var(--text-muted)' }}>Месяц</button>
+            </div>
+            <button onClick={() => view === 'week' ? setWeekOffset(0) : setMonthOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5" style={{ color: (view === 'week' ? weekOffset : monthOffset) === 0 ? 'var(--primary)' : 'var(--text-muted)' }}>Сегодня</button>
+            <button onClick={() => view === 'week' ? setWeekOffset((w) => w + 1) : setMonthOffset((m) => m + 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronRight size={18} /></button>
           </div>
         </div>
 
-        <div className="flex gap-4">
+        {/* Mobile: collapsible unscheduled section */}
+        {unscheduled.length > 0 && (
+          <MobileUnscheduled unscheduled={unscheduled} channelMap={channelMap} activeId={activeId} onPostClick={(p: any) => { setViewPost(p); setViewContent(p.content); }} />
+        )}
+
+        {/* Mobile: vertical day list */}
+        <div className="md:hidden space-y-3">
+          {weekDays.map((day) => {
+            const dayKey = `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
+            const dayPosts = postsByDay[dayKey] ?? [];
+            const todayKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+            const isToday = dayKey === todayKey;
+
+            return (
+              <DroppableDay key={dayKey} dayKey={dayKey} isActive={activeId !== null}>
+                <div className={cn('flex items-center gap-3 py-2 px-3 rounded-t-lg text-xs font-medium', isToday ? 'bg-blue-500/15 text-blue-400' : '')} style={{ color: isToday ? undefined : 'var(--text-muted)' }}>
+                  <div className="text-lg font-bold" style={{ color: isToday ? undefined : 'var(--text)' }}>{day.getDate()}</div>
+                  <div>
+                    <div>{isToday ? 'Сегодня' : dayNamesAll[day.getDay()]}</div>
+                    <div className="text-[10px]">{monthNames[day.getMonth()]}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 mt-2 px-1">
+                  {dayPosts.map((post: any) => (
+                    <DraggablePost key={post.id} post={post} channelMap={channelMap} compact onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
+                  ))}
+
+                  {dayPosts.length === 0 && (
+                    <div className="text-center py-3 text-[10px] rounded-lg border border-dashed" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                      {activeId ? '📥 Бросьте сюда' : 'Нет постов'}
+                    </div>
+                  )}
+                </div>
+              </DroppableDay>
+            );
+          })}
+        </div>
+
+        {/* Desktop: sidebar + week grid */}
+        <div className="hidden md:flex gap-4">
           {/* Unscheduled sidebar (droppable) */}
           <DroppableUnscheduled isActive={activeId !== null}>
             <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -180,7 +266,7 @@ export function SchedulePage() {
         </div>
 
         {/* Legend */}
-        <div className="flex gap-4 mt-6 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-6 text-[11px]" style={{ color: 'var(--text-muted)' }}>
           {Object.entries(postStatusConfig).filter(([k]) => ['draft', 'approved', 'queued', 'published', 'failed'].includes(k)).map(([key, cfg]) => (
             <span key={key} className="flex items-center gap-1.5">
               <span className={cn('w-2 h-2 rounded-full', cfg.dot)} />
@@ -316,9 +402,30 @@ function DroppableUnscheduled({ isActive, children }: { isActive: boolean; child
   const { setNodeRef, isOver } = useDroppable({ id: 'unscheduled' });
   return (
     <div ref={setNodeRef}
-      className={cn('hidden md:block w-56 shrink-0 rounded-lg p-2 -m-2 transition-colors', isOver && 'bg-yellow-500/10 ring-1 ring-yellow-500/30', isActive && !isOver && 'bg-white/[0.02]')}
+      className={cn('w-56 shrink-0 rounded-lg p-2 -m-2 transition-colors', isOver && 'bg-yellow-500/10 ring-1 ring-yellow-500/30', isActive && !isOver && 'bg-white/[0.02]')}
     >
       {children}
+    </div>
+  );
+}
+
+function MobileUnscheduled({ unscheduled, channelMap, activeId, onPostClick }: { unscheduled: any[]; channelMap: Record<number, any>; activeId: number | null; onPostClick: (p: any) => void }) {
+  const [open, setOpen] = useState(false);
+  const { setNodeRef, isOver } = useDroppable({ id: 'unscheduled' });
+
+  return (
+    <div ref={setNodeRef} className={cn('md:hidden mb-3 rounded-lg border p-2 transition-colors', isOver && 'bg-yellow-500/10 ring-1 ring-yellow-500/30')} style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+      <button onClick={() => setOpen(!open)} className="flex items-center justify-between w-full text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+        <span>Незапланированные ({unscheduled.length})</span>
+        <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="space-y-2 mt-2 max-h-60 overflow-y-auto">
+          {unscheduled.map((post: any) => (
+            <DraggablePost key={post.id} post={post} channelMap={channelMap} onPostClick={onPostClick} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
