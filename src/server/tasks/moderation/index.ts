@@ -24,6 +24,8 @@ interface ModerationConfig {
   voiceWarn?: ViolationWarn;
   minMessageLength?: number;
   shortMsgWarn?: ViolationWarn;
+  // Warnings behavior
+  warnDeleteSeconds?: number; // 0 = don't delete, >0 = auto-delete after N sec (default 10)
   // Mute
   muteOnViolation?: boolean;
   muteDurationMinutes?: number;
@@ -66,13 +68,39 @@ function pickWarn(warn: ViolationWarn | undefined, fallbackKey: string, from: an
   return DEFAULTS[fallbackKey].replace(/\{user\}/g, mention);
 }
 
-/** Send a warning as reply to the offending message, auto-delete after 10s */
-async function sendWarn(msgCtx: any, text: string | null) {
+/** Send a warning, optionally auto-delete after N seconds */
+async function sendWarn(msgCtx: any, text: string | null, deleteAfterSec?: number) {
   if (!text) return;
   try {
     const warn = await msgCtx.reply(text, { parse_mode: 'HTML' });
-    setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, 10000);
+    if (deleteAfterSec && deleteAfterSec > 0) {
+      setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, deleteAfterSec * 1000);
+    }
   } catch (e) { console.error('[moderation] warn send error:', e); }
+}
+
+/** Normalize text for profanity detection: translit latin→cyrillic + homoglyphs */
+function normalizeForCheck(text: string): string {
+  const lower = text.toLowerCase();
+  // Step 1: replace multi-char latin combos → cyrillic
+  const multi: [string, string][] = [
+    ['shch', 'щ'], ['sch', 'щ'], ['sh', 'ш'], ['ch', 'ч'], ['zh', 'ж'],
+    ['ts', 'ц'], ['ya', 'я'], ['yu', 'ю'], ['yo', 'ё'], ['ye', 'е'],
+    ['uy', 'уй'], ['iy', 'ий'], ['ey', 'ей'], ['oy', 'ой'], ['ay', 'ай'],
+  ];
+  let result = lower;
+  for (const [lat, cyr] of multi) {
+    result = result.split(lat).join(cyr);
+  }
+  // Step 2: single char translit
+  const single: Record<string, string> = {
+    'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з',
+    'i': 'и', 'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о',
+    'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х',
+    'c': 'ц', 'w': 'в', 'x': 'кс', 'y': 'й', 'q': 'к',
+  };
+  result = result.replace(/[a-z]/g, (ch) => single[ch] ?? ch);
+  return result;
 }
 
 const floodTracker = new Map<string, number[]>();
@@ -102,6 +130,9 @@ export class ModerationTask implements TaskModule {
     const config = ctx.config as unknown as ModerationConfig;
     if (!ctx.bot) return;
 
+    const deleteSec = config.warnDeleteSeconds ?? 10; // default 10s, 0 = keep
+    const warn = (msgCtx: any, text: string | null) => sendWarn(msgCtx, text, deleteSec);
+
     const tryMute = async (msgCtx: any, chatId: number, userId: number | undefined) => {
       if (config.muteOnViolation && userId) {
         try { await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5); } catch (e) { console.error('[moderation] mute error:', e); }
@@ -118,7 +149,7 @@ export class ModerationTask implements TaskModule {
       if (config.blockForwards && (msgCtx.message as any).forward_origin) {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
         return;
       }
@@ -136,7 +167,7 @@ export class ModerationTask implements TaskModule {
           try {
             await msgCtx.deleteMessage();
             await tryMute(msgCtx, chatId, userId);
-            await sendWarn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, config.floodWarnText));
+            await warn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, config.floodWarnText));
           } catch (e) { console.error('[moderation] flood handler error:', e); }
           return;
         }
@@ -146,22 +177,26 @@ export class ModerationTask implements TaskModule {
       if (config.minMessageLength && config.minMessageLength > 0 && text.length < config.minMessageLength) {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from));
         } catch (e) { console.error('[moderation] short msg error:', e); }
         return;
       }
 
-      // Banned words
+      // Banned words (check original + translit normalized version)
       if (config.bannedWords?.length) {
         const lower = text.toLowerCase();
-        const found = config.bannedWords.find((word) => lower.includes(word.toLowerCase()));
+        const normalized = normalizeForCheck(text);
+        const found = config.bannedWords.find((word) => {
+          const w = word.toLowerCase();
+          return lower.includes(w) || normalized.includes(w);
+        });
         if (found) {
           try {
             await msgCtx.deleteMessage();
             await tryMute(msgCtx, chatId, userId);
             const muteNote = config.muteOnViolation ? ` Мут на ${config.muteDurationMinutes ?? 5} мин.` : '';
             const warnMsg = pickWarn(config.bannedWordsWarn, 'bannedWords', msgCtx.from, config.warnText);
-            if (warnMsg) await sendWarn(msgCtx, warnMsg + muteNote);
+            if (warnMsg) await warn(msgCtx, warnMsg + muteNote);
           } catch (e) { console.error('[moderation] banned word error:', e); }
           return;
         }
@@ -172,7 +207,7 @@ export class ModerationTask implements TaskModule {
         if (countLinks(text) > 0) {
           try {
             await msgCtx.deleteMessage();
-            await sendWarn(msgCtx, pickWarn(config.linksWarn, 'links', msgCtx.from));
+            await warn(msgCtx, pickWarn(config.linksWarn, 'links', msgCtx.from));
           } catch (e) { console.error('[moderation] links error:', e); }
           return;
         }
@@ -184,7 +219,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:forward_origin', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
       });
     }
@@ -194,13 +229,13 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:sticker', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] sticker error:', e); }
       });
       ctx.bot.on('message:animation', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] animation error:', e); }
       });
     }
@@ -210,13 +245,13 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:voice', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] voice error:', e); }
       });
       ctx.bot.on('message:video_note', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] video_note error:', e); }
       });
     }
@@ -245,6 +280,7 @@ export class ModerationTask implements TaskModule {
         voiceWarn: { type: 'object' },
         minMessageLength: { type: 'number' },
         shortMsgWarn: { type: 'object' },
+        warnDeleteSeconds: { type: 'number' },
         muteOnViolation: { type: 'boolean' },
         muteDurationMinutes: { type: 'number' },
       },

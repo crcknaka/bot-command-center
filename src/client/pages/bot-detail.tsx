@@ -535,9 +535,18 @@ function BannedWordsInput({ words, onChange }: { words: string[]; onChange: (w: 
           Добавить
         </button>
       </div>
-      <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
-        Нажмите Enter или запятую для добавления. Можно вставить несколько через запятую.
-      </p>
+      <div className="flex gap-2 mb-2 flex-wrap items-center">
+        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          Enter или запятая для добавления.
+        </p>
+        <button type="button" onClick={() => {
+          const mat = ['хуй','хуя','хуе','хуи','хуё','пизд','пизж','блять','бляд','блят','ебат','ебать','ебан','ебал','ебу','ёбан','ёб','еба','сука','сучк','сучар','мудак','мудил','мудо','пидор','пидар','пидр','педик','залуп','шлюх','шалав','блядь','ёбтвоюмать','нахуй','нахуя','похуй','похуя','охуе','охуи','ахуе','ахуи','заеб','заёб','отъеб','въеб','уёб','уеб','доеб','доёб','наеб','наёб','поеб','поёб','выеб','выёб','ёбнут','ебнут','пиздец','пиздат','пиздюк','пиздюл','распизд','спизд','припизд','пиздёж','манда','елда','хер','херн','дроч','гандон','кондом'];
+          const newWords = mat.filter(w => !words.includes(w));
+          if (newWords.length) onChange([...words, ...newWords]);
+        }} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-orange-500/10 text-orange-400 hover:bg-orange-500/20">
+          🤬 + Русский мат
+        </button>
+      </div>
       {words.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {words.map((w, i) => (
@@ -709,8 +718,21 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
         )}
       </div>
 
+      {/* Warn auto-delete */}
+      <div className="flex items-center gap-2 text-xs flex-wrap">
+        <span style={{ color: 'var(--text-muted)' }}>Предупреждения бота:</span>
+        <select value={config.warnDeleteSeconds ?? 10} onChange={(e) => set({ warnDeleteSeconds: Number(e.target.value) })}
+          className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+          <option value={0}>Оставлять в чате</option>
+          <option value={5}>Удалять через 5 сек</option>
+          <option value={10}>Удалять через 10 сек</option>
+          <option value={30}>Удалять через 30 сек</option>
+          <option value={60}>Удалять через 1 мин</option>
+        </select>
+      </div>
+
       <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-        {'{user}'} — имя нарушителя. Предупреждения удаляются через 10 сек. Несколько вариантов текста — рандомный выбор.
+        {'{user}'} — кликабельное имя нарушителя. Несколько вариантов текста — рандомный выбор.
       </p>
     </div>
   );
