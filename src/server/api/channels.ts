@@ -23,6 +23,7 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
   const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
   if (!botRecord) return c.json({ error: 'Bot not found' }, 404);
 
+  let resolvedChatId = chatId;
   let title = chatId;
   let type: 'channel' | 'group' | 'supergroup' = 'channel';
   let isLinked = false;
@@ -30,18 +31,29 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
   try {
     const tempBot = new Bot(botRecord.token);
     const chat = await tempBot.api.getChat(chatId);
+    // Always use canonical numeric ID to prevent duplicates
+    resolvedChatId = String(chat.id);
     title = ('title' in chat ? chat.title : chat.first_name) ?? chatId;
     if (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') {
       type = chat.type;
     }
     isLinked = true;
   } catch {
-    // Bot may not have access yet
+    // Bot may not have access yet — keep user-provided chatId
+  }
+
+  // Check for duplicates (same chatId + threadId in this bot)
+  const existing = db.select().from(channels)
+    .where(eq(channels.botId, botId))
+    .all()
+    .find(ch => ch.chatId === resolvedChatId && (ch.threadId ?? null) === (threadId ?? null));
+  if (existing) {
+    return c.json({ error: `Этот ${threadId ? 'топик' : 'канал'} уже добавлен.` }, 409);
   }
 
   const created = db.insert(channels).values({
     botId,
-    chatId,
+    chatId: resolvedChatId,
     title,
     type,
     isTest: false,
@@ -107,9 +119,10 @@ channelsApi.post('/channels/:id/verify', async (c) => {
     const chat = await tempBot.api.getChat(channel.chatId);
     const title = ('title' in chat ? chat.title : chat.first_name) ?? channel.chatId;
 
-    db.update(channels).set({ isLinked: true, title }).where(eq(channels.id, id)).run();
+    const canonicalChatId = String(chat.id);
+    db.update(channels).set({ isLinked: true, title, chatId: canonicalChatId }).where(eq(channels.id, id)).run();
 
-    return c.json({ ok: true, isLinked: true, title });
+    return c.json({ ok: true, isLinked: true, title, chatId: canonicalChatId });
   } catch (err) {
     db.update(channels).set({ isLinked: false }).where(eq(channels.id, id)).run();
     return c.json({ ok: false, isLinked: false, error: (err as Error).message });
@@ -128,6 +141,7 @@ channelsApi.post('/channels/:id/duplicate', async (c) => {
   if (!botRecord) return c.json({ error: 'Бот не найден' }, 404);
 
   // Resolve new channel info from Telegram
+  let resolvedChatId = chatId;
   let title = chatId;
   let type: 'channel' | 'group' | 'supergroup' = original.type as any;
   let isLinked = false;
@@ -135,6 +149,7 @@ channelsApi.post('/channels/:id/duplicate', async (c) => {
   try {
     const tempBot = new Bot(botRecord.token);
     const chat = await tempBot.api.getChat(chatId);
+    resolvedChatId = String(chat.id);
     title = ('title' in chat ? chat.title : chat.first_name) ?? chatId;
     if (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') {
       type = chat.type;
@@ -147,7 +162,7 @@ channelsApi.post('/channels/:id/duplicate', async (c) => {
   // Create new channel
   const newChannel = db.insert(channels).values({
     botId: original.botId,
-    chatId,
+    chatId: resolvedChatId,
     title,
     type,
     isTest: false,
