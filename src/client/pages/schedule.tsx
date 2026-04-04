@@ -197,8 +197,8 @@ export function SchedulePage() {
 
         {/* Time picker modal */}
         {scheduleModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setScheduleModal(null)}>
-            <div className="w-full max-w-xs p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setScheduleModal(null); }}>
+            <div className="w-full max-w-xs p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
               <h3 className="text-sm font-bold mb-1 flex items-center gap-2"><Clock size={16} /> Выберите время</h3>
               <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
                 Дата: {new Date(scheduleModal.date + 'T00:00:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', weekday: 'short' })}
