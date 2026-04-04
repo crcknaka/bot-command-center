@@ -115,6 +115,21 @@ export function BotDetailPage() {
 
   return (
     <div>
+      {/* Status banner */}
+      {bot.status !== 'active' && (
+        <div className={cn('rounded-xl px-4 py-3 mb-4 flex items-center justify-between', bot.status === 'error' ? 'bg-red-500/10 border border-red-500/20' : 'bg-yellow-500/8 border border-yellow-500/20')}>
+          <div className="flex items-center gap-2">
+            <span className={cn('w-3 h-3 rounded-full', bot.status === 'error' ? 'bg-red-500' : 'bg-yellow-500')} />
+            <span className="text-sm font-medium">{bot.status === 'error' ? '❌ Бот остановлен с ошибкой' : '⏸️ Бот остановлен'}</span>
+            {bot.errorMessage && <span className="text-xs text-red-400 ml-2">{bot.errorMessage}</span>}
+          </div>
+          <button onClick={() => botAction.mutate({ id: botId, action: 'start' })} disabled={botAction.isPending}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors">
+            <Play size={14} className="inline mr-1.5" />{botAction.isPending ? 'Запуск...' : 'Запустить'}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/" className="p-2 rounded-lg hover:bg-white/5"><ArrowLeft size={18} /></Link>
@@ -122,22 +137,20 @@ export function BotDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{bot.name}</h1>
             {bot.username && <span className="text-sm" style={{ color: 'var(--text-muted)' }}>@{bot.username}</span>}
-            <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium capitalize',
-              bot.status === 'active' ? 'bg-green-500/15 text-green-400' :
-              bot.status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-zinc-500/15 text-zinc-400'
-            )}>
+            <span className={cn('w-2.5 h-2.5 rounded-full', bot.status === 'active' ? 'bg-green-500' : bot.status === 'error' ? 'bg-red-500' : 'bg-zinc-500')} />
+            <span className={cn('text-xs', bot.status === 'active' ? 'text-green-400' : bot.status === 'error' ? 'text-red-400' : 'text-zinc-500')}>
               {{ active: 'Работает', stopped: 'Остановлен', error: 'Ошибка' }[bot.status as string] ?? bot.status}
             </span>
           </div>
         </div>
         <div className="flex gap-2">
           {bot.status !== 'active' ? (
-            <button onClick={() => botAction.mutate({ id: botId, action: 'start' })} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25">
-              <Play size={16} /> Запустить
+            <button onClick={() => botAction.mutate({ id: botId, action: 'start' })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25">
+              <Play size={16} /> {botAction.isPending ? 'Запуск...' : 'Запустить'}
             </button>
           ) : (
-            <button onClick={() => botAction.mutate({ id: botId, action: 'stop' })} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25">
-              <Square size={16} /> Остановить
+            <button onClick={() => botAction.mutate({ id: botId, action: 'stop' })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25">
+              <Square size={16} /> {botAction.isPending ? '...' : 'Остановить'}
             </button>
           )}
         </div>
@@ -195,6 +208,7 @@ export function BotDetailPage() {
                 onDeleteChannel={() => { if (confirm(`Удалить канал "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
                 onEditTask={(task: any) => setEditingTask(task)}
+                onToggleTask={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
                 onDeleteTask={(taskId: number) => { if (confirm('Удалить эту задачу?')) deleteTaskMut.mutate(taskId); }}
                 onAddSource={(taskId: number) => setShowAddSource(taskId)}
                 onFetchSource={(sourceId: number) => fetchSourceMut.mutate(sourceId)}
@@ -1094,7 +1108,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
 
 // ── Channel Card (inline sub-component) ─────────────────────────────────────
 
-function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
+function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
   const qc = useQueryClient();
   const { data: tasks } = useQuery({
     queryKey: ['tasks', channel.id],
@@ -1160,7 +1174,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
                 key={task.id}
                 task={task}
                 onEdit={() => onEditTask(task)}
-                onToggle={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
+                onToggle={(taskId: number, enabled: boolean) => onToggleTask(taskId, enabled)}
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
                 onAddSource={() => onAddSource(task.id)}

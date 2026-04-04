@@ -30,6 +30,6 @@ export function useBotAction() {
   return useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'start' | 'stop' | 'restart' | 'test' }) =>
       apiFetch(`/bots/${id}/${action}`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bots'] }),
+    onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ['bots'] }); qc.invalidateQueries({ queryKey: ['bot', vars.id] }); },
   });
 }
