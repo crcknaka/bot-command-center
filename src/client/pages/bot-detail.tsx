@@ -236,12 +236,18 @@ export function BotDetailPage() {
             {(() => {
               // Group channels: parent channels (no threadId) first, topics nested under them
               const parents = bot.channels.filter((ch: any) => !ch.threadId);
-              const topicsByChatId: Record<string, any[]> = {};
-              for (const ch of bot.channels) {
-                if (ch.threadId) (topicsByChatId[ch.chatId] ??= []).push(ch);
+              const topics = bot.channels.filter((ch: any) => ch.threadId);
+
+              // Match topics to parents by chatId OR by title (handles @username vs numeric ID mismatch)
+              const topicsByParentId: Record<number, any[]> = {};
+              for (const topic of topics) {
+                const parent = parents.find((p: any) => p.chatId === topic.chatId || p.title === topic.title);
+                if (parent) {
+                  (topicsByParentId[parent.id] ??= []).push(topic);
+                }
               }
-              // Standalone topics (no parent row) — show as regular channels
-              const orphanTopics = bot.channels.filter((ch: any) => ch.threadId && !parents.some((p: any) => p.chatId === ch.chatId));
+              // Standalone topics (no matching parent) — show as regular items
+              const orphanTopics = topics.filter((t: any) => !parents.some((p: any) => p.chatId === t.chatId || p.title === t.title));
 
               const renderCard = (channel: any, isTopic = false) => (
                 <div key={channel.id} className={isTopic ? 'ml-6 border-l-2 pl-4' : ''} style={isTopic ? { borderColor: 'var(--border)' } : undefined}>
@@ -272,7 +278,7 @@ export function BotDetailPage() {
                   {parents.map((parent: any) => (
                     <div key={parent.id}>
                       {renderCard(parent)}
-                      {(topicsByChatId[parent.chatId] ?? []).map((topic: any) => renderCard(topic, true))}
+                      {(topicsByParentId[parent.id] ?? []).map((topic: any) => renderCard(topic, true))}
                     </div>
                   ))}
                   {orphanTopics.map((ch: any) => renderCard(ch, true))}
