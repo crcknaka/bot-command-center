@@ -885,19 +885,52 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
           <WarnConfig label="короткие сообщения" warnKey="shortMsg" value={config.shortMsgWarn} onChange={(v) => set({ shortMsgWarn: v })} />
         )}
 
-        {/* Mute */}
+        {/* Strike system */}
         <label className="flex items-center gap-2 text-xs mt-2">
-          <input type="checkbox" checked={config.muteOnViolation ?? false} onChange={(e) => set({ muteOnViolation: e.target.checked })} />
-          Мут за нарушения (запрещённые слова, флуд)
-          <InfoTip text="Юзер не сможет писать N минут. Бот должен быть админом." position="right" />
+          <input type="checkbox" checked={config.strikesEnabled ?? false} onChange={(e) => set({ strikesEnabled: e.target.checked, muteOnViolation: false })} />
+          Система предупреждений (страйки)
+          <InfoTip text="После N предупреждений — автоматический мут. Предупреждения сбрасываются через указанное время." position="right" />
         </label>
-        {config.muteOnViolation && (
-          <div className="ml-5 flex items-center gap-2 text-xs">
-            <span style={{ color: 'var(--text-muted)' }}>Длительность:</span>
-            <input type="number" min={1} max={1440} value={config.muteDurationMinutes ?? 5} onChange={(e) => set({ muteDurationMinutes: Number(e.target.value) })}
-              className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
+        {config.strikesEnabled && (
+          <div className="ml-5 space-y-2">
+            <div className="flex items-center gap-2 text-xs flex-wrap">
+              <span style={{ color: 'var(--text-muted)' }}>Макс. предупреждений:</span>
+              <input type="number" min={1} max={10} value={config.maxStrikes ?? 3} onChange={(e) => set({ maxStrikes: Number(e.target.value) })}
+                className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-muted)' }}>Мут на:</span>
+              <input type="number" min={1} max={1440} value={config.strikeMuteDuration ?? 60} onChange={(e) => set({ strikeMuteDuration: Number(e.target.value) })}
+                className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>мин</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span style={{ color: 'var(--text-muted)' }}>Сброс предупреждений через:</span>
+              <input type="number" min={1} max={168} value={config.strikeResetHours ?? 24} onChange={(e) => set({ strikeResetHours: Number(e.target.value) })}
+                className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>часов</span>
+            </div>
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Пример: 3 предупреждения → мут 60 мин. Если юзер не нарушает 24ч — счётчик сбрасывается.
+            </p>
           </div>
+        )}
+
+        {/* Direct mute (if strikes disabled) */}
+        {!config.strikesEnabled && (
+          <>
+            <label className="flex items-center gap-2 text-xs mt-2">
+              <input type="checkbox" checked={config.muteOnViolation ?? false} onChange={(e) => set({ muteOnViolation: e.target.checked })} />
+              Мут сразу за нарушение
+              <InfoTip text="Мут без предупреждений — сразу при первом нарушении." position="right" />
+            </label>
+            {config.muteOnViolation && (
+              <div className="ml-5 flex items-center gap-2 text-xs">
+                <span style={{ color: 'var(--text-muted)' }}>Длительность:</span>
+                <input type="number" min={1} max={1440} value={config.muteDurationMinutes ?? 5} onChange={(e) => set({ muteDurationMinutes: Number(e.target.value) })}
+                  className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 

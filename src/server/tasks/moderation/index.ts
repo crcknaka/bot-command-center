@@ -27,6 +27,11 @@ interface ModerationConfig {
   shortMsgWarn?: ViolationWarn;
   // Warnings behavior
   warnDeleteSeconds?: number; // 0 = don't delete, >0 = auto-delete after N sec (default 10)
+  // Strike system
+  strikesEnabled?: boolean; // Enable strike/warn system
+  maxStrikes?: number; // Max warnings before auto-mute (default 3)
+  strikeMuteDuration?: number; // Auto-mute duration in minutes after max strikes (default 60)
+  strikeResetHours?: number; // Reset strikes after N hours of no violations (default 24)
   // Mute
   muteOnViolation?: boolean;
   muteDurationMinutes?: number;
@@ -106,6 +111,30 @@ function normalizeForCheck(text: string): string {
 
 const floodTracker = new Map<string, number[]>();
 
+/** Strike tracker: `${chatId}:${userId}` → { count, lastViolation } */
+const strikeTracker = new Map<string, { count: number; lastViolation: number }>();
+
+/** Get/increment strike count for a user */
+function getStrikes(chatId: number, userId: number, resetHours: number): number {
+  const key = `${chatId}:${userId}`;
+  const existing = strikeTracker.get(key);
+  const now = Date.now();
+
+  if (existing) {
+    // Reset if enough time passed
+    if (now - existing.lastViolation > resetHours * 3600 * 1000) {
+      strikeTracker.set(key, { count: 1, lastViolation: now });
+      return 1;
+    }
+    existing.count++;
+    existing.lastViolation = now;
+    return existing.count;
+  }
+
+  strikeTracker.set(key, { count: 1, lastViolation: now });
+  return 1;
+}
+
 /** Count links including t.me, @mentions, bare domains */
 function countLinks(text: string): number {
   const patterns = [
@@ -143,6 +172,47 @@ export class ModerationTask implements TaskModule {
         action: `mod.${action}`,
         details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, reason },
       });
+    };
+
+    /** Handle a violation: delete message, issue strike if enabled, warn, optionally mute */
+    const handleViolation = async (msgCtx: any, chatId: number, userId: number | undefined, reason: string, warnConfig: ViolationWarn | undefined, warnKey: string) => {
+      try {
+        await msgCtx.deleteMessage();
+        logMod('deleted', msgCtx, reason);
+      } catch (e) { console.error('[moderation] delete error:', e); }
+
+      const mention = mentionUser(msgCtx.from);
+
+      if (config.strikesEnabled && userId) {
+        const maxStrikes = config.maxStrikes ?? 3;
+        const resetHours = config.strikeResetHours ?? 24;
+        const strikes = getStrikes(chatId, userId, resetHours);
+
+        if (strikes >= maxStrikes) {
+          // Auto-mute
+          const muteMins = config.strikeMuteDuration ?? 60;
+          try {
+            await muteUser(msgCtx.api, chatId, userId, muteMins);
+            logMod('muted', msgCtx, `strikes:${strikes}/${maxStrikes}`);
+          } catch (e) { console.error('[moderation] strike mute error:', e); }
+          await warn(msgCtx, `🚫 ${mention}, ${strikes}/${maxStrikes} предупреждений. Мут на ${muteMins} мин.`);
+          // Reset strikes after mute
+          strikeTracker.delete(`${chatId}:${userId}`);
+        } else {
+          // Issue warning with strike count
+          const baseText = pickWarn(warnConfig, warnKey, msgCtx.from);
+          await warn(msgCtx, `⚠️ ${mention}, предупреждение ${strikes}/${maxStrikes}. ${baseText ?? ''}`);
+        }
+      } else {
+        // No strike system — old behavior
+        if (config.muteOnViolation && userId) {
+          try {
+            await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5);
+            logMod('muted', msgCtx, reason);
+          } catch (e) { console.error('[moderation] mute error:', e); }
+        }
+        await warn(msgCtx, pickWarn(warnConfig, warnKey, msgCtx.from));
+      }
     };
 
     const tryMute = async (msgCtx: any, chatId: number, userId: number | undefined, reason: string) => {
@@ -209,14 +279,7 @@ export class ModerationTask implements TaskModule {
           return lower.includes(w) || normalized.includes(w);
         });
         if (found) {
-          try {
-            await msgCtx.deleteMessage();
-            logMod('deleted', msgCtx, `banned_word:${found}`);
-            await tryMute(msgCtx, chatId, userId, `banned_word:${found}`);
-            const muteNote = config.muteOnViolation ? ` Мут на ${config.muteDurationMinutes ?? 5} мин.` : '';
-            const warnMsg = pickWarn(config.bannedWordsWarn, 'bannedWords', msgCtx.from, config.warnText);
-            if (warnMsg) await warn(msgCtx, warnMsg + muteNote);
-          } catch (e) { console.error('[moderation] banned word error:', e); }
+          await handleViolation(msgCtx, chatId, userId, `banned_word:${found}`, config.bannedWordsWarn, 'bannedWords');
           return;
         }
       }
@@ -224,11 +287,7 @@ export class ModerationTask implements TaskModule {
       // Block links
       if (config.blockLinks || (config.maxLinksPerMessage && config.maxLinksPerMessage > 0)) {
         if (countLinks(text) > 0) {
-          try {
-            await msgCtx.deleteMessage();
-            logMod('deleted', msgCtx, 'links');
-            await warn(msgCtx, pickWarn(config.linksWarn, 'links', msgCtx.from));
-          } catch (e) { console.error('[moderation] links error:', e); }
+          await handleViolation(msgCtx, chatId, userId, 'links', config.linksWarn, 'links');
           return;
         }
       }
