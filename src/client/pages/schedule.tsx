@@ -39,7 +39,7 @@ export function SchedulePage() {
     return d;
   });
 
-  const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const dayNamesAll = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
   // Group posts by day
@@ -135,8 +135,8 @@ export function SchedulePage() {
 
           {/* Week grid */}
           <div className="flex-1 overflow-x-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-              {weekDays.map((day, i) => {
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))' }}>
+              {weekDays.map((day) => {
                 const dayKey = day.toISOString().slice(0, 10);
                 const dayPosts = postsByDay[dayKey] ?? [];
                 const isToday = dayKey === today.toISOString().slice(0, 10);
@@ -144,7 +144,7 @@ export function SchedulePage() {
                 return (
                   <DroppableDay key={dayKey} dayKey={dayKey} isActive={activeId !== null}>
                     <div className={cn('text-center py-2 rounded-t-lg text-xs font-medium', isToday ? 'bg-blue-500/15 text-blue-400' : '')} style={{ color: isToday ? undefined : 'var(--text-muted)' }}>
-                      <div>{dayNames[i]}</div>
+                      <div>{isToday ? 'Сегодня' : dayNamesAll[day.getDay()]}</div>
                       <div className="text-lg font-bold" style={{ color: isToday ? undefined : 'var(--text)' }}>{day.getDate()}</div>
                       <div className="text-[10px]">{monthNames[day.getMonth()]}</div>
                     </div>
