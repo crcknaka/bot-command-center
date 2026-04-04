@@ -1,17 +1,40 @@
-import { useState } from 'react';
-import { Plus, Bot as BotIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Bot as BotIcon, Upload } from 'lucide-react';
 import { useBots, useCreateBot } from '../hooks/use-bots.js';
 import { useToast } from '../components/ui/toast.js';
 import { BotCard } from '../components/bot-card.js';
 import { InfoTip } from '../components/ui/tooltip.js';
+import { apiFetch } from '../lib/api.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 export function BotsPage() {
   const { data: bots, isLoading } = useBots();
   const createBot = useCreateBot();
   const toast = useToast();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const fileInput = useRef<HTMLInputElement>(null);
   const [showAddBot, setShowAddBot] = useState(false);
   const [token, setToken] = useState('');
   const [botSearch, setBotSearch] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  const handleImport = async (file: File) => {
+    try {
+      setImporting(true);
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const res = await apiFetch('/bots/import', { method: 'POST', body: JSON.stringify(data) });
+      qc.invalidateQueries({ queryKey: ['bots'] });
+      toast.success(`Импортировано! ${res.channels} каналов, ${res.tasks} задач.`);
+      navigate(`/bots/${res.botId}`);
+    } catch (err) {
+      toast.error(`Ошибка импорта: ${(err as Error).message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleAddBot = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,13 +55,24 @@ export function BotsPage() {
           <h1 className="text-2xl font-bold">Боты</h1>
           <InfoTip text="Все ваши Telegram-боты. Добавьте бота, запустите, затем настройте каналы и задачи." position="bottom" />
         </div>
-        <button
-          onClick={() => setShowAddBot(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors hover:opacity-90"
-          style={{ background: 'var(--primary)' }}
-        >
-          <Plus size={16} /> Добавить бота
-        </button>
+        <div className="flex gap-2">
+          <input ref={fileInput} type="file" accept=".json" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleImport(e.target.files[0]); e.target.value = ''; }} />
+          <button
+            onClick={() => fileInput.current?.click()}
+            disabled={importing}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-colors"
+            title="Импорт бота из JSON-файла"
+          >
+            <Upload size={16} /> {importing ? 'Импорт...' : 'Импорт'}
+          </button>
+          <button
+            onClick={() => setShowAddBot(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors hover:opacity-90"
+            style={{ background: 'var(--primary)' }}
+          >
+            <Plus size={16} /> Добавить бота
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

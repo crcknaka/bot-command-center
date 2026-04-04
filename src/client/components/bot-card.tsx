@@ -1,9 +1,10 @@
-import { Play, Square, RotateCw, Trash2, Settings2, Hash, Layers } from 'lucide-react';
+import { Play, Square, RotateCw, Trash2, Settings2, Hash, Layers, Download } from 'lucide-react';
 import { useBotAction, useDeleteBot } from '../hooks/use-bots.js';
 import { useConfirm } from './ui/confirm-dialog.js';
 import { cn } from '../lib/utils.js';
 import { Link } from 'react-router-dom';
 import { timeAgo } from '../lib/utils.js';
+import { apiFetch } from '../lib/api.js';
 
 interface BotCardProps {
   bot: any;
@@ -94,6 +95,19 @@ export function BotCard({ bot }: BotCardProps) {
             </button>
           </>
         )}
+        <button
+          onClick={async () => {
+            const data = await apiFetch(`/bots/${bot.id}/export`);
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `bot-${bot.username ?? bot.id}.json`; a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400/60 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+          title="Экспорт конфигурации"
+        >
+          <Download size={14} />
+        </button>
         <button
           onClick={() => confirm({ title: 'Удалить бота?', message: 'Все каналы, задачи и посты этого бота будут удалены безвозвратно.', onConfirm: () => deleteMut.mutate(bot.id) })}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400/60 hover:text-red-400 hover:bg-red-500/15 transition-colors ml-auto"

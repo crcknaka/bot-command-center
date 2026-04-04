@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
-import { safeHtml } from '../lib/sanitize.js';
+
 import { Stepper } from '../components/ui/stepper.js';
 import { useBotAction } from '../hooks/use-bots.js';
 import { apiFetch } from '../lib/api.js';
@@ -180,7 +180,7 @@ export function BotDetailPage() {
       {/* Next steps — show until all done */}
       {(() => {
         const hasCh = hasChannels;
-        const hasTasks = bot.channels?.some((ch: any) => ch._taskCount > 0) ?? false;
+
         // We don't have task count in channel response, so check via separate indicator
         const allDone = hasCh; // simplified: hide after channels added (tasks shown inline)
         if (allDone) return null;
@@ -372,8 +372,8 @@ export function BotDetailPage() {
               )}
             </div>
 
-            {/* Schedule (only for news_feed) */}
-            {taskType === 'news_feed' && <SchedulePicker value={taskSchedule} onChange={setTaskSchedule} />}
+            {/* Schedule */}
+            {(taskType === 'news_feed' || taskType === 'web_search') && <SchedulePicker value={taskSchedule} onChange={setTaskSchedule} />}
 
             {/* AI mode toggle (only for news_feed) */}
             {taskType === 'news_feed' && (
@@ -1306,11 +1306,11 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
 const rssPresets = [
   { cat: '🛞 Моноколёса / EUC', items: [
     { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Главный Reddit про EUC: обзоры, вопросы, видео поездок. Картинки есть.' },
-    { name: 'Wrong Way (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCnBqjyMBCuIjvOBJe3yY_gQ', type: 'youtube', desc: 'Wrong Way — крупнейший EUC канал. Обзоры, тесты скорости, сравнения.' },
-    { name: 'Kuji Rolls (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCxEkqfVGBmfJC5REsMU7HCw', type: 'youtube', desc: 'Kuji Rolls — обзоры моноколёс, групповые поездки, краш-тесты.' },
-    { name: 'EUC GUY (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCXsaAEYvFSFkMhR9G9gFR4A', type: 'youtube', desc: 'EUC GUY — детальные обзоры и сравнения моноколёс.' },
-    { name: 'HSN Electric (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCAx4nmKRo8PE_pCTfeVomzQ', type: 'youtube', desc: 'HSN Electric — обзоры EUC, e-bikes, электротранспорт.' },
-    { name: 'Чаёк (YouTube RU)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCJzsd4OQJb6BhCZOXBpBCOA', type: 'youtube', desc: 'Чаёк — русскоязычный канал про моноколёса, обзоры и покатушки.' },
+    { name: 'Wrong Way (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCyYm5mArC0TdKaAjBtuD0hg', type: 'youtube', desc: 'Wrong Way — крупнейший EUC канал. Обзоры, тесты скорости, сравнения.' },
+    { name: 'Kuji Rolls (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCMI6lvqdZR_HxunctRNMa_w', type: 'youtube', desc: 'Kuji Rolls — обзоры моноколёс, групповые поездки.' },
+    { name: 'EUC GUY (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCOSxj4YbE3EkfTO0QugOg0w', type: 'youtube', desc: 'EUC GUY — детальные обзоры и сравнения моноколёс.' },
+    { name: 'Alien Rides (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCfsmUHp1lI4s_8qpMJwF6ng', type: 'youtube', desc: 'Alien Rides — обзоры EUC, групповые поездки, тюнинг.' },
+    { name: 'ChoochTech (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCDEOB38c2U8XYsFBq5Oo1mg', type: 'youtube', desc: 'ChoochTech — обзоры электротранспорта, EUC, e-bikes.' },
     { name: 'EUC World Blog', url: 'https://euc.world/blog/feed', type: 'rss', desc: 'Блог EUC World — приложение для моноколёс.' },
     { name: 'r/onewheel', url: 'onewheel', type: 'reddit', desc: 'Onewheel: трюки, маршруты, модификации' },
     { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Google News: electric unicycle (EN). Без картинок.' },
@@ -1435,12 +1435,6 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sources', taskId] }); setSelectedPresets(new Set()); onClose(); },
   });
-
-  const applyPreset = (preset: { name: string; url: string; type: string }) => {
-    setForm({ name: preset.name, type: preset.type, url: preset.url });
-    setShowPresets(false);
-    setPresetSearch('');
-  };
 
   // Filter presets by search
   const filteredPresets = presetSearch.trim()
