@@ -3,6 +3,8 @@ import { Activity, User, Bot, FileText, Zap, LogIn, UserPlus, Shield, Send, Tras
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { timeAgo } from '../lib/utils.js';
+import { Spinner } from '../components/ui/spinner.js';
+import { EmptyState } from '../components/ui/empty-state.js';
 
 const reasonLabels: Record<string, string> = {
   banned_word: 'запрещённое слово', flood: 'флуд', links: 'ссылки', forward: 'пересылка',
@@ -58,13 +60,9 @@ export function ActivityPage() {
       </div>
 
       {isLoading ? (
-        <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
+        <Spinner text="Загрузка..." />
       ) : !logs?.length ? (
-        <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-          <Activity size={40} className="mx-auto mb-3 text-zinc-600" />
-          <p className="font-medium mb-1">Журнал пока пуст</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Действия будут записываться автоматически.</p>
-        </div>
+        <EmptyState icon={Activity} title="Журнал пока пуст" description="Действия будут записываться автоматически." />
       ) : (
         <div className="space-y-2">
           {logs.map((log: any) => {

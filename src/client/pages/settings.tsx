@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, Check, Plus, Trash2, Zap, X, Settings2, Cpu, Search, FileText, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
+import { Spinner } from '../components/ui/spinner.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { cn } from '../lib/utils.js';
 
@@ -73,7 +74,7 @@ function GeneralTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings'] }); setSaved(true); setTimeout(() => setSaved(false), 2000); },
   });
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (isLoading) return <Spinner text="Загрузка..." />;
 
   const timezones = [
     { group: 'Европа', zones: [
@@ -273,7 +274,7 @@ function AIModelsTab() {
     onError: (err, vars) => setTestResult((prev) => ({ ...prev, [vars.id]: { ok: false, msg: (err as Error).message } })),
   });
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (isLoading) return <Spinner text="Загрузка..." />;
 
   return (
     <div>
@@ -448,7 +449,7 @@ function SearchTab() {
     onError: (err, id) => setTestResult((prev) => ({ ...prev, [id]: { ok: false, msg: (err as Error).message } })),
   });
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (isLoading) return <Spinner text="Загрузка..." />;
 
   return (
     <div>
@@ -573,7 +574,7 @@ function TemplatesTab() {
     defaultTemplates.forEach((t) => createMut.mutate(t));
   };
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (isLoading) return <Spinner text="Загрузка..." />;
 
   return (
     <div>

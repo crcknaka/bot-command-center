@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Users as UsersIcon, Mail, Shield, UserCheck, UserX, Trash2, Bot } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
+import { Spinner } from '../components/ui/spinner.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { timeAgo } from '../lib/utils.js';
 import { cn } from '../lib/utils.js';
@@ -48,7 +49,7 @@ export function UsersPage() {
       </div>
 
       {isLoading ? (
-        <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
+        <Spinner text="Загрузка..." />
       ) : (
         <div className="space-y-3">
           {usersList?.map((u: any) => (

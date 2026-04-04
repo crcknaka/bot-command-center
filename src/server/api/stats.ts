@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { bots, channels, posts, activityLog, messageStats } from '../db/schema.js';
-import { eq, count, and, gte, desc, sql } from 'drizzle-orm';
+import { bots, channels, posts, activityLog, messageStats, settings } from '../db/schema.js';
+import { eq, count, and, gte, sql, inArray } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 
 const statsApi = new Hono();
@@ -41,8 +41,17 @@ statsApi.get('/overview', async (c) => {
 
 // GET /api/stats/weekly — posts per day for last 7 days
 statsApi.get('/weekly', async (c) => {
-  const days: { date: string; published: number; failed: number; drafts: number }[] = [];
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - 6);
+  const weekStartStr = weekStart.toISOString();
 
+  // Single query: load all posts from last 7 days
+  const allPosts = db.select().from(posts)
+    .where(gte(posts.createdAt, weekStartStr))
+    .all();
+
+  const days: { date: string; published: number; failed: number; drafts: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -52,16 +61,16 @@ statsApi.get('/weekly', async (c) => {
     nextDay.setDate(nextDay.getDate() + 1);
     const dayEnd = nextDay.toISOString();
 
-    const allPosts = db.select().from(posts).all().filter((p) => {
+    const dayPosts = allPosts.filter((p) => {
       const t = p.publishedAt ?? p.createdAt;
       return t >= dayStart && t < dayEnd;
     });
 
     days.push({
       date: dayStart.slice(0, 10),
-      published: allPosts.filter((p) => p.status === 'published').length,
-      failed: allPosts.filter((p) => p.status === 'failed').length,
-      drafts: allPosts.filter((p) => p.status === 'draft').length,
+      published: dayPosts.filter((p) => p.status === 'published').length,
+      failed: dayPosts.filter((p) => p.status === 'failed').length,
+      drafts: dayPosts.filter((p) => p.status === 'draft').length,
     });
   }
 
@@ -71,8 +80,20 @@ statsApi.get('/weekly', async (c) => {
 // GET /api/stats/top-channels — most active channels
 statsApi.get('/top-channels', async (c) => {
   const allChannels = db.select().from(channels).all();
+  if (allChannels.length === 0) return c.json([]);
+
+  // Single query: load all posts for these channels
+  const channelIds = allChannels.map(ch => ch.id);
+  const allPosts = db.select().from(posts).where(inArray(posts.channelId, channelIds)).all();
+
+  // Group posts by channel in memory
+  const postsByChannel: Record<number, typeof allPosts> = {};
+  for (const p of allPosts) {
+    (postsByChannel[p.channelId] ??= []).push(p);
+  }
+
   const result = allChannels.map((ch) => {
-    const chPosts = db.select().from(posts).where(eq(posts.channelId, ch.id)).all();
+    const chPosts = postsByChannel[ch.id] ?? [];
     return {
       id: ch.id,
       title: ch.title,
@@ -117,6 +138,13 @@ statsApi.get('/moderation', async (c) => {
   return c.json({ deleted, muted, warned, total: logs.length, topViolators });
 });
 
+/** Helper: get filtered messages for a chat with thread filtering */
+function filterByThread<T extends { threadId: number | null }>(msgs: T[], threadId?: string): T[] {
+  if (!threadId || threadId === 'all') return msgs;
+  if (threadId === 'general') return msgs.filter(m => m.threadId === null || m.threadId === undefined);
+  return msgs.filter(m => String(m.threadId) === threadId);
+}
+
 /** Helper: get filtered messages for a chat */
 function getChatMessages(chatId: string, period: string, threadId?: string) {
   const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
@@ -129,20 +157,13 @@ function getChatMessages(chatId: string, period: string, threadId?: string) {
     since = d.toISOString();
   }
 
-  let msgs = db.select().from(messageStats)
+  const msgs = db.select().from(messageStats)
     .where(since
       ? and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, since))
       : eq(messageStats.chatId, chatId)
     ).all();
 
-  if (threadId && threadId !== 'all') {
-    if (threadId === 'general') {
-      msgs = msgs.filter(m => m.threadId === null || m.threadId === undefined);
-    } else {
-      msgs = msgs.filter(m => String(m.threadId) === threadId);
-    }
-  }
-  return msgs;
+  return filterByThread(msgs, threadId);
 }
 
 // GET /api/stats/chat/:chatId/top-users — top users by message count
@@ -213,16 +234,25 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
   const chatId = c.req.param('chatId');
   const threadId = c.req.query('threadId');
 
+  // Single query: load all messages for this chat, then filter by period in memory
+  const allMsgs = filterByThread(
+    db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all(),
+    threadId
+  );
+
+  const now = new Date();
   const periods: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
   const data: Record<string, any> = {};
 
   for (const [key, days] of Object.entries(periods)) {
-    const msgs = getChatMessages(chatId, key, threadId);
+    const since = new Date(now);
+    since.setDate(since.getDate() - days);
+    const sinceStr = since.toISOString();
+    const msgs = allMsgs.filter(m => m.createdAt >= sinceStr);
     data[key] = { messages: msgs.length, users: new Set(msgs.map(m => m.userId)).size, avgPerDay: Math.round(msgs.length / days) };
   }
 
   // All time
-  const allMsgs = getChatMessages(chatId, 'all', threadId);
   const firstMsg = allMsgs.length > 0 ? allMsgs.reduce((a, b) => a.createdAt < b.createdAt ? a : b) : null;
   const totalDays = firstMsg ? Math.max(1, Math.round((Date.now() - new Date(firstMsg.createdAt + 'Z').getTime()) / 86400000)) : 1;
   data['all'] = { messages: allMsgs.length, users: new Set(allMsgs.map(m => m.userId)).size, avgPerDay: Math.round(allMsgs.length / totalDays) };
@@ -251,20 +281,21 @@ statsApi.get('/chat/:chatId/threads', async (c) => {
     threads[key] = (threads[key] ?? 0) + 1;
   }
 
-  // Get thread names from settings
-  const { settings } = await import('../db/schema.js');
-  const allSettings = db.select().from(settings).all();
+  // Get thread names — filtered queries instead of loading ALL
+  const threadIds = Object.keys(threads);
+  const settingKeys = threadIds.map(tid => `thread_name:${chatId}:${tid}`);
+  const threadSettings = settingKeys.length > 0
+    ? db.select().from(settings).where(inArray(settings.key, settingKeys)).all()
+    : [];
+  const chatChannels = db.select().from(channels).where(eq(channels.chatId, chatId)).all();
 
   const result = Object.entries(threads).map(([tid, count]) => {
     let title = tid === 'general' ? 'Общий' : `Топик #${tid}`;
-    // Check settings for custom name
     const settingKey = `thread_name:${chatId}:${tid}`;
-    const setting = allSettings.find(s => s.key === settingKey);
+    const setting = threadSettings.find(s => s.key === settingKey);
     if (setting) title = setting.value;
-    // Also check channels table
     if (title.startsWith('Топик #')) {
-      const allChannels = db.select().from(channels).all();
-      const ch = allChannels.find(c => c.chatId === chatId && String(c.threadId) === tid);
+      const ch = chatChannels.find(c => String(c.threadId) === tid);
       if (ch?.threadTitle) title = ch.threadTitle;
     }
     return { threadId: tid, title, messageCount: count };
@@ -297,7 +328,7 @@ statsApi.get('/chat/:chatId/weekdays', async (c) => {
   const threadId = c.req.query('threadId');
 
   const msgs = getChatMessages(chatId, period, threadId);
-  const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name, i) => ({ day: i, name, count: 0 }));
+  const days = ['Пн', 'В��', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name, i) => ({ day: i, name, count: 0 }));
   for (const m of msgs) {
     const d = new Date(m.createdAt + 'Z').getDay();
     const idx = d === 0 ? 6 : d - 1; // Mon=0, Sun=6
@@ -315,21 +346,22 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
   const days = periodDays[period] ?? 7;
 
-  const currentMsgs = getChatMessages(chatId, period, threadId);
-  // Previous period for comparison
-  const prevStart = new Date();
-  prevStart.setDate(prevStart.getDate() - days * 2);
-  const prevEnd = new Date();
-  prevEnd.setDate(prevEnd.getDate() - days);
-  const allMsgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
-  let prevMsgs = allMsgs.filter(m => m.createdAt >= prevStart.toISOString() && m.createdAt < prevEnd.toISOString());
-  if (threadId && threadId !== 'all') {
-    if (threadId === 'general') {
-      prevMsgs = prevMsgs.filter(m => m.threadId === null || m.threadId === undefined);
-    } else {
-      prevMsgs = prevMsgs.filter(m => String(m.threadId) === threadId);
-    }
-  }
+  // Single query: load messages for 2x period (current + previous), then split in memory
+  const doublePeriodStart = new Date();
+  doublePeriodStart.setDate(doublePeriodStart.getDate() - days * 2);
+  const allMsgs = filterByThread(
+    db.select().from(messageStats)
+      .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, doublePeriodStart.toISOString())))
+      .all(),
+    threadId
+  );
+
+  const periodStart = new Date();
+  periodStart.setDate(periodStart.getDate() - days);
+  const periodStartStr = periodStart.toISOString();
+
+  const currentMsgs = allMsgs.filter(m => m.createdAt >= periodStartStr);
+  const prevMsgs = allMsgs.filter(m => m.createdAt < periodStartStr);
 
   // Trend: current vs previous period
   const trend = {
@@ -344,7 +376,6 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   const userMsgCount: Record<number, number> = {};
   for (const m of currentMsgs) userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
 
-  const dailyThreshold = days;
   const tiers = {
     power: 0,    // 10+ messages per day average
     active: 0,   // 1-10 per day
@@ -411,9 +442,14 @@ statsApi.get('/chat/:chatId/user/:userId', async (c) => {
     }
   }
 
-  // Violations from activity log
-  const violations = db.select().from(activityLog).all()
-    .filter(l => l.action.startsWith('mod.') && (l.details as any)?.userId === userId && (l.details as any)?.chatId === Number(chatId))
+  // Violations — filtered query instead of loading ALL activityLog
+  const violations = db.select().from(activityLog)
+    .where(and(
+      sql`${activityLog.action} LIKE 'mod.%'`,
+      sql`json_extract(${activityLog.details}, '$.userId') = ${userId}`,
+      sql`json_extract(${activityLog.details}, '$.chatId') = ${Number(chatId)}`
+    ))
+    .all()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 20)
     .map(l => ({ action: l.action, reason: (l.details as any)?.reason, createdAt: l.createdAt }));
@@ -447,10 +483,13 @@ statsApi.get('/chat/:chatId/search', async (c) => {
   const limit = Number(c.req.query('limit') ?? 50);
   if (!query || query.length < 2) return c.json({ results: [], total: 0 });
 
+  // Use SQL LIKE instead of loading all messages
   const msgs = db.select().from(messageStats)
-    .where(eq(messageStats.chatId, chatId))
+    .where(and(
+      eq(messageStats.chatId, chatId),
+      sql`lower(${messageStats.textPreview}) LIKE ${'%' + query.toLowerCase() + '%'}`
+    ))
     .all()
-    .filter(m => m.textPreview?.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
 
@@ -472,7 +511,6 @@ statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
 
   // Store thread name in settings as key-value
   const key = `thread_name:${chatId}:${threadId}`;
-  const { settings } = await import('../db/schema.js');
   const existing = db.select().from(settings).where(eq(settings.key, key)).limit(1).get();
   if (existing) {
     db.update(settings).set({ value: title }).where(eq(settings.key, key)).run();
@@ -485,13 +523,31 @@ statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
 
 // GET /api/stats/chats — list chats with stats
 statsApi.get('/chats', async (c) => {
-  const allMsgs = db.select().from(messageStats).all();
-  const chatIds = [...new Set(allMsgs.map(m => m.chatId))];
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString();
+
+  // Load only recent messages instead of ALL messageStats
+  const recentMsgs = db.select().from(messageStats)
+    .where(gte(messageStats.createdAt, weekAgoStr))
+    .all();
+
+  // Also get distinct chatIds that have any stats (for chats with no recent activity)
+  const allChatIds = db.select({ chatId: messageStats.chatId })
+    .from(messageStats)
+    .groupBy(messageStats.chatId)
+    .all()
+    .map(r => r.chatId);
+
   const allChannels = db.select().from(channels).all();
 
-  const result = chatIds.map(chatId => {
-    const weekMsgs = allMsgs.filter(m => m.chatId === chatId && m.createdAt >= weekAgo.toISOString());
+  // Group recent messages by chatId
+  const recentByChat: Record<string, typeof recentMsgs> = {};
+  for (const m of recentMsgs) {
+    (recentByChat[m.chatId] ??= []).push(m);
+  }
+
+  const result = allChatIds.map(chatId => {
+    const weekMsgs = recentByChat[chatId] ?? [];
     const ch = allChannels.find(c => c.chatId === chatId);
     return {
       chatId,

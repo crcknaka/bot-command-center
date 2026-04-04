@@ -2,6 +2,7 @@ import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users } from 'lucide-react';
+import { Spinner } from '../components/ui/spinner.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 
@@ -134,7 +135,7 @@ export function BotDetailPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['sources'] }); },
   });
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+  if (isLoading) return <Spinner text="Загрузка..." />;
   if (!bot) return <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>Бот не найден</div>;
 
   const hasChannels = bot.channels?.length > 0;
@@ -1497,7 +1498,7 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
               value={presetSearch}
               onChange={(e) => setPresetSearch(e.target.value)}
               placeholder="Поиск по фидам..."
-              className="w-full px-3 py-2 rounded-lg border text-xs outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 rounded-lg border text-xs outline-none focus:border-[var(--primary)]"
               style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
               autoFocus
             />

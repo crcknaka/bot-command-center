@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Shield, Ban, Unlock, Search, Image, Link2, MessageSquare, Eye } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { useToast } from '../components/ui/toast.js';
+import { Spinner } from '../components/ui/spinner.js';
+import { EmptyState } from '../components/ui/empty-state.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn, timeAgo } from '../lib/utils.js';
 import { UserProfileModal } from '../components/user-profile.js';
@@ -99,10 +101,8 @@ export function MembersPage() {
       {/* Group selector — like analytics */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {groups.length === 0 && (
-          <div className="text-center py-12 w-full rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-            <Users size={40} className="mx-auto mb-3 text-zinc-600" />
-            <p className="font-medium mb-1">Нет данных</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Участники появятся когда пользователи начнут писать в группах с активным ботом.</p>
+          <div className="w-full">
+            <EmptyState icon={Users} title="Нет данных" description="Участники появятся когда пользователи начнут писать в группах с активным ботом." />
           </div>
         )}
         {groups.map((chat: any) => (
@@ -147,15 +147,13 @@ export function MembersPage() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка участников...</div>
+            <Spinner text="Загрузка участников..." />
           ) : filtered.length === 0 ? (
-            <div className="text-center py-12 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-              <Users size={40} className="mx-auto mb-3 text-zinc-600" />
-              <p className="font-medium mb-1">{search || statusFilter !== 'all' ? 'Ничего не найдено' : 'Нет данных'}</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {search || statusFilter !== 'all' ? 'Попробуйте изменить фильтры.' : 'Участники появятся когда начнут писать в группе.'}
-              </p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title={search || statusFilter !== 'all' ? 'Ничего не найдено' : 'Нет данных'}
+              description={search || statusFilter !== 'all' ? 'Попробуйте изменить фильтры.' : 'Участники появятся когда начнут писать в группе.'}
+            />
           ) : (
             <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
               <div className="flex text-[10px] font-medium px-4 py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Plus, Bot as BotIcon, Upload } from 'lucide-react';
+import { Spinner } from '../components/ui/spinner.js';
 import { useBots, useCreateBot } from '../hooks/use-bots.js';
 import { useToast } from '../components/ui/toast.js';
 import { BotCard } from '../components/bot-card.js';
@@ -76,7 +77,7 @@ export function BotsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка ботов...</div>
+        <Spinner text="Загрузка ботов..." />
       ) : bots?.length === 0 ? (
         <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
           <BotIcon size={40} className="mx-auto mb-3 text-zinc-600" />
@@ -129,7 +130,7 @@ export function BotsPage() {
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="123456789:ABCdefGHI..."
-                className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-500 mb-4 font-mono"
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-[var(--primary)] mb-4 font-mono"
                 style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
                 required
               />

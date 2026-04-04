@@ -8,7 +8,7 @@ interface TelegramPreviewProps {
 
 export function TelegramPreview({ content, imageUrl, channelTitle }: TelegramPreviewProps) {
   return (
-    <div className="max-w-sm rounded-xl overflow-hidden" style={{ background: '#1e2330' }}>
+    <div className="max-w-sm rounded-xl overflow-hidden" style={{ background: 'var(--bg-card)' }}>
       {channelTitle && (
         <div className="px-3 py-2 text-xs font-semibold text-blue-400 border-b" style={{ borderColor: 'var(--border)' }}>
           {channelTitle}

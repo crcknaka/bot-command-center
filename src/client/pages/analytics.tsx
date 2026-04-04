@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Users, MessageSquare, Clock, TrendingUp, Pencil, Search } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
+import { EmptyState } from '../components/ui/empty-state.js';
 import { cn } from '../lib/utils.js';
 import { UserProfileModal } from '../components/user-profile.js';
 
@@ -90,10 +91,8 @@ export function AnalyticsPage() {
       {/* Chat selector */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {chats?.length === 0 && (
-          <div className="text-center py-12 w-full rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-            <BarChart3 size={40} className="mx-auto mb-3 text-zinc-600" />
-            <p className="font-medium mb-1">Нет данных</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Статистика появится когда пользователи начнут писать в группах с активным ботом.</p>
+          <div className="w-full">
+            <EmptyState icon={BarChart3} title="Нет данных" description="Статистика появится когда пользователи начнут писать в группах с активным ботом." />
           </div>
         )}
         {chats?.map((chat: any) => (

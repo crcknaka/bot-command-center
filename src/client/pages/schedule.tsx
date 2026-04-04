@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { apiFetch } from '../lib/api.js';
+import { Spinner } from '../components/ui/spinner.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
@@ -103,7 +104,7 @@ export function SchedulePage() {
   };
 
   if (postsLoading) {
-    return <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка расписания...</div>;
+    return <Spinner text="Загрузка расписания..." />;
   }
 
   return (

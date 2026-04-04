@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Spinner } from '../components/ui/spinner.js';
 
 const ctrlEnter = (e: React.KeyboardEvent) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -287,7 +288,7 @@ export function PostsPage() {
       )}
 
       {isLoading ? (
-        <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
+        <Spinner text="Загрузка..." />
       ) : posts.length === 0 ? (
         <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
           <FileText size={40} className="mx-auto mb-3 text-zinc-600" />

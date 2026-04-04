@@ -114,9 +114,33 @@ function normalizeForCheck(text: string): string {
 }
 
 const floodTracker = new Map<string, number[]>();
+let lastFloodCleanup = Date.now();
 
 /** Strike tracker: `${chatId}:${userId}` → { count, lastViolation } */
 const strikeTracker = new Map<string, { count: number; lastViolation: number }>();
+let lastStrikeCleanup = Date.now();
+
+/** Periodic cleanup to prevent unbounded memory growth */
+function cleanupFloodTracker() {
+  const now = Date.now();
+  if (now - lastFloodCleanup < 60_000) return; // cleanup at most once per minute
+  lastFloodCleanup = now;
+  for (const [key, times] of floodTracker) {
+    const recent = times.filter(t => now - t < 60_000);
+    if (recent.length === 0) floodTracker.delete(key);
+    else floodTracker.set(key, recent);
+  }
+}
+
+function cleanupStrikeTracker(resetHours: number) {
+  const now = Date.now();
+  if (now - lastStrikeCleanup < 300_000) return; // cleanup at most once per 5 minutes
+  lastStrikeCleanup = now;
+  const resetMs = resetHours * 3600 * 1000;
+  for (const [key, data] of strikeTracker) {
+    if (now - data.lastViolation > resetMs) strikeTracker.delete(key);
+  }
+}
 
 /** Get/increment strike count for a user */
 function getStrikes(chatId: number, userId: number, resetHours: number): number {
@@ -180,6 +204,7 @@ export class ModerationTask implements TaskModule {
 
     /** Handle a violation: delete message, issue strike if enabled, warn, optionally mute */
     const handleViolation = async (msgCtx: any, chatId: number, userId: number | undefined, reason: string, warnConfig: ViolationWarn | undefined, warnKey: string) => {
+      cleanupStrikeTracker(config.strikeResetHours ?? 24);
       // Delete message or keep it
       if (config.deleteOnBan !== false) {
         try {
@@ -246,8 +271,9 @@ export class ModerationTask implements TaskModule {
         return;
       }
 
-      // Anti-flood
+      // Anti-flood (with periodic cleanup)
       if (config.antiFlood && config.maxMessagesPerMinute && userId) {
+        cleanupFloodTracker();
         const key = `${chatId}:${userId}`;
         const now = Date.now();
         const times = floodTracker.get(key) ?? [];

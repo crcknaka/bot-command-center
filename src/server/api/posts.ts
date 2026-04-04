@@ -46,23 +46,27 @@ postsApi.get('/', async (c) => {
   const allowedIds = getAllowedChannelIds(user);
   if (allowedIds.length === 0) return c.json([]);
 
-  let rows = db.select().from(posts)
-    .where(inArray(posts.channelId, allowedIds))
+  // Build WHERE conditions in SQL instead of filtering in JS
+  const conditions = [inArray(posts.channelId, allowedIds)];
+  if (status) conditions.push(eq(posts.status, status as any));
+  if (channelId) conditions.push(eq(posts.channelId, Number(channelId)));
+
+  const rows = db.select().from(posts)
+    .where(and(...conditions))
     .orderBy(desc(posts.createdAt))
     .limit(limit)
     .offset(offset)
     .all();
 
-  if (status) rows = rows.filter((p) => p.status === status);
-  if (channelId) rows = rows.filter((p) => p.channelId === Number(channelId));
-
-  // Build task name lookup
+  // Build task name lookup — single batch query instead of N+1
   const taskIds = [...new Set(rows.filter(p => p.taskId).map(p => p.taskId!))];
   const taskNames: Record<number, string> = {};
   const defaultNames: Record<string, string> = { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' };
-  for (const tid of taskIds) {
-    const t = db.select().from(tasks).where(eq(tasks.id, tid)).limit(1).get();
-    if (t) taskNames[tid] = t.name ?? defaultNames[t.type] ?? t.type;
+  if (taskIds.length > 0) {
+    const taskRows = db.select().from(tasks).where(inArray(tasks.id, taskIds)).all();
+    for (const t of taskRows) {
+      taskNames[t.id] = t.name ?? defaultNames[t.type] ?? t.type;
+    }
   }
 
   return c.json(rows.map(p => ({ ...p, taskName: p.taskId ? taskNames[p.taskId] ?? null : null })));
