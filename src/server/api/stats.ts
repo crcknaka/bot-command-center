@@ -234,17 +234,39 @@ statsApi.get('/chats', async (c) => {
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
   const allChannels = db.select().from(channels).all();
 
-  const result = chatIds.map(chatId => {
+  // Try to resolve chat titles via bot API for unknown chats
+  const { botManager } = await import('../bot/manager.js');
+
+  const result: any[] = [];
+  for (const chatId of chatIds) {
     const weekMsgs = allMsgs.filter(m => m.chatId === chatId && m.createdAt >= weekAgo.toISOString());
-    const ch = allChannels.find(c => c.chatId === chatId);
-    return {
+    let ch = allChannels.find(c => c.chatId === chatId);
+
+    // If not found, try to get title from Telegram
+    if (!ch) {
+      // Try all running bots
+      const allBots = db.select().from(bots).all();
+      for (const b of allBots) {
+        const botInstance = botManager.getBotInstance(b.id);
+        if (!botInstance) continue;
+        try {
+          const chat = await botInstance.api.getChat(chatId);
+          const title = 'title' in chat ? chat.title : (chat as any).first_name ?? chatId;
+          ch = { chatId, title, type: (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') ? chat.type : 'group' } as any;
+          break;
+        } catch { continue; }
+      }
+    }
+
+    result.push({
       chatId,
       title: ch?.title ?? chatId,
       type: ch?.type ?? 'group',
       weekMessages: weekMsgs.length,
       weekUsers: new Set(weekMsgs.map(m => m.userId)).size,
-    };
-  }).sort((a, b) => b.weekMessages - a.weekMessages);
+    });
+  }
+  result.sort((a, b) => b.weekMessages - a.weekMessages);
 
   return c.json(result);
 });

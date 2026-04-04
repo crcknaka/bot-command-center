@@ -313,8 +313,19 @@ botsApi.post('/import', async (c) => {
 // GET /api/bots/:id/members — list known users from message stats
 botsApi.get('/:id/members', async (c) => {
   const id = Number(c.req.param('id'));
-  const chatId = c.req.query('chatId');
+  let chatId = c.req.query('chatId');
   if (!chatId) return c.json({ error: 'chatId required' }, 400);
+
+  // If chatId starts with @, resolve numeric ID via bot API
+  if (chatId.startsWith('@')) {
+    const botInstance = botManager.getBotInstance(id);
+    if (botInstance) {
+      try {
+        const chat = await botInstance.api.getChat(chatId);
+        chatId = String(chat.id);
+      } catch {}
+    }
+  }
 
   // Get unique users from message_stats
   const msgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
