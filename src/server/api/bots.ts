@@ -11,6 +11,13 @@ const botsApi = new Hono();
 
 botsApi.use('*', requireAuth);
 
+/** Check if user owns this bot */
+function checkBotAccess(user: any, botId: number): boolean {
+  if (user.role === 'superadmin') return true;
+  const bot = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
+  return bot?.ownerId === user.id;
+}
+
 // GET /api/bots
 botsApi.get('/', async (c) => {
   const user = (c as any).get('user');
@@ -371,7 +378,9 @@ botsApi.get('/:id/members', async (c) => {
 
 // POST /api/bots/:id/moderate — ban/mute/unban a user
 botsApi.post('/:id/moderate', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  if (!checkBotAccess(user, id)) return c.json({ error: 'Forbidden' }, 403);
   const { chatId, userId, action, duration } = await c.req.json<{
     chatId: string;
     userId: number;
@@ -382,7 +391,6 @@ botsApi.post('/:id/moderate', async (c) => {
   const botInstance = botManager.getBotInstance(id);
   if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
 
-  const user = (c as any).get('user');
   const numChatId = /^-?\d+$/.test(chatId) ? Number(chatId) : chatId;
   const untilDate = duration && duration > 0 ? Math.floor(Date.now() / 1000) + duration * 60 : 0;
 
@@ -450,7 +458,9 @@ botsApi.post('/:id/moderate', async (c) => {
 
 // POST /api/bots/:id/send — send a message from the bot to a channel
 botsApi.post('/:id/send', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  if (!checkBotAccess(user, id)) return c.json({ error: 'Forbidden' }, 403);
   const { channelId, text, imageUrl } = await c.req.json<{ channelId: number; text: string; imageUrl?: string }>();
 
   if (!text?.trim()) return c.json({ error: 'Текст сообщения обязателен' }, 400);

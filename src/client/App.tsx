@@ -16,6 +16,7 @@ import { DocsPage } from './pages/docs.js';
 import { BotDetailPage } from './pages/bot-detail.js';
 import { ActivityPage } from './pages/activity.js';
 import { UsersPage } from './pages/users.js';
+import { RegisterPage } from './pages/register.js';
 import { ToastProvider } from './components/ui/toast.js';
 import type { ReactNode } from 'react';
 
@@ -51,6 +52,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
       <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots" element={<ProtectedRoute><AppLayout><BotsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
