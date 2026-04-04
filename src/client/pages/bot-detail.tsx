@@ -684,6 +684,13 @@ function BannedWordsInput({ words, onChange }: { words: string[]; onChange: (w: 
         }} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-orange-500/10 text-orange-400 hover:bg-orange-500/20">
           🤬 + Русский мат
         </button>
+        <button type="button" onClick={() => {
+          const drugs = ['наркот','наркоман','нарко','героин','кокаин','кокс','марихуан','каннаби','ганж','гашиш','гаш','амфетамин','амфик','метамфетамин','мет','экстази','mdma','lsd','лсд','мефедрон','меф','спайс','соль','солёная','закладк','кладмен','клад','барыг','барыж','дурь','дурман','косяк','план','травк','шишк','бошк','гидр','гидропон','фен','фенамин','speed','спид','кристалл','снюс','насвай','крэк','crack','кетамин','морфин','опиум','шприц','ширк','ширнул','торч','обдолб','укурен','укур','обкур','нюхат','понюхат','дунут','вмазат','ужалит','колёс','таблет','спид','дозняк','доза','передоз','наркоша','нарик','наркоз'];
+          const newWords = drugs.filter(w => !words.includes(w));
+          if (newWords.length) onChange([...words, ...newWords]);
+        }} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20">
+          💊 + Наркотики
+        </button>
       </div>
       {words.length > 0 ? (
         <div className="flex flex-wrap gap-1">
