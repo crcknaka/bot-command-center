@@ -144,11 +144,7 @@ export function BotDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {bot.status !== 'active' ? (
-            <button onClick={() => botAction.mutate({ id: botId, action: 'start' })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25">
-              <Play size={16} /> {botAction.isPending ? 'Запуск...' : 'Запустить'}
-            </button>
-          ) : (
+          {bot.status === 'active' && (
             <button onClick={() => botAction.mutate({ id: botId, action: 'stop' })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25">
               <Square size={16} /> {botAction.isPending ? '...' : 'Остановить'}
             </button>
