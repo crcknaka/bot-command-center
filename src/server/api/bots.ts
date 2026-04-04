@@ -171,4 +171,41 @@ botsApi.post('/:id/test', async (c) => {
   }
 });
 
+// POST /api/bots/:id/send — send a message from the bot to a channel
+botsApi.post('/:id/send', async (c) => {
+  const id = Number(c.req.param('id'));
+  const { channelId, text, imageUrl } = await c.req.json<{ channelId: number; text: string; imageUrl?: string }>();
+
+  if (!text?.trim()) return c.json({ error: 'Текст сообщения обязателен' }, 400);
+
+  const botInstance = botManager.getBotInstance(id);
+  if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
+
+  const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
+  if (!channel) return c.json({ error: 'Канал не найден' }, 404);
+
+  try {
+    let messageId: number;
+    if (imageUrl) {
+      const msg = await botInstance.api.sendPhoto(channel.chatId, imageUrl, {
+        caption: text,
+        parse_mode: 'HTML',
+        message_thread_id: channel.threadId ?? undefined,
+      });
+      messageId = msg.message_id;
+    } else {
+      const msg = await botInstance.api.sendMessage(channel.chatId, text, {
+        parse_mode: 'HTML',
+        message_thread_id: channel.threadId ?? undefined,
+      });
+      messageId = msg.message_id;
+    }
+
+    logActivity({ userId: (c as any).get('user')?.id, botId: id, action: 'bot.message_sent', details: { channelId, messageId } });
+    return c.json({ ok: true, messageId });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 export { botsApi };

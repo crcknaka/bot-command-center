@@ -45,10 +45,15 @@ export class AutoReplyTask implements TaskModule {
             recentReplies.set(`${msgCtx.chat.id}:${userId}`, Date.now());
           }
 
+          const response = rule.response
+            .replace(/\{user\}/g, msgCtx.from?.first_name ?? 'Пользователь')
+            .replace(/\{username\}/g, msgCtx.from?.username ? `@${msgCtx.from.username}` : msgCtx.from?.first_name ?? '')
+            .replace(/\{chatTitle\}/g, 'title' in msgCtx.chat ? (msgCtx.chat as any).title : '');
+
           if (rule.replyInDm && userId) {
-            try { await msgCtx.api.sendMessage(userId, rule.response, { parse_mode: 'HTML' }); } catch (e) { console.error('[auto-reply] DM send error:', e); }
+            try { await msgCtx.api.sendMessage(userId, response, { parse_mode: 'HTML' }); } catch (e) { console.error('[auto-reply] DM send error:', e); }
           } else {
-            await msgCtx.reply(rule.response, { parse_mode: 'HTML' });
+            await msgCtx.reply(response, { parse_mode: 'HTML' });
           }
           break;
         }

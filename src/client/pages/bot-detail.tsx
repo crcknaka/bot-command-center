@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy } from 'lucide-react';
+import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { safeHtml } from '../lib/sanitize.js';
@@ -28,7 +28,7 @@ export function BotDetailPage() {
   const [taskType, setTaskType] = useState('news_feed');
   const [taskName, setTaskName] = useState('');
   const [taskSchedule, setTaskSchedule] = useState('0 9 * * *');
-  const [taskConfig, setTaskConfig] = useState<Record<string, any>>({
+  const initialTaskConfig: Record<string, any> = {
     useAi: true,
     rawTemplate: '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>',
     rules: [{ pattern: '', response: '', isRegex: false }],
@@ -37,7 +37,8 @@ export function BotDetailPage() {
     bannedWords: [],
     maxLinksPerMessage: 3,
     warnText: '⚠️ {user}, ваше сообщение удалено за нарушение правил.',
-  });
+  };
+  const [taskConfig, setTaskConfig] = useState<Record<string, any>>(initialTaskConfig);
 
   // Add source state
   const [showAddSource, setShowAddSource] = useState<number | null>(null); // taskId
@@ -58,7 +59,7 @@ export function BotDetailPage() {
   const addTaskMut = useMutation({
     mutationFn: ({ channelId, ...data }: { channelId: number; name?: string; type: string; schedule: string; config?: any }) =>
       apiFetch(`/channels/${channelId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); setTaskName(''); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setShowAddTask(null); setTaskType('news_feed'); setTaskSchedule('0 9 * * *'); setTaskName(''); setTaskConfig({ ...initialTaskConfig, rules: [{ pattern: '', response: '', isRegex: false }], bannedWords: [] }); },
   });
 
   const runTaskMut = useMutation({
@@ -287,8 +288,8 @@ export function BotDetailPage() {
             let config: any = {};
             if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
-            if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0 };
-            if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText, antiFlood: taskConfig.antiFlood, maxMessagesPerMinute: taskConfig.maxMessagesPerMinute, blockForwards: taskConfig.blockForwards, blockStickers: taskConfig.blockStickers, minMessageLength: taskConfig.minMessageLength };
+            if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined };
+            if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText, antiFlood: taskConfig.antiFlood, maxMessagesPerMinute: taskConfig.maxMessagesPerMinute, floodWarnText: taskConfig.floodWarnText, blockForwards: taskConfig.blockForwards, blockStickers: taskConfig.blockStickers, blockVoice: taskConfig.blockVoice, minMessageLength: taskConfig.minMessageLength, muteOnViolation: taskConfig.muteOnViolation, muteDurationMinutes: taskConfig.muteDurationMinutes };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -374,15 +375,28 @@ export function BotDetailPage() {
                     <span className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>→</span>
                     <div className="flex-1">
                       <input value={rule.response} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], response: e.target.value }; setTaskConfig({ ...taskConfig, rules: r }); }}
-                        placeholder="Ответ бота" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                        placeholder="Ответ бота ({user} = имя)" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <label className="text-[9px] flex items-center gap-0.5" title="Regex-паттерн" style={{ color: 'var(--text-muted)' }}>
+                        <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], isRegex: e.target.checked }; setTaskConfig({ ...taskConfig, rules: r }); }} />
+                        .*
+                      </label>
+                      <label className="text-[9px] flex items-center gap-0.5" title="Ответить в ЛС" style={{ color: 'var(--text-muted)' }}>
+                        <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], replyInDm: e.target.checked }; setTaskConfig({ ...taskConfig, rules: r }); }} />
+                        ЛС
+                      </label>
                     </div>
                     <button type="button" onClick={() => { const r = taskConfig.rules.filter((_: any, j: number) => j !== i); setTaskConfig({ ...taskConfig, rules: r.length ? r : [{ pattern: '', response: '' }] }); }}
                       className="p-1 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
                   </div>
                 ))}
                 <button type="button" onClick={() => setTaskConfig({ ...taskConfig, rules: [...taskConfig.rules, { pattern: '', response: '', isRegex: false }] })}
-                  className="text-[11px] text-blue-400 hover:text-blue-300 mb-3">+ Добавить правило</button>
-                <div className="flex items-center gap-3 mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                  className="text-[11px] text-blue-400 hover:text-blue-300">+ Добавить правило</button>
+                <p className="text-[10px] mt-1 mb-3" style={{ color: 'var(--text-muted)' }}>
+                  В ответе: {'{user}'} — имя, {'{username}'} — @username. <b>.*</b> — regex-режим, <b>ЛС</b> — ответ в личку.
+                </p>
+                <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
                   <label className="flex items-center gap-1.5 text-xs">
                     <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами одному юзеру:</span>
                     <input type="number" min={0} value={taskConfig.cooldownSeconds ?? 0} onChange={(e) => setTaskConfig({ ...taskConfig, cooldownSeconds: Number(e.target.value) })}
@@ -400,17 +414,47 @@ export function BotDetailPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Текст приветствия</label>
                   <textarea value={taskConfig.welcomeText} onChange={(e) => setTaskConfig({ ...taskConfig, welcomeText: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя участника, {'{username}'} — @username</p>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username. Поддерживается HTML.</p>
                   <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Превью: </span>
                     {taskConfig.welcomeText?.replace(/\{name\}/g, 'Иван').replace(/\{username\}/g, '@ivan')}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Удалить приветствие через (секунд)</label>
-                  <input type="number" min={0} value={taskConfig.deleteAfterSeconds} onChange={(e) => setTaskConfig({ ...taskConfig, deleteAfterSeconds: Number(e.target.value) })}
-                    className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                  <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = не удалять</span>
+                  <label className="block text-xs font-medium mb-1">Картинка / GIF (URL)</label>
+                  <input value={taskConfig.imageUrl ?? ''} onChange={(e) => setTaskConfig({ ...taskConfig, imageUrl: e.target.value })}
+                    placeholder="https://example.com/welcome.jpg" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Необязательно. Картинка отправится вместе с текстом.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Кнопки (inline)</label>
+                  {(taskConfig.buttons ?? []).map((btn: any, i: number) => (
+                    <div key={i} className="flex gap-2 mb-1">
+                      <input value={btn.text} onChange={(e) => { const b = [...(taskConfig.buttons ?? [])]; b[i] = { ...b[i], text: e.target.value }; setTaskConfig({ ...taskConfig, buttons: b }); }}
+                        placeholder="Текст кнопки" className="flex-1 px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      <input value={btn.url} onChange={(e) => { const b = [...(taskConfig.buttons ?? [])]; b[i] = { ...b[i], url: e.target.value }; setTaskConfig({ ...taskConfig, buttons: b }); }}
+                        placeholder="https://..." className="flex-1 px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      <button type="button" onClick={() => setTaskConfig({ ...taskConfig, buttons: (taskConfig.buttons ?? []).filter((_: any, j: number) => j !== i) })}
+                        className="text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setTaskConfig({ ...taskConfig, buttons: [...(taskConfig.buttons ?? []), { text: '', url: '' }] })}
+                    className="text-[11px] text-blue-400">+ Добавить кнопку</button>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Например: «Правила группы» → ссылка на пост с правилами.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Удалить через (сек)</label>
+                    <input type="number" min={0} value={taskConfig.deleteAfterSeconds} onChange={(e) => setTaskConfig({ ...taskConfig, deleteAfterSeconds: Number(e.target.value) })}
+                      className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = не удалять</span>
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <label className="block text-xs font-medium mb-1">Прощание (при выходе участника)</label>
+                  <input value={taskConfig.farewellText ?? ''} onChange={(e) => setTaskConfig({ ...taskConfig, farewellText: e.target.value })}
+                    placeholder="Необязательно. Например: {name} покинул(а) чат 👋" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = без прощания. {'{name}'}, {'{username}'} работают.</p>
                 </div>
               </div>
             )}
@@ -469,6 +513,11 @@ export function BotDetailPage() {
                     Блокировать стикеры и GIF
                     <InfoTip text="Удаляет стикеры и GIF-анимации. Для серьёзных групп." position="right" />
                   </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={taskConfig.blockVoice ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, blockVoice: e.target.checked })} />
+                    Блокировать голосовые и видео-кружки
+                    <InfoTip text="Удаляет голосовые сообщения и видео-заметки (кружки)." position="right" />
+                  </label>
                   <div className="flex items-center gap-2 text-xs">
                     <span style={{ color: 'var(--text-muted)' }}>Мин. длина сообщения:</span>
                     <input type="number" min={0} max={100} value={taskConfig.minMessageLength ?? 0} onChange={(e) => setTaskConfig({ ...taskConfig, minMessageLength: Number(e.target.value) })}
@@ -476,6 +525,19 @@ export function BotDetailPage() {
                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>символов (0 = выкл)</span>
                     <InfoTip text="Сообщения короче этой длины удаляются. Против спама типа 'ааа', '+1'." position="right" />
                   </div>
+                  <label className="flex items-center gap-2 text-xs mt-2">
+                    <input type="checkbox" checked={taskConfig.muteOnViolation ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, muteOnViolation: e.target.checked })} />
+                    Мут за нарушения
+                    <InfoTip text="При нарушении (запрещённые слова, флуд) юзер получает мут — не может писать N минут." position="right" />
+                  </label>
+                  {taskConfig.muteOnViolation && (
+                    <div className="ml-5 flex items-center gap-2 text-xs">
+                      <span style={{ color: 'var(--text-muted)' }}>Длительность мута:</span>
+                      <input type="number" min={1} max={1440} value={taskConfig.muteDurationMinutes ?? 5} onChange={(e) => setTaskConfig({ ...taskConfig, muteDurationMinutes: Number(e.target.value) })}
+                        className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -718,21 +780,27 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [newQuery, setNewQuery] = useState('');
   const { data: searchProvidersList } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
   // Auto-reply
-  const [rules, setRules] = useState<Array<{ pattern: string; response: string }>>(config.rules ?? [{ pattern: '', response: '' }]);
+  const [rules, setRules] = useState<Array<{ pattern: string; response: string; isRegex?: boolean; replyInDm?: boolean }>>(config.rules ?? [{ pattern: '', response: '' }]);
+  const [cooldownSec, setCooldownSec] = useState(config.cooldownSeconds ?? 0);
   // Welcome
   const [welcomeText, setWelcomeText] = useState(config.welcomeText ?? '👋 Привет, {name}!');
   const [deleteAfterSec, setDeleteAfterSec] = useState(config.deleteAfterSeconds ?? 0);
+  const [welcomeImageUrl, setWelcomeImageUrl] = useState(config.imageUrl ?? '');
+  const [welcomeButtons, setWelcomeButtons] = useState<Array<{ text: string; url: string }>>(config.buttons ?? []);
+  const [farewellText, setFarewellText] = useState(config.farewellText ?? '');
   // Moderation
   const [bannedWords, setBannedWords] = useState<string[]>(config.bannedWords ?? []);
   const [maxLinks, setMaxLinks] = useState(config.maxLinksPerMessage ?? 3);
   const [warnText, setWarnText] = useState(config.warnText ?? '⚠️ {user}, ваше сообщение удалено.');
   const [antiFlood, setAntiFlood] = useState(config.antiFlood ?? false);
   const [maxMsgPerMin, setMaxMsgPerMin] = useState(config.maxMessagesPerMinute ?? 5);
+  const [floodWarnTextEdit, setFloodWarnTextEdit] = useState(config.floodWarnText ?? '');
   const [blockForwards, setBlockForwards] = useState(config.blockForwards ?? false);
   const [blockStickers, setBlockStickers] = useState(config.blockStickers ?? false);
+  const [blockVoice, setBlockVoice] = useState(config.blockVoice ?? false);
   const [minMsgLen, setMinMsgLen] = useState(config.minMessageLength ?? 0);
-  // Auto-reply
-  const [cooldownSec, setCooldownSec] = useState(config.cooldownSeconds ?? 0);
+  const [muteOnViolation, setMuteOnViolation] = useState(config.muteOnViolation ?? false);
+  const [muteDuration, setMuteDuration] = useState(config.muteDurationMinutes ?? 5);
 
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
@@ -794,16 +862,32 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <div>
             <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
             {rules.map((rule, i) => (
-              <div key={i} className="flex gap-2 mb-2">
+              <div key={i} className="flex gap-2 mb-2 items-start">
                 <input value={rule.pattern} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], pattern: e.target.value }; setRules(r); }}
                   placeholder="Ключевое слово" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                <span className="text-xs self-center" style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>→</span>
                 <input value={rule.response} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], response: e.target.value }; setRules(r); }}
-                  placeholder="Ответ бота" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                <button type="button" onClick={() => setRules(rules.filter((_, j) => j !== i))} className="text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
+                  placeholder="Ответ ({user} = имя)" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <div className="flex items-center gap-1 shrink-0 mt-1">
+                  <label className="text-[9px] flex items-center gap-0.5" title="Regex" style={{ color: 'var(--text-muted)' }}>
+                    <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], isRegex: e.target.checked }; setRules(r); }} /> .*
+                  </label>
+                  <label className="text-[9px] flex items-center gap-0.5" title="В ЛС" style={{ color: 'var(--text-muted)' }}>
+                    <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], replyInDm: e.target.checked }; setRules(r); }} /> ЛС
+                  </label>
+                </div>
+                <button type="button" onClick={() => setRules(rules.filter((_, j) => j !== i))} className="text-red-400/50 hover:text-red-400 mt-1"><Trash2 size={12} /></button>
               </div>
             ))}
             <button type="button" onClick={() => setRules([...rules, { pattern: '', response: '' }])} className="text-[11px] text-blue-400">+ Добавить</button>
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              {'{user}'} — имя, {'{username}'} — @username. <b>.*</b> — regex, <b>ЛС</b> — ответ в личку.
+            </p>
+            <div className="flex items-center gap-2 text-xs mt-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Пауза:</span>
+              <input type="number" min={0} value={cooldownSec} onChange={(e) => setCooldownSec(Number(e.target.value))} className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек между ответами одному юзеру</span>
+            </div>
           </div>
         )}
 
@@ -813,12 +897,36 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
             <div>
               <label className="block text-sm font-medium mb-1">Текст приветствия</label>
               <textarea value={welcomeText} onChange={(e) => setWelcomeText(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username</p>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username. HTML поддерживается.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Картинка / GIF (URL)</label>
+              <input value={welcomeImageUrl} onChange={(e) => setWelcomeImageUrl(e.target.value)}
+                placeholder="https://example.com/welcome.jpg" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Кнопки (inline)</label>
+              {welcomeButtons.map((btn, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <input value={btn.text} onChange={(e) => { const b = [...welcomeButtons]; b[i] = { ...b[i], text: e.target.value }; setWelcomeButtons(b); }}
+                    placeholder="Текст кнопки" className="flex-1 px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <input value={btn.url} onChange={(e) => { const b = [...welcomeButtons]; b[i] = { ...b[i], url: e.target.value }; setWelcomeButtons(b); }}
+                    placeholder="https://..." className="flex-1 px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <button type="button" onClick={() => setWelcomeButtons(welcomeButtons.filter((_, j) => j !== i))} className="text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setWelcomeButtons([...welcomeButtons, { text: '', url: '' }])} className="text-[11px] text-blue-400">+ Добавить кнопку</button>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Удалить через (сек)</label>
               <input type="number" min={0} value={deleteAfterSec} onChange={(e) => setDeleteAfterSec(Number(e.target.value))} className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
               <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = не удалять</span>
+            </div>
+            <div className="pt-2 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+              <label className="block text-xs font-medium mb-1">Прощание</label>
+              <input value={farewellText} onChange={(e) => setFarewellText(e.target.value)}
+                placeholder="{name} покинул(а) чат 👋" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = без прощания.</p>
             </div>
           </div>
         )}
@@ -831,18 +939,12 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               <BannedWordsInput words={bannedWords} onChange={setBannedWords} />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
-                Макс. ссылок в сообщении
-                <InfoTip text="Если в одном сообщении больше ссылок чем указано — оно будет удалено. Защита от спама ссылками. 0 = не ограничивать." position="right" />
-              </label>
+              <label className="block text-xs font-medium mb-1">Макс. ссылок в сообщении</label>
               <input type="number" min={0} value={maxLinks} onChange={(e) => setMaxLinks(Number(e.target.value))} className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений</span>
+              <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений (ловит http, t.me, @)</span>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
-                Текст предупреждения
-                <InfoTip text="Сообщение которое бот отправит нарушителю. {user} заменится на имя пользователя. Удалится автоматически через 10 секунд." position="right" />
-              </label>
+              <label className="block text-xs font-medium mb-1">Текст предупреждения</label>
               <input value={warnText} onChange={(e) => setWarnText(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
             <div className="pt-2 mt-2 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
@@ -850,38 +952,51 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={antiFlood} onChange={(e) => setAntiFlood(e.target.checked)} />
                 Анти-флуд
-                <InfoTip text="Удаляет сообщения если юзер пишет слишком часто." position="right" />
               </label>
               {antiFlood && (
-                <div className="ml-5 flex items-center gap-2 text-xs">
-                  <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
-                  <input type="number" min={1} max={30} value={maxMsgPerMin} onChange={(e) => setMaxMsgPerMin(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                  <span style={{ color: 'var(--text-muted)' }}>сообщ. в минуту</span>
+                <div className="ml-5 space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
+                    <input type="number" min={1} max={30} value={maxMsgPerMin} onChange={(e) => setMaxMsgPerMin(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <span style={{ color: 'var(--text-muted)' }}>сообщ. в минуту</span>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Предупреждение при флуде:</label>
+                    <input value={floodWarnTextEdit} onChange={(e) => setFloodWarnTextEdit(e.target.value)}
+                      placeholder="🚫 {user}, слишком много сообщений!"
+                      className="w-full px-2 py-1 rounded-lg border text-[11px] outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  </div>
                 </div>
               )}
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={blockForwards} onChange={(e) => setBlockForwards(e.target.checked)} />
-                Блокировать пересланные сообщения
+                Блокировать пересланные
               </label>
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={blockStickers} onChange={(e) => setBlockStickers(e.target.checked)} />
                 Блокировать стикеры и GIF
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={blockVoice} onChange={(e) => setBlockVoice(e.target.checked)} />
+                Блокировать голосовые и видео-кружки
               </label>
               <div className="flex items-center gap-2 text-xs">
                 <span style={{ color: 'var(--text-muted)' }}>Мин. длина:</span>
                 <input type="number" min={0} value={minMsgLen} onChange={(e) => setMinMsgLen(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>символов</span>
               </div>
+              <label className="flex items-center gap-2 text-xs mt-2">
+                <input type="checkbox" checked={muteOnViolation} onChange={(e) => setMuteOnViolation(e.target.checked)} />
+                Мут за нарушения
+              </label>
+              {muteOnViolation && (
+                <div className="ml-5 flex items-center gap-2 text-xs">
+                  <span style={{ color: 'var(--text-muted)' }}>Длительность:</span>
+                  <input type="number" min={1} max={1440} value={muteDuration} onChange={(e) => setMuteDuration(Number(e.target.value))} className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Auto-reply cooldown */}
-        {task.type === 'auto_reply' && (
-          <div className="flex items-center gap-2 text-xs">
-            <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами:</span>
-            <input type="number" min={0} value={cooldownSec} onChange={(e) => setCooldownSec(Number(e.target.value))} className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек (0 = всегда)</span>
           </div>
         )}
 
@@ -935,8 +1050,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               let cfg: any = config;
               if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, searchQueries: searchQueries.length ? searchQueries : undefined };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
-              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec };
-              if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText, antiFlood, maxMessagesPerMinute: maxMsgPerMin, blockForwards, blockStickers, minMessageLength: minMsgLen };
+              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined };
+              if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText, antiFlood, maxMessagesPerMinute: maxMsgPerMin, floodWarnText: floodWarnTextEdit || undefined, blockForwards, blockStickers, blockVoice, minMessageLength: minMsgLen, muteOnViolation, muteDurationMinutes: muteDuration };
               onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
             }}
             disabled={isPending}
@@ -1190,6 +1305,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
   const [minInterval, setMinInterval] = useState(bot.minPostIntervalMinutes ?? 60);
   const [maxLength, setMaxLength] = useState(bot.maxPostLength ?? 2000);
   const [signature, setSignature] = useState(bot.postSignature ?? '');
+  const [botSystemPrompt, setBotSystemPrompt] = useState(bot.systemPrompt ?? '');
   const [autoPin, setAutoPin] = useState(bot.autoPin ?? false);
   const [autoDeleteHours, setAutoDeleteHours] = useState(bot.autoDeleteHours ?? 0);
   const [saved, setSaved] = useState(false);
@@ -1305,6 +1421,15 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
               </label>
               <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Например: 📢 @euc_official" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Системный промпт (AI)
+                <InfoTip text="Общий промпт для AI-генерации постов этого бота. Можно переопределить на уровне задачи." position="right" />
+              </label>
+              <textarea value={botSystemPrompt} onChange={(e) => setBotSystemPrompt(e.target.value)} rows={2}
+                placeholder="Ты — редактор Telegram-канала. Пиши кратко, с HTML..."
+                className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
             <div className="flex gap-4 flex-wrap">
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={autoPin} onChange={(e) => setAutoPin(e.target.checked)} />
@@ -1326,6 +1451,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
               onClick={() => saveMut.mutate({
                 aiProviderId: aiPid ? Number(aiPid) : null,
                 searchProviderId: searchPid ? Number(searchPid) : null,
+                systemPrompt: botSystemPrompt || null,
                 postLanguage: postLang,
                 maxPostsPerDay: maxPerDay,
                 minPostIntervalMinutes: minInterval,
@@ -1365,6 +1491,15 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowDuplicate(false); setDupChatId(''); setDupThreadId(''); },
   });
 
+  const [showSend, setShowSend] = useState(false);
+  const [sendText, setSendText] = useState('');
+  const [sendImage, setSendImage] = useState('');
+  const sendMut = useMutation({
+    mutationFn: (data: { channelId: number; text: string; imageUrl?: string }) =>
+      apiFetch(`/bots/${botId}/send`, { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => { setShowSend(false); setSendText(''); setSendImage(''); },
+  });
+
   return (
     <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       {/* Channel header */}
@@ -1383,6 +1518,9 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
           )}
         </div>
         <div className="flex gap-2 shrink-0">
+          <button onClick={() => setShowSend(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors" title="Написать от лица бота">
+            <Send size={12} />
+          </button>
           <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
           </button>
@@ -1456,6 +1594,30 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
           {duplicateMut.isError && (
             <p className="text-xs text-red-400 mt-2">{(duplicateMut.error as Error).message}</p>
           )}
+        </Modal>
+      )}
+
+      {/* Send Message Modal */}
+      {showSend && (
+        <Modal title={`Написать в ${channel.title}`} onClose={() => setShowSend(false)}>
+          <form onSubmit={(e) => { e.preventDefault(); if (!sendText.trim()) return; sendMut.mutate({ channelId: channel.id, text: sendText.trim(), imageUrl: sendImage.trim() || undefined }); }}>
+            <label className="block text-xs font-medium mb-1">Сообщение (HTML)</label>
+            <textarea value={sendText} onChange={(e) => setSendText(e.target.value)} rows={4} autoFocus required
+              placeholder="Текст сообщения... Поддерживается <b>HTML</b>"
+              className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <label className="block text-xs font-medium mb-1 mt-3">Картинка (URL, необязательно)</label>
+            <input value={sendImage} onChange={(e) => setSendImage(e.target.value)}
+              placeholder="https://example.com/photo.jpg"
+              className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none mb-4" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => setShowSend(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+              <button type="submit" disabled={sendMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                {sendMut.isPending ? 'Отправляю...' : 'Отправить'}
+              </button>
+            </div>
+          </form>
+          {sendMut.isError && <p className="text-xs text-red-400 mt-2">{(sendMut.error as Error).message}</p>}
+          {sendMut.isSuccess && <p className="text-xs text-green-400 mt-2">Сообщение отправлено!</p>}
         </Modal>
       )}
     </div>
