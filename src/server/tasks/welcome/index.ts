@@ -11,6 +11,7 @@ interface WelcomeConfig {
   imageUrl?: string; // Welcome image/GIF URL
   buttons?: WelcomeButton[]; // Inline keyboard buttons
   farewellText?: string; // Text when member leaves
+  farewellImageUrl?: string; // Farewell image/GIF URL
 }
 
 export class WelcomeTask implements TaskModule {
@@ -87,9 +88,22 @@ export class WelcomeTask implements TaskModule {
             .replace(/\{username\}/g, username);
 
           try {
-            const msg = await msgCtx.reply(text, { parse_mode: 'HTML' });
+            let msg;
+            if (config.farewellImageUrl) {
+              try {
+                if (/\.gif$/i.test(config.farewellImageUrl) || config.farewellImageUrl.includes('giphy')) {
+                  msg = await msgCtx.api.sendAnimation(msgCtx.chat.id, config.farewellImageUrl, { caption: text, parse_mode: 'HTML' });
+                } else {
+                  msg = await msgCtx.api.sendPhoto(msgCtx.chat.id, config.farewellImageUrl, { caption: text, parse_mode: 'HTML' });
+                }
+              } catch {
+                msg = await msgCtx.reply(text, { parse_mode: 'HTML' });
+              }
+            } else {
+              msg = await msgCtx.reply(text, { parse_mode: 'HTML' });
+            }
             // Auto-delete farewell after 30 seconds
-            setTimeout(() => { msgCtx.api.deleteMessage(msg.chat.id, msg.message_id).catch(() => {}); }, 30000);
+            if (msg) setTimeout(() => { msgCtx.api.deleteMessage(msg.chat.id, msg.message_id).catch(() => {}); }, 30000);
           } catch (e) { console.error('[welcome] farewell error:', e); }
         }
         await next();

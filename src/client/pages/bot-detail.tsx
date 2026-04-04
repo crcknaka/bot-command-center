@@ -301,7 +301,7 @@ export function BotDetailPage() {
             let config: any = {};
             if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
-            if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined };
+            if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
@@ -427,6 +427,8 @@ export function BotDetailPage() {
                   <label className="block text-xs font-medium mb-1">Прощание (при выходе участника)</label>
                   <input value={taskConfig.farewellText ?? ''} onChange={(e) => setTaskConfig({ ...taskConfig, farewellText: e.target.value })}
                     placeholder="Необязательно. Например: {name} покинул(а) чат 👋" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <input value={taskConfig.farewellImageUrl ?? ''} onChange={(e) => setTaskConfig({ ...taskConfig, farewellImageUrl: e.target.value })}
+                    placeholder="URL картинки для прощания (необязательно)" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none mt-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                   <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = без прощания. {'{name}'}, {'{username}'} работают.</p>
                 </div>
               </div>
@@ -942,6 +944,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [welcomeImageUrl, setWelcomeImageUrl] = useState(config.imageUrl ?? '');
   const [welcomeButtons, setWelcomeButtons] = useState<Array<{ text: string; url: string }>>(config.buttons ?? []);
   const [farewellText, setFarewellText] = useState(config.farewellText ?? '');
+  const [farewellImageUrl, setFarewellImageUrl] = useState(config.farewellImageUrl ?? '');
   // Moderation — single state object for ModerationConfigUI
   const [modConfig, setModConfig] = useState<Record<string, any>>({
     bannedWords: config.bannedWords ?? [],
@@ -1059,6 +1062,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               <label className="block text-xs font-medium mb-1">Прощание</label>
               <input value={farewellText} onChange={(e) => setFarewellText(e.target.value)}
                 placeholder="{name} покинул(а) чат 👋" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <input value={farewellImageUrl} onChange={(e) => setFarewellImageUrl(e.target.value)}
+                placeholder="URL картинки для прощания (необязательно)" className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none mt-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
               <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = без прощания.</p>
             </div>
           </div>
@@ -1119,7 +1124,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               let cfg: any = config;
               if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, searchQueries: searchQueries.length ? searchQueries : undefined };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
-              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined };
+              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };
               onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
             }}
