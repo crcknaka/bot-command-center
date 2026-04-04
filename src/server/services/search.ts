@@ -102,7 +102,11 @@ async function safeFetchJson(res: Response, providerName: string): Promise<any> 
 
 async function searchTavily(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const client = tavily({ apiKey });
-  const response = await client.search(opts.query, {
+  // Tavily doesn't support gl/hl, so we hint language in the query itself
+  const locale = getLocale(opts.language);
+  const langHints: Record<string, string> = { ru: ' на русском', uk: ' українською', de: ' auf Deutsch' };
+  const queryWithLang = locale.hl !== 'en' ? opts.query + (langHints[locale.hl] ?? '') : opts.query;
+  const response = await client.search(queryWithLang, {
     searchDepth: 'basic',
     maxResults: opts.maxResults ?? 5,
     topic: 'news',
