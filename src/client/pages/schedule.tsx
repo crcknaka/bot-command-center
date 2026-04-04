@@ -12,7 +12,10 @@ import { TelegramPreview } from '../components/telegram-preview.js';
 import { postStatusConfig } from '../lib/constants.js';
 
 export function SchedulePage() {
+  const [view, setView] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const { data: posts, isLoading: postsLoading } = useQuery({ queryKey: ['posts'], queryFn: () => apiFetch('/posts') });
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const updateMut = useUpdatePost();
@@ -41,6 +44,45 @@ export function SchedulePage() {
 
   const dayNamesAll = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+  const monthNamesFull = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+  // Month calendar data
+  const monthDate = useMemo(() => {
+    const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    return d;
+  }, [monthOffset]);
+
+  const monthDays = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    // Monday-based: 0=Mon..6=Sun
+    let startDow = firstDay.getDay() - 1;
+    if (startDow < 0) startDow = 6;
+
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
+
+    // Days from previous month
+    for (let i = startDow - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ date: d, isCurrentMonth: false });
+    }
+
+    // Days of current month
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
+    }
+
+    // Fill remaining cells to complete the grid (up to 42 = 6 rows)
+    while (days.length % 7 !== 0) {
+      const next = new Date(year, month + 1, days.length - startDow - lastDay.getDate() + 1);
+      days.push({ date: next, isCurrentMonth: false });
+    }
+
+    return days;
+  }, [monthDate]);
 
   // Group posts by day
   const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -117,9 +159,13 @@ export function SchedulePage() {
                 {unscheduled.length} незапланир.
               </span>
             )}
-            <button onClick={() => setWeekOffset((w) => w - 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronLeft size={18} /></button>
-            <button onClick={() => setWeekOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5" style={{ color: weekOffset === 0 ? 'var(--primary)' : 'var(--text-muted)' }}>Сегодня</button>
-            <button onClick={() => setWeekOffset((w) => w + 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronRight size={18} /></button>
+            <button onClick={() => view === 'week' ? setWeekOffset((w) => w - 1) : setMonthOffset((m) => m - 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronLeft size={18} /></button>
+            <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={() => { setView('week'); setSelectedDay(null); }} className={cn('px-3 py-1.5 text-xs font-medium transition-colors', view === 'week' ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-white/5')} style={{ color: view === 'week' ? undefined : 'var(--text-muted)' }}>Неделя</button>
+              <button onClick={() => { setView('month'); setSelectedDay(null); }} className={cn('px-3 py-1.5 text-xs font-medium transition-colors', view === 'month' ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-white/5')} style={{ color: view === 'month' ? undefined : 'var(--text-muted)' }}>Месяц</button>
+            </div>
+            <button onClick={() => view === 'week' ? setWeekOffset(0) : setMonthOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5" style={{ color: (view === 'week' ? weekOffset : monthOffset) === 0 ? 'var(--primary)' : 'var(--text-muted)' }}>Сегодня</button>
+            <button onClick={() => view === 'week' ? setWeekOffset((w) => w + 1) : setMonthOffset((m) => m + 1)} className="p-2 rounded-lg hover:bg-white/5"><ChevronRight size={18} /></button>
           </div>
         </div>
 

@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, User, Bot, FileText, Zap, LogIn, UserPlus, Shield, Send, Trash2 } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
-import { timeAgo } from '../lib/utils.js';
+import { timeAgo, cn } from '../lib/utils.js';
 import { Spinner } from '../components/ui/spinner.js';
 import { EmptyState } from '../components/ui/empty-state.js';
 
@@ -45,10 +46,34 @@ const actionMeta: Record<string, { icon: any; label: string; color: string }> = 
   'mod.warned': { icon: Shield, label: 'Предупреждение', color: 'text-yellow-400' },
 };
 
+const typeFilters = [
+  { id: 'all', label: 'Все' },
+  { id: 'auth', label: 'Авторизация' },
+  { id: 'bot', label: 'Боты' },
+  { id: 'post', label: 'Посты' },
+  { id: 'mod', label: 'Модерация' },
+] as const;
+
+const periodFilters = [
+  { id: 'all', label: 'Все' },
+  { id: 'today', label: 'Сегодня' },
+  { id: 'week', label: 'Неделя' },
+  { id: 'month', label: 'Месяц' },
+] as const;
+
 export function ActivityPage() {
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<string>('all');
+
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['activity'],
-    queryFn: () => apiFetch('/activity'),
+    queryKey: ['activity', typeFilter, periodFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (periodFilter !== 'all') params.set('period', periodFilter);
+      const qs = params.toString();
+      return apiFetch(`/activity${qs ? `?${qs}` : ''}`);
+    },
     refetchInterval: 30000,
   });
 
@@ -57,6 +82,36 @@ export function ActivityPage() {
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold">Журнал действий</h1>
         <InfoTip text="Все действия в системе: входы, запуски ботов, публикации постов. Обновляется автоматически каждые 30 секунд." position="bottom" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <div className="flex gap-1 rounded-lg p-1" style={{ background: 'var(--bg-card)' }}>
+          {typeFilters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setTypeFilter(f.id)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                typeFilter === f.id
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <select
+          value={periodFilter}
+          onChange={(e) => setPeriodFilter(e.target.value)}
+          className="text-xs rounded-lg px-3 py-1.5 border"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+        >
+          {periodFilters.map((f) => (
+            <option key={f.id} value={f.id}>{f.label}</option>
+          ))}
+        </select>
       </div>
 
       {isLoading ? (

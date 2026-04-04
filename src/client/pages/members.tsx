@@ -147,38 +147,38 @@ export function MembersPage() {
             />
           ) : (
             <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-              <div className="flex text-[10px] font-medium px-4 py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-                <span className="w-8">#</span>
+              <div className="flex text-[10px] font-medium px-3 sm:px-4 py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                <span className="w-6 sm:w-8">#</span>
                 <span className="flex-1">Участник</span>
                 <span className="w-20 text-right hidden sm:block">Сообщений</span>
                 <span className="w-24 text-right hidden sm:block">Последнее</span>
-                <span className="w-24 text-center">Статус</span>
-                <span className="w-28 text-right">Действия</span>
+                <span className="w-16 sm:w-24 text-center">Статус</span>
+                <span className="w-16 sm:w-28 text-right">Действия</span>
               </div>
 
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {filtered.map((u: any, i: number) => {
                   const st = memberStatusConfig[u.status] ?? memberStatusConfig.unknown;
                   return (
-                    <div key={u.userId} className="flex items-center px-4 py-2.5 hover:bg-white/[0.02]">
-                      <span className="w-8 text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
-                      <div className="w-7 h-7 rounded-full mr-2.5 shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${u.userId % 360}, 50%, 40%)` }}>
+                    <div key={u.userId} className="flex items-center px-3 sm:px-4 py-2.5 hover:bg-white/[0.02]">
+                      <span className="w-6 sm:w-8 text-[10px] font-mono shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                      <div className="w-7 h-7 rounded-full mr-2 sm:mr-2.5 shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${u.userId % 360}, 50%, 40%)` }}>
                         {(u.userName ?? '?')[0]?.toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium">{u.userName}</span>
-                        {u.username && <span className="text-[11px] ml-1.5" style={{ color: 'var(--text-muted)' }}>@{u.username}</span>}
+                        <span className="text-sm font-medium truncate">{u.userName}</span>
+                        {u.username && <span className="text-[11px] ml-1.5 hidden sm:inline" style={{ color: 'var(--text-muted)' }}>@{u.username}</span>}
                       </div>
                       <span className="w-20 text-right text-xs font-mono hidden sm:block">{u.messageCount}</span>
                       <span className="w-24 text-right text-[10px] hidden sm:block" style={{ color: 'var(--text-muted)' }}>{timeAgo(u.lastSeen)}</span>
-                      <span className="w-24 text-center">
-                        <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', st.color, st.bg)}>{st.label}</span>
+                      <span className="w-16 sm:w-24 text-center shrink-0">
+                        <span className={cn('text-[10px] font-medium px-1.5 sm:px-2 py-0.5 rounded-full', st.color, st.bg)}>{st.label}</span>
                       </span>
-                      <div className="w-28 flex gap-1 justify-end">
-                        <button onClick={() => setProfileUserId(u.userId)} className="px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Профиль и сообщения">
+                      <div className="w-16 sm:w-28 flex gap-1 justify-end shrink-0">
+                        <button onClick={() => setProfileUserId(u.userId)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Профиль и сообщения">
                           <Eye size={11} />
                         </button>
-                        <button onClick={() => setActionUser(u)} className="px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Действия">
+                        <button onClick={() => setActionUser(u)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Действия">
                           <Shield size={11} />
                         </button>
                       </div>

@@ -19,7 +19,8 @@ export function UsersPage() {
   const inviteMut = useMutation({
     mutationFn: (email: string) => apiFetch('/auth/invite', { method: 'POST', body: JSON.stringify({ email }) }),
     onSuccess: (data) => {
-      setInviteResult(`Инвайт создан!\nID: ${data.inviteId}\nСсылка: /register?invite=${data.inviteId}`);
+      const link = `${window.location.origin}/register?invite=${data.inviteId}`;
+      setInviteResult(`Инвайт создан!\nEmail: ${inviteEmail}\nСсылка: ${link}`);
       setInviteEmail('');
     },
   });
