@@ -229,18 +229,18 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
 
 // GET /api/stats/chats — list chats with stats
 statsApi.get('/chats', async (c) => {
-  const allChats = db.select().from(messageStats).all();
-  const chatIds = [...new Set(allChats.map(m => m.chatId))];
-
+  const allMsgs = db.select().from(messageStats).all();
+  const chatIds = [...new Set(allMsgs.map(m => m.chatId))];
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const allChannels = db.select().from(channels).all();
 
   const result = chatIds.map(chatId => {
-    const weekMsgs = allChats.filter(m => m.chatId === chatId && m.createdAt >= weekAgo.toISOString());
-    const ch = db.select().from(channels).where(eq(channels.chatId, chatId)).limit(1).get();
+    const weekMsgs = allMsgs.filter(m => m.chatId === chatId && m.createdAt >= weekAgo.toISOString());
+    const ch = allChannels.find(c => c.chatId === chatId);
     return {
       chatId,
       title: ch?.title ?? chatId,
-      type: ch?.type ?? 'unknown',
+      type: ch?.type ?? 'group',
       weekMessages: weekMsgs.length,
       weekUsers: new Set(weekMsgs.map(m => m.userId)).size,
     };

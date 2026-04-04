@@ -105,6 +105,18 @@ class BotManager {
           messageType,
           textLength,
         }).run();
+
+        // Update channel title mapping if we have it
+        const chatTitle = 'title' in ctx.chat ? (ctx.chat as any).title : null;
+        if (chatTitle) {
+          const existing = db.select().from(channels).all().find(ch => ch.chatId === String(ctx.chat.id) || ch.chatId === `@${(ctx.chat as any).username}`);
+          if (!existing) {
+            // Store numeric chatId → title mapping for analytics
+            try {
+              db.insert(channels).values({ botId: botId, chatId: String(ctx.chat.id), title: chatTitle, type: ctx.chat.type as any, isLinked: true }).run();
+            } catch {} // ignore duplicate
+          }
+        }
       } catch (e) {
         // Don't break message handling if stats fail
       }
