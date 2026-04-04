@@ -136,20 +136,45 @@ async function searchSerper(apiKey: string, opts: SearchOptions): Promise<Search
     params.tbs = tbs[opts.timeRange];
   }
 
-  const res = await fetch('https://google.serper.dev/search', {
-    method: 'POST',
-    headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  const data = await safeFetchJson(res, 'Serper API');
+  // Fetch search results and images in parallel
+  const headers = { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' };
+  const [searchRes, imagesRes] = await Promise.all([
+    fetch('https://google.serper.dev/search', { method: 'POST', headers, body: JSON.stringify(params) }),
+    fetch('https://google.serper.dev/images', { method: 'POST', headers, body: JSON.stringify({ q: opts.query, num: opts.maxResults ?? 5, gl: locale.gl, hl: locale.hl }) }).catch(() => null),
+  ]);
+  const data = await safeFetchJson(searchRes, 'Serper API');
+  const imagesData = imagesRes ? await safeFetchJson(imagesRes, 'Serper Images').catch(() => null) : null;
 
-  return (data.organic ?? []).map((r: any, i: number) => ({
-    title: r.title ?? '',
-    url: r.link ?? '',
-    content: r.snippet ?? '',
-    score: 1 - i * 0.1,
-    imageUrl: r.imageUrl,
-  }));
+  // Build image lookup: map domain → first image URL
+  const imagesByDomain: Record<string, string> = {};
+  const imagesList: string[] = [];
+  if (imagesData?.images) {
+    for (const img of imagesData.images) {
+      if (img.imageUrl) {
+        imagesList.push(img.imageUrl);
+        try {
+          const domain = new URL(img.link ?? '').hostname;
+          if (!imagesByDomain[domain]) imagesByDomain[domain] = img.imageUrl;
+        } catch {}
+      }
+    }
+  }
+
+  return (data.organic ?? []).map((r: any, i: number) => {
+    // Try: result's own image → image from same domain → i-th image from image search
+    let imageUrl = r.imageUrl;
+    if (!imageUrl) {
+      try { imageUrl = imagesByDomain[new URL(r.link).hostname]; } catch {}
+    }
+    if (!imageUrl && imagesList[i]) imageUrl = imagesList[i];
+    return {
+      title: r.title ?? '',
+      url: r.link ?? '',
+      content: r.snippet ?? '',
+      score: 1 - i * 0.1,
+      imageUrl,
+    };
+  });
 }
 
 async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
