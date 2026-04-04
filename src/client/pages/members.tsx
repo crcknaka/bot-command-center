@@ -113,11 +113,11 @@ export function MembersPage() {
           {/* Summary + Search + Filter */}
           {members && members.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="rounded-xl p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <div className="rounded-xl p-3 border cursor-pointer hover:border-zinc-600" style={{ background: 'var(--bg-card)', borderColor: statusFilter === 'all' ? 'var(--primary)' : 'var(--border)' }}
+                onClick={() => setStatusFilter('all')}>
                 <div className="text-xl font-bold">{totalMembers}</div>
                 <div className="text-[10px] flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
                   Всего участников
-                  <InfoTip text="Все пользователи которые когда-либо писали в группе." position="top" />
                 </div>
               </div>
               {(['member', 'restricted', 'kicked'] as const).map(s => (
