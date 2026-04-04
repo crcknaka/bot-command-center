@@ -66,6 +66,26 @@ function resolveSearchProvider(botId?: number): ResolvedProvider {
   throw new Error('Поисковый провайдер не настроен. Перейдите в Настройки → Поиск и добавьте API-ключ.');
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Safely parse JSON from fetch response, with clear error if HTML is returned */
+async function safeFetchJson(res: Response, providerName: string): Promise<any> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${providerName}: ${res.status} — ${text.slice(0, 200)}`);
+  }
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('text/html')) {
+    throw new Error(`${providerName}: получен HTML вместо JSON. Проверьте API-ключ.`);
+  }
+  try {
+    return await res.json();
+  } catch {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${providerName}: невалидный JSON — ${text.slice(0, 200)}`);
+  }
+}
+
 // ─── Search Implementations ─────────────────────────────────────────────────
 
 async function searchTavily(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
@@ -102,8 +122,7 @@ async function searchSerper(apiKey: string, opts: SearchOptions): Promise<Search
     headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
-  if (!res.ok) throw new Error(`Serper API: ${res.status} ${await res.text()}`);
-  const data = await res.json() as any;
+  const data = await safeFetchJson(res, 'Serper API');
 
   return (data.organic ?? []).map((r: any, i: number) => ({
     title: r.title ?? '',
@@ -123,8 +142,7 @@ async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<Searc
   });
 
   const res = await fetch(`https://serpapi.com/search?${params}`);
-  if (!res.ok) throw new Error(`SerpAPI: ${res.status} ${await res.text()}`);
-  const data = await res.json() as any;
+  const data = await safeFetchJson(res, 'SerpAPI');
 
   return (data.organic_results ?? []).map((r: any, i: number) => ({
     title: r.title ?? '',
@@ -145,8 +163,7 @@ async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchR
   const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
     headers: { 'X-Subscription-Token': apiKey, 'Accept': 'application/json' },
   });
-  if (!res.ok) throw new Error(`Brave Search: ${res.status} ${await res.text()}`);
-  const data = await res.json() as any;
+  const data = await safeFetchJson(res, 'Brave Search');
 
   return (data.web?.results ?? []).map((r: any, i: number) => ({
     title: r.title ?? '',
@@ -168,8 +185,7 @@ async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: st
   });
 
   const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);
-  if (!res.ok) throw new Error(`Google CSE: ${res.status} ${await res.text()}`);
-  const data = await res.json() as any;
+  const data = await safeFetchJson(res, 'Google CSE');
 
   return (data.items ?? []).map((r: any, i: number) => ({
     title: r.title ?? '',

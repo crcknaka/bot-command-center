@@ -34,6 +34,11 @@ export async function apiFetch<T = any>(path: string, options?: RequestInit): Pr
     throw new Error('Unauthorized');
   }
 
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Сервер вернул не-JSON ответ (${res.status}). Попробуйте перезагрузить страницу.`);
+  }
+
   const data = await res.json();
 
   if (!res.ok) {
