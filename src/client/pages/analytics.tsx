@@ -191,7 +191,7 @@ export function AnalyticsPage() {
               <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
                   Вовлечённость
-                  <InfoTip text="Power = 10+ сообщ/день. Активные = 1-10/день. Редкие = менее 1/день." position="top" />
+                  <InfoTip text="Power = 20+ сообщений за период. Активные = 3-19. Редкие = 1-2." position="top" />
                 </h3>
                 <div className="space-y-2">
                   {[

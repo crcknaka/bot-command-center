@@ -145,7 +145,7 @@ function filterByThread<T extends { threadId: number | null }>(msgs: T[], thread
   return msgs.filter(m => String(m.threadId) === threadId);
 }
 
-/** Helper: get filtered messages for a chat */
+/** Helper: get filtered messages for a chat (excludes reactions — they're not messages) */
 function getChatMessages(chatId: string, period: string, threadId?: string) {
   const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
   const days = periodDays[period];
@@ -161,7 +161,8 @@ function getChatMessages(chatId: string, period: string, threadId?: string) {
     .where(since
       ? and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, since))
       : eq(messageStats.chatId, chatId)
-    ).all();
+    ).all()
+    .filter(m => m.messageType !== 'reaction'); // reactions tracked separately
 
   return filterByThread(msgs, threadId);
 }
@@ -234,9 +235,10 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
   const chatId = c.req.param('chatId');
   const threadId = c.req.query('threadId');
 
-  // Single query: load all messages for this chat, then filter by period in memory
+  // Single query: load all messages for this chat (excluding reactions), then filter by period in memory
   const allMsgs = filterByThread(
-    db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all(),
+    db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all()
+      .filter(m => m.messageType !== 'reaction'),
     threadId
   );
 
@@ -346,13 +348,14 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
   const days = periodDays[period] ?? 7;
 
-  // Single query: load messages for 2x period (current + previous), then split in memory
+  // Single query: load messages for 2x period (current + previous), excluding reactions
   const doublePeriodStart = new Date();
   doublePeriodStart.setDate(doublePeriodStart.getDate() - days * 2);
   const allMsgs = filterByThread(
     db.select().from(messageStats)
       .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, doublePeriodStart.toISOString())))
-      .all(),
+      .all()
+      .filter(m => m.messageType !== 'reaction'),
     threadId
   );
 
@@ -372,20 +375,22 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
     prevUsers: new Set(prevMsgs.map(m => m.userId)).size,
   };
 
-  // Engagement tiers
+  // Engagement tiers (based on total messages in period, not per-day average)
   const userMsgCount: Record<number, number> = {};
-  for (const m of currentMsgs) userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
+  for (const m of currentMsgs) {
+    if (m.messageType === 'reaction') continue; // reactions are not messages
+    userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
+  }
 
   const tiers = {
-    power: 0,    // 10+ messages per day average
-    active: 0,   // 1-10 per day
-    casual: 0,   // less than 1 per day but at least 1
+    power: 0,    // 20+ messages in period
+    active: 0,   // 3-19 messages in period
+    casual: 0,   // 1-2 messages in period
     total: Object.keys(userMsgCount).length,
   };
   for (const count of Object.values(userMsgCount)) {
-    const perDay = count / days;
-    if (perDay >= 10) tiers.power++;
-    else if (perDay >= 1) tiers.active++;
+    if (count >= 20) tiers.power++;
+    else if (count >= 3) tiers.active++;
     else tiers.casual++;
   }
 
@@ -547,7 +552,7 @@ statsApi.get('/chats', async (c) => {
   }
 
   const result = allChatIds.map(chatId => {
-    const weekMsgs = recentByChat[chatId] ?? [];
+    const weekMsgs = (recentByChat[chatId] ?? []).filter(m => m.messageType !== 'reaction');
     const ch = allChannels.find(c => c.chatId === chatId);
     return {
       chatId,
