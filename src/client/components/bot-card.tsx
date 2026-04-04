@@ -5,6 +5,7 @@ import { cn } from '../lib/utils.js';
 import { Link } from 'react-router-dom';
 import { timeAgo } from '../lib/utils.js';
 import { apiFetch } from '../lib/api.js';
+import { botStatusConfig } from '../lib/constants.js';
 
 interface BotCardProps {
   bot: any;
@@ -15,11 +16,7 @@ export function BotCard({ bot }: BotCardProps) {
   const deleteMut = useDeleteBot();
   const { confirm, dialog } = useConfirm();
 
-  const statusInfo = {
-    active: { color: 'bg-green-500', label: 'Работает', badge: 'bg-green-500/15 text-green-400' },
-    stopped: { color: 'bg-zinc-500', label: 'Остановлен', badge: 'bg-zinc-500/15 text-zinc-400' },
-    error: { color: 'bg-red-500', label: 'Ошибка', badge: 'bg-red-500/15 text-red-400' },
-  }[bot.status as string] ?? { color: 'bg-zinc-500', label: bot.status, badge: 'bg-zinc-500/15 text-zinc-400' };
+  const statusInfo = botStatusConfig[bot.status as string] ?? { dot: 'bg-zinc-500', label: bot.status, badge: 'bg-zinc-500/15 text-zinc-400' };
 
   return (<>
     {dialog}
@@ -35,7 +32,7 @@ export function BotCard({ bot }: BotCardProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className={cn('w-2.5 h-2.5 rounded-full', statusInfo.color)} />
+          <span className={cn('w-2.5 h-2.5 rounded-full', statusInfo.dot)} />
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{statusInfo.label}</span>
         </div>
       </div>

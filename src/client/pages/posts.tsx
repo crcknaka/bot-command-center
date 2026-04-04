@@ -24,24 +24,7 @@ import { apiFetch } from '../lib/api.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { Link } from 'react-router-dom';
-
-const statusFilters = [
-  { value: 'all', label: 'Все' },
-  { value: 'draft', label: 'Черновики' },
-  { value: 'approved', label: 'Одобренные' },
-  { value: 'queued', label: 'В очереди' },
-  { value: 'published', label: 'Опубликовано' },
-  { value: 'failed', label: 'Ошибки' },
-] as const;
-
-const statusBadge: Record<string, { cls: string; label: string }> = {
-  draft: { cls: 'bg-zinc-500/15 text-zinc-400', label: 'Черновик' },
-  approved: { cls: 'bg-blue-500/15 text-blue-400', label: 'Одобрен' },
-  queued: { cls: 'bg-yellow-500/15 text-yellow-400', label: 'В очереди' },
-  publishing: { cls: 'bg-cyan-500/15 text-cyan-400', label: 'Публикуется...' },
-  published: { cls: 'bg-green-500/15 text-green-400', label: 'Опубликован' },
-  failed: { cls: 'bg-red-500/15 text-red-400', label: 'Ошибка' },
-};
+import { postStatusConfig, postStatusFilters } from '../lib/constants.js';
 
 export function PostsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -178,7 +161,7 @@ export function PostsPage() {
       <div className="rounded-xl border p-4 mb-6" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         {/* Row 1: Status tabs */}
         <div className="flex gap-2 mb-3 flex-wrap">
-          {statusFilters.map((s) => (
+          {postStatusFilters.map((s) => (
             <button
               key={s.value}
               onClick={() => setStatusFilter(s.value)}
@@ -323,7 +306,7 @@ export function PostsPage() {
       ) : (
         <div className="space-y-3">
           {posts.map((post: any) => {
-            const badge = statusBadge[post.status] ?? { cls: 'bg-zinc-500/15 text-zinc-400', label: post.status };
+            const badge = postStatusConfig[post.status] ?? { badge: 'bg-zinc-500/15 text-zinc-400', label: post.status };
             const ctx = channelMap[post.channelId];
             return (
               <div key={post.id} className={cn('rounded-xl p-4 border flex gap-3', selected.has(post.id) && 'border-blue-500/50')} style={{ background: selected.has(post.id) ? 'rgba(59,130,246,0.04)' : 'var(--bg-card)', borderColor: selected.has(post.id) ? undefined : 'var(--border)' }}>
@@ -345,7 +328,7 @@ export function PostsPage() {
                       {ctx.channelTitle}
                     </span>
                   )}
-                  <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.cls)}>{badge.label}</span>
+                  <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.badge)}>{badge.label}</span>
                   {post.taskName && <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{post.taskName}</span>}
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
                   {post.scheduledFor && post.status === 'queued' && (

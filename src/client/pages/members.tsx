@@ -8,16 +8,7 @@ import { EmptyState } from '../components/ui/empty-state.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn, timeAgo } from '../lib/utils.js';
 import { UserProfileModal } from '../components/user-profile.js';
-
-const statusLabels: Record<string, { label: string; color: string; bg: string }> = {
-  member: { label: 'Участник', color: 'text-green-400', bg: 'bg-green-500/10' },
-  administrator: { label: 'Админ', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  creator: { label: 'Создатель', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  restricted: { label: 'Ограничен', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-  kicked: { label: 'Забанен', color: 'text-red-400', bg: 'bg-red-500/10' },
-  left: { label: 'Вышел', color: 'text-zinc-500', bg: 'bg-zinc-500/10' },
-  unknown: { label: '—', color: 'text-zinc-500', bg: 'bg-zinc-500/10' },
-};
+import { memberStatusConfig } from '../lib/constants.js';
 
 const durations = [
   { label: '5 мин', value: 5 },
@@ -132,8 +123,8 @@ export function MembersPage() {
               {(['member', 'restricted', 'kicked'] as const).map(s => (
                 <div key={s} className="rounded-xl p-3 border cursor-pointer hover:border-zinc-600" style={{ background: 'var(--bg-card)', borderColor: statusFilter === s ? 'var(--primary)' : 'var(--border)' }}
                   onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}>
-                  <div className={cn('text-xl font-bold', statusLabels[s].color)}>{statusCounts[s] ?? 0}</div>
-                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{statusLabels[s].label}</div>
+                  <div className={cn('text-xl font-bold', memberStatusConfig[s].color)}>{statusCounts[s] ?? 0}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{memberStatusConfig[s].label}</div>
                 </div>
               ))}
             </div>
@@ -167,7 +158,7 @@ export function MembersPage() {
 
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {filtered.map((u: any, i: number) => {
-                  const st = statusLabels[u.status] ?? statusLabels.unknown;
+                  const st = memberStatusConfig[u.status] ?? memberStatusConfig.unknown;
                   return (
                     <div key={u.userId} className="flex items-center px-4 py-2.5 hover:bg-white/[0.02]">
                       <span className="w-8 text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
@@ -193,7 +184,7 @@ export function MembersPage() {
                 })}
               </div>
               <div className="px-4 py-2 text-[10px] border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-                Показано {filtered.length} из {totalMembers} · {statusFilter !== 'all' ? `Фильтр: ${statusLabels[statusFilter]?.label}` : 'Все статусы'}
+                Показано {filtered.length} из {totalMembers} · {statusFilter !== 'all' ? `Фильтр: ${memberStatusConfig[statusFilter]?.label}` : 'Все статусы'}
               </div>
             </div>
           )}
@@ -209,7 +200,7 @@ export function MembersPage() {
                   <div>
                     <h3 className="text-sm font-bold">{actionUser.userName}</h3>
                     <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                      {actionUser.username ? `@${actionUser.username} · ` : ''}{actionUser.messageCount} сообщений · {(() => { const st = statusLabels[actionUser.status]; return st ? <span className={st.color}>{st.label}</span> : null; })()}
+                      {actionUser.username ? `@${actionUser.username} · ` : ''}{actionUser.messageCount} сообщений · {(() => { const st = memberStatusConfig[actionUser.status]; return st ? <span className={st.color}>{st.label}</span> : null; })()}
                     </p>
                   </div>
                 </div>

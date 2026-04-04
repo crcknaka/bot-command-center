@@ -8,20 +8,7 @@ import { safeHtml } from '../lib/sanitize.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 import { useUpdatePost } from '../hooks/use-posts.js';
-
-const statusColors: Record<string, string> = {
-  draft: 'bg-zinc-500',
-  queued: 'bg-yellow-500',
-  published: 'bg-green-500',
-  failed: 'bg-red-500',
-};
-
-const statusLabels: Record<string, string> = {
-  draft: 'Черновик',
-  queued: 'В очереди',
-  published: 'Опубликован',
-  failed: 'Ошибка',
-};
+import { postStatusConfig } from '../lib/constants.js';
 
 export function SchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -184,10 +171,10 @@ export function SchedulePage() {
 
         {/* Legend */}
         <div className="flex gap-4 mt-6 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          {Object.entries(statusLabels).map(([key, label]) => (
+          {Object.entries(postStatusConfig).filter(([k]) => ['draft', 'approved', 'queued', 'published', 'failed'].includes(k)).map(([key, cfg]) => (
             <span key={key} className="flex items-center gap-1.5">
-              <span className={cn('w-2 h-2 rounded-full', statusColors[key])} />
-              {label}
+              <span className={cn('w-2 h-2 rounded-full', cfg.dot)} />
+              {cfg.label}
             </span>
           ))}
         </div>
@@ -197,7 +184,7 @@ export function SchedulePage() {
           {activePost && (
             <div className="rounded-lg p-2.5 border text-[11px] shadow-xl opacity-90 w-52" style={{ background: 'var(--bg-card)', borderColor: 'var(--primary)' }}>
               <div className="flex items-center gap-1.5 mb-1">
-                <span className={cn('w-1.5 h-1.5 rounded-full', statusColors[activePost.status])} />
+                <span className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[activePost.status]?.dot)} />
                 <span className="font-medium truncate">{channelMap[activePost.channelId]?.botName ?? '?'}</span>
               </div>
               <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(activePost.content)} />
@@ -244,7 +231,7 @@ function DraggablePost({ post, channelMap, compact }: { post: any; channelMap: R
         className={cn('rounded-lg p-2 border text-[10px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
         style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-1 mb-0.5">
-          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusColors[post.status])} />
+          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', postStatusConfig[post.status]?.dot)} />
           {time && <span className="font-mono">{time}</span>}
           <span className="truncate" style={{ color: 'var(--text-muted)' }}>{ctx?.title ?? ''}</span>
         </div>
@@ -258,7 +245,7 @@ function DraggablePost({ post, channelMap, compact }: { post: any; channelMap: R
       className={cn('rounded-lg p-2.5 border text-[11px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
       style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       <div className="flex items-center gap-1.5 mb-1">
-        <span className={cn('w-1.5 h-1.5 rounded-full', statusColors[post.status])} />
+        <span className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[post.status]?.dot)} />
         <span className="font-medium truncate">{ctx?.botName ?? '?'}</span>
       </div>
       <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
