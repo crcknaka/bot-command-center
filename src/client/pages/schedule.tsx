@@ -54,7 +54,7 @@ export function SchedulePage() {
   }, [posts]);
 
   // Unscheduled posts
-  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved' || p.status === 'queued'));
+  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved'));
 
   const activePost = activeId ? (posts ?? []).find((p: any) => p.id === activeId) : null;
 

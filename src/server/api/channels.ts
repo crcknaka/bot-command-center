@@ -42,11 +42,12 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
     // Bot may not have access yet — keep user-provided chatId
   }
 
-  // Check for duplicates (same chatId + threadId in this bot)
-  const existing = db.select().from(channels)
-    .where(eq(channels.botId, botId))
-    .all()
-    .find(ch => ch.chatId === resolvedChatId && (ch.threadId ?? null) === (threadId ?? null));
+  // Check for duplicates (same chatId or @username + threadId in this bot)
+  const botChannels = db.select().from(channels).where(eq(channels.botId, botId)).all();
+  const existing = botChannels.find(ch =>
+    (ch.chatId === resolvedChatId || ch.chatId === chatId) &&
+    (ch.threadId ?? null) === (threadId ?? null)
+  );
   if (existing) {
     return c.json({ error: `Этот ${threadId ? 'топик' : 'канал'} уже добавлен.` }, 409);
   }

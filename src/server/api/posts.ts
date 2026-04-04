@@ -238,7 +238,7 @@ postsApi.post('/bulk', async (c) => {
           db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
 
           const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
-          let content = post.content;
+          let content = sanitizeForTelegram(post.content);
           if (bot?.postSignature) content += '\n\n' + bot.postSignature;
           let reply_markup: any = undefined;
           const btns = post.inlineButtons as Array<{ text: string; url: string }> | null;

@@ -271,7 +271,7 @@ async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: st
  */
 export async function searchWeb(opts: SearchOptions): Promise<SearchResult[]> {
   const provider = resolveSearchProvider(opts.botId);
-  const countries = opts.searchCountries;
+  const countries = opts.searchCountries?.length ? opts.searchCountries : undefined;
 
   // If multiple countries, search each and merge (deduplicate by URL)
   if (countries && countries.length > 1) {
