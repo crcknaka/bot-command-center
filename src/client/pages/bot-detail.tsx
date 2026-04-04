@@ -490,9 +490,9 @@ export function BotDetailPage() {
               {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в уникальные посты.</>}
               {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон — без AI, бесплатно.</>}
               {taskType === 'web_search' && <>💡 Задайте поисковые запросы. Бот найдёт свежие статьи в интернете и создаст посты.</>}
-              {taskType === 'auto_reply' && <>💡 Настройте правила. Бот перезапустится автоматически при сохранении.</>}
-              {taskType === 'welcome' && <>💡 Задайте текст приветствия. Бот перезапустится автоматически.</>}
-              {taskType === 'moderation' && <>💡 Задайте настройки модерации. Бот перезапустится автоматически.</>}
+              {taskType === 'auto_reply' && <>💡 Авто-ответы работают на <b>всю группу</b> (все топики). Достаточно добавить один раз.</>}
+              {taskType === 'welcome' && <>💡 Приветствие действует на <b>всю группу</b>. Достаточно добавить один раз.</>}
+              {taskType === 'moderation' && <>💡 Модерация действует на <b>всю группу</b> (все топики). Достаточно добавить один раз.</>}
             </div>
 
             <div className="flex gap-3 justify-end">
@@ -801,140 +801,152 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
 
 // ─── Moderation Config UI (shared between create and edit) ───────────────────
 
+function SectionHeader({ title, icon }: { title: string; icon: string }) {
+  return <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>{icon} {title}</div>;
+}
+
 function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patch: any) => void }) {
   const set = (patch: any) => onChange(patch);
 
   return (
-    <div className="mb-4 space-y-3">
-      {/* Banned words */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
-        <BannedWordsInput words={config.bannedWords ?? []} onChange={(w: string[]) => set({ bannedWords: w })} />
-        <WarnConfig label="запрещённые слова" warnKey="bannedWords" value={config.bannedWordsWarn} onChange={(v) => set({ bannedWordsWarn: v })} />
+    <div className="mb-4 space-y-2">
+
+      {/* ═══ SECTION 1: Banned words ═══ */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pb-1">🚫 Запрещённые слова</div>
+      <BannedWordsInput words={config.bannedWords ?? []} onChange={(w: string[]) => set({ bannedWords: w })} />
+      <div className="flex items-center gap-4 text-xs">
+        <span style={{ color: 'var(--text-muted)' }}>При нарушении:</span>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" name="deleteOnBan" checked={config.deleteOnBan !== false} onChange={() => set({ deleteOnBan: true })} />
+          Удалить сообщение
+        </label>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" name="deleteOnBan" checked={config.deleteOnBan === false} onChange={() => set({ deleteOnBan: false })} />
+          Оставить (только предупреждение)
+        </label>
       </div>
+      <WarnConfig label="запрещённые слова" warnKey="bannedWords" value={config.bannedWordsWarn} onChange={(v) => set({ bannedWordsWarn: v })} />
 
-      {/* Additional protection */}
-      <div className="pt-2 mt-2 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
-        <div className="text-xs font-medium">Дополнительная защита</div>
+      {/* ═══ SECTION 2: Content filters ═══ */}
+      <SectionHeader title="Фильтры контента" icon="🛡" />
 
-        {/* Block links */}
-        <label className="flex items-center gap-2 text-xs">
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={config.blockLinks ?? false} onChange={(e) => set({ blockLinks: e.target.checked })} />
           Запретить ссылки
-          <InfoTip text="Удаляет сообщения со ссылками (http, t.me, @упоминания каналов)." position="right" />
+          <InfoTip text="http, t.me, @упоминания каналов" position="right" />
         </label>
-        {config.blockLinks && (
-          <WarnConfig label="ссылки" warnKey="links" value={config.linksWarn} onChange={(v) => set({ linksWarn: v })} />
-        )}
-        <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={config.antiFlood ?? false} onChange={(e) => set({ antiFlood: e.target.checked })} />
-          Анти-флуд
-          <InfoTip text="Если юзер отправляет слишком много сообщений подряд — бот удаляет и предупреждает." position="right" />
-        </label>
-        {config.antiFlood && (
-          <div className="ml-5 space-y-1">
-            <div className="flex items-center gap-2 text-xs">
-              <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
-              <input type="number" min={1} max={30} value={config.maxMessagesPerMinute ?? 5} onChange={(e) => set({ maxMessagesPerMinute: Number(e.target.value) })}
-                className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span style={{ color: 'var(--text-muted)' }}>сообщений в минуту</span>
-            </div>
-            <WarnConfig label="флуд" warnKey="flood" value={config.floodWarn} onChange={(v) => set({ floodWarn: v })} />
-          </div>
-        )}
+        {config.blockLinks && <WarnConfig label="ссылки" warnKey="links" value={config.linksWarn} onChange={(v) => set({ linksWarn: v })} />}
 
-        {/* Block forwards */}
-        <label className="flex items-center gap-2 text-xs">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={config.blockForwards ?? false} onChange={(e) => set({ blockForwards: e.target.checked })} />
-          Блокировать пересланные сообщения
-          <InfoTip text="Удаляет все пересланные (forward) сообщения." position="right" />
+          Запретить пересланные сообщения
         </label>
-        {config.blockForwards && (
-          <WarnConfig label="пересылки" warnKey="forwards" value={config.forwardsWarn} onChange={(v) => set({ forwardsWarn: v })} />
-        )}
+        {config.blockForwards && <WarnConfig label="пересылки" warnKey="forwards" value={config.forwardsWarn} onChange={(v) => set({ forwardsWarn: v })} />}
 
-        {/* Block stickers */}
-        <label className="flex items-center gap-2 text-xs">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={config.blockStickers ?? false} onChange={(e) => set({ blockStickers: e.target.checked })} />
-          Блокировать стикеры и GIF
-          <InfoTip text="Удаляет стикеры и GIF-анимации." position="right" />
+          Запретить стикеры и GIF
         </label>
-        {config.blockStickers && (
-          <WarnConfig label="стикеры" warnKey="stickers" value={config.stickersWarn} onChange={(v) => set({ stickersWarn: v })} />
-        )}
+        {config.blockStickers && <WarnConfig label="стикеры" warnKey="stickers" value={config.stickersWarn} onChange={(v) => set({ stickersWarn: v })} />}
 
-        {/* Block voice */}
-        <label className="flex items-center gap-2 text-xs">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={config.blockVoice ?? false} onChange={(e) => set({ blockVoice: e.target.checked })} />
-          Блокировать голосовые и видео-кружки
-          <InfoTip text="Удаляет голосовые сообщения и видео-заметки." position="right" />
+          Запретить голосовые и видео-кружки
         </label>
-        {config.blockVoice && (
-          <WarnConfig label="голосовые" warnKey="voice" value={config.voiceWarn} onChange={(v) => set({ voiceWarn: v })} />
-        )}
+        {config.blockVoice && <WarnConfig label="голосовые" warnKey="voice" value={config.voiceWarn} onChange={(v) => set({ voiceWarn: v })} />}
 
-        {/* Min message length */}
         <div className="flex items-center gap-2 text-xs">
           <span style={{ color: 'var(--text-muted)' }}>Мин. длина сообщения:</span>
           <input type="number" min={0} max={100} value={config.minMessageLength ?? 0} onChange={(e) => set({ minMessageLength: Number(e.target.value) })}
             className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
           <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>символов (0 = выкл)</span>
-          <InfoTip text="Сообщения короче этой длины удаляются." position="right" />
         </div>
-        {(config.minMessageLength ?? 0) > 0 && (
-          <WarnConfig label="короткие сообщения" warnKey="shortMsg" value={config.shortMsgWarn} onChange={(v) => set({ shortMsgWarn: v })} />
-        )}
-
-        {/* Strike system */}
-        <label className="flex items-center gap-2 text-xs mt-2">
-          <input type="checkbox" checked={config.strikesEnabled ?? false} onChange={(e) => set({ strikesEnabled: e.target.checked, muteOnViolation: false })} />
-          Система предупреждений (страйки)
-          <InfoTip text="После N предупреждений — автоматический мут. Предупреждения сбрасываются через указанное время." position="right" />
-        </label>
-        {config.strikesEnabled && (
-          <div className="ml-5 space-y-2">
-            <div className="flex items-center gap-2 text-xs flex-wrap">
-              <span style={{ color: 'var(--text-muted)' }}>Макс. предупреждений:</span>
-              <input type="number" min={1} max={10} value={config.maxStrikes ?? 3} onChange={(e) => set({ maxStrikes: Number(e.target.value) })}
-                className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span style={{ color: 'var(--text-muted)' }}>Мут на:</span>
-              <input type="number" min={1} max={1440} value={config.strikeMuteDuration ?? 60} onChange={(e) => set({ strikeMuteDuration: Number(e.target.value) })}
-                className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>мин</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span style={{ color: 'var(--text-muted)' }}>Сброс предупреждений через:</span>
-              <input type="number" min={1} max={168} value={config.strikeResetHours ?? 24} onChange={(e) => set({ strikeResetHours: Number(e.target.value) })}
-                className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>часов</span>
-            </div>
-            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              Пример: 3 предупреждения → мут 60 мин. Если юзер не нарушает 24ч — счётчик сбрасывается.
-            </p>
-          </div>
-        )}
-
-        {/* Direct mute (if strikes disabled) */}
-        {!config.strikesEnabled && (
-          <>
-            <label className="flex items-center gap-2 text-xs mt-2">
-              <input type="checkbox" checked={config.muteOnViolation ?? false} onChange={(e) => set({ muteOnViolation: e.target.checked })} />
-              Мут сразу за нарушение
-              <InfoTip text="Мут без предупреждений — сразу при первом нарушении." position="right" />
-            </label>
-            {config.muteOnViolation && (
-              <div className="ml-5 flex items-center gap-2 text-xs">
-                <span style={{ color: 'var(--text-muted)' }}>Длительность:</span>
-                <input type="number" min={1} max={1440} value={config.muteDurationMinutes ?? 5} onChange={(e) => set({ muteDurationMinutes: Number(e.target.value) })}
-                  className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
-              </div>
-            )}
-          </>
-        )}
+        {(config.minMessageLength ?? 0) > 0 && <WarnConfig label="короткие" warnKey="shortMsg" value={config.shortMsgWarn} onChange={(v) => set({ shortMsgWarn: v })} />}
       </div>
 
-      {/* Warn auto-delete */}
+      {/* ═══ SECTION 3: Anti-flood ═══ */}
+      <SectionHeader title="Анти-флуд" icon="🌊" />
+      <label className="flex items-center gap-2 text-xs cursor-pointer">
+        <input type="checkbox" checked={config.antiFlood ?? false} onChange={(e) => set({ antiFlood: e.target.checked })} />
+        Включить анти-флуд
+        <InfoTip text="Удаляет сообщения если юзер пишет слишком часто." position="right" />
+      </label>
+      {config.antiFlood && (
+        <div className="ml-5 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
+            <input type="number" min={1} max={30} value={config.maxMessagesPerMinute ?? 5} onChange={(e) => set({ maxMessagesPerMinute: Number(e.target.value) })}
+              className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <span style={{ color: 'var(--text-muted)' }}>сообщений в минуту от одного юзера</span>
+          </div>
+          <WarnConfig label="флуд" warnKey="flood" value={config.floodWarn} onChange={(v) => set({ floodWarn: v })} />
+        </div>
+      )}
+
+      {/* ═══ SECTION 4: Punishments ═══ */}
+      <SectionHeader title="Наказания" icon="⚖️" />
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" checked={!config.strikesEnabled && !config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: false })} />
+          <span>Только предупреждение</span>
+          <InfoTip text="Удалить сообщение (или оставить) + написать предупреждение. Без мута." position="right" />
+        </label>
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" checked={config.strikesEnabled ?? false} onChange={() => set({ strikesEnabled: true, muteOnViolation: false })} />
+          <span>Система страйков</span>
+          <InfoTip text="N предупреждений → автоматический мут. Счётчик сбрасывается через время." position="right" />
+        </label>
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" checked={!config.strikesEnabled && config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: true })} />
+          <span>Мут сразу</span>
+          <InfoTip text="Мут при первом же нарушении без предупреждений." position="right" />
+        </label>
+      </div>
+
+      {/* Strike settings */}
+      {config.strikesEnabled && (
+        <div className="ml-5 rounded-lg p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <span style={{ color: 'var(--text-muted)' }}>Страйков до мута:</span>
+            <input type="number" min={1} max={10} value={config.maxStrikes ?? 3} onChange={(e) => set({ maxStrikes: Number(e.target.value) })}
+              className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <span style={{ color: 'var(--text-muted)' }}>Мут на:</span>
+            <input type="number" min={1} max={1440} value={config.strikeMuteDuration ?? 60} onChange={(e) => set({ strikeMuteDuration: Number(e.target.value) })}
+              className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>мин</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span style={{ color: 'var(--text-muted)' }}>Сброс через:</span>
+            <input type="number" min={1} max={168} value={config.strikeResetHours ?? 24} onChange={(e) => set({ strikeResetHours: Number(e.target.value) })}
+              className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>часов без нарушений</span>
+          </div>
+          <div>
+            <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Текст предупреждения ({'{user}'} {'{n}'} {'{max}'}):</label>
+            <input value={config.strikeWarnText ?? '⚠️ {user}, предупреждение {n}/{max}.'} onChange={(e) => set({ strikeWarnText: e.target.value })}
+              className="w-full px-2 py-1 rounded-lg border text-[11px] outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          </div>
+          <div>
+            <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Текст при муте ({'{user}'} {'{n}'} {'{max}'} {'{mins}'}):</label>
+            <input value={config.strikeMuteText ?? '🚫 {user}, {n}/{max} предупреждений. Мут на {mins} мин.'} onChange={(e) => set({ strikeMuteText: e.target.value })}
+              className="w-full px-2 py-1 rounded-lg border text-[11px] outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Direct mute settings */}
+      {!config.strikesEnabled && config.muteOnViolation && (
+        <div className="ml-5 flex items-center gap-2 text-xs">
+          <span style={{ color: 'var(--text-muted)' }}>Длительность мута:</span>
+          <input type="number" min={1} max={1440} value={config.muteDurationMinutes ?? 5} onChange={(e) => set({ muteDurationMinutes: Number(e.target.value) })}
+            className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>минут</span>
+        </div>
+      )}
+
+      {/* ═══ SECTION 5: Bot messages ═══ */}
+      <SectionHeader title="Сообщения бота" icon="💬" />
       <div className="flex items-center gap-2 text-xs flex-wrap">
         <span style={{ color: 'var(--text-muted)' }}>Предупреждения бота:</span>
         <select value={config.warnDeleteSeconds ?? 10} onChange={(e) => set({ warnDeleteSeconds: Number(e.target.value) })}
@@ -946,9 +958,8 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
           <option value={60}>Удалять через 1 мин</option>
         </select>
       </div>
-
       <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-        {'{user}'} — кликабельное имя нарушителя. Несколько вариантов текста — рандомный выбор.
+        {'{user}'} — кликабельное имя нарушителя. В предупреждениях можно добавить несколько вариантов текста — бот выберет случайный.
       </p>
     </div>
   );
@@ -1112,25 +1123,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [farewellText, setFarewellText] = useState(config.farewellText ?? '');
   const [farewellImageUrl, setFarewellImageUrl] = useState(config.farewellImageUrl ?? '');
   // Moderation — single state object for ModerationConfigUI
-  const [modConfig, setModConfig] = useState<Record<string, any>>({
-    bannedWords: config.bannedWords ?? [],
-    bannedWordsWarn: config.bannedWordsWarn,
-    maxLinksPerMessage: config.maxLinksPerMessage ?? 0,
-    linksWarn: config.linksWarn,
-    antiFlood: config.antiFlood ?? false,
-    maxMessagesPerMinute: config.maxMessagesPerMinute ?? 5,
-    floodWarn: config.floodWarn,
-    blockForwards: config.blockForwards ?? false,
-    forwardsWarn: config.forwardsWarn,
-    blockStickers: config.blockStickers ?? false,
-    stickersWarn: config.stickersWarn,
-    blockVoice: config.blockVoice ?? false,
-    voiceWarn: config.voiceWarn,
-    minMessageLength: config.minMessageLength ?? 0,
-    shortMsgWarn: config.shortMsgWarn,
-    muteOnViolation: config.muteOnViolation ?? false,
-    muteDurationMinutes: config.muteDurationMinutes ?? 5,
-  });
+  const [modConfig, setModConfig] = useState<Record<string, any>>({ ...config });
   // Web search
   const [webSearchConfig, setWebSearchConfig] = useState<Record<string, any>>({
     queries: config.queries ?? [],
@@ -2155,9 +2148,9 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
       {/* Task info hints */}
       {task.type !== 'news_feed' && task.type !== 'web_search' && (
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
-          💡 {task.type === 'auto_reply' && 'Авто-ответы работают в реальном времени. Бот отвечает при получении сообщения.'}
-          {task.type === 'welcome' && 'Приветствия отправляются автоматически при входе нового участника.'}
-          {task.type === 'moderation' && 'Модерация работает в реальном времени. Запрещённые сообщения удаляются сразу.'}
+          💡 {task.type === 'auto_reply' && 'Авто-ответы работают на всю группу (все топики) в реальном времени.'}
+          {task.type === 'welcome' && 'Приветствия работают на всю группу при входе нового участника.'}
+          {task.type === 'moderation' && 'Модерация работает в реальном времени на ВСЮ группу (все топики). Достаточно одной задачи модерации на группу.'}
           {' '}Нажмите ✏️ чтобы настроить. Бот перезапустится автоматически.
         </div>
       )}

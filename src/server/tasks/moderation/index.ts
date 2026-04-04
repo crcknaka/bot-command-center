@@ -28,10 +28,14 @@ interface ModerationConfig {
   // Warnings behavior
   warnDeleteSeconds?: number; // 0 = don't delete, >0 = auto-delete after N sec (default 10)
   // Strike system
-  strikesEnabled?: boolean; // Enable strike/warn system
-  maxStrikes?: number; // Max warnings before auto-mute (default 3)
-  strikeMuteDuration?: number; // Auto-mute duration in minutes after max strikes (default 60)
-  strikeResetHours?: number; // Reset strikes after N hours of no violations (default 24)
+  strikesEnabled?: boolean;
+  maxStrikes?: number; // default 3
+  strikeMuteDuration?: number; // minutes, default 60
+  strikeResetHours?: number; // default 24
+  strikeWarnText?: string; // custom text for strike warnings ({user}, {n}, {max})
+  strikeMuteText?: string; // custom text when max strikes reached
+  // Banned words behavior
+  deleteOnBan?: boolean; // true = delete message (default true), false = keep message
   // Mute
   muteOnViolation?: boolean;
   muteDurationMinutes?: number;
@@ -176,10 +180,13 @@ export class ModerationTask implements TaskModule {
 
     /** Handle a violation: delete message, issue strike if enabled, warn, optionally mute */
     const handleViolation = async (msgCtx: any, chatId: number, userId: number | undefined, reason: string, warnConfig: ViolationWarn | undefined, warnKey: string) => {
-      try {
-        await msgCtx.deleteMessage();
-        logMod('deleted', msgCtx, reason);
-      } catch (e) { console.error('[moderation] delete error:', e); }
+      // Delete message or keep it
+      if (config.deleteOnBan !== false) {
+        try {
+          await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, reason);
+        } catch (e) { console.error('[moderation] delete error:', e); }
+      }
 
       const mention = mentionUser(msgCtx.from);
 
@@ -189,22 +196,21 @@ export class ModerationTask implements TaskModule {
         const strikes = getStrikes(chatId, userId, resetHours);
 
         if (strikes >= maxStrikes) {
-          // Auto-mute
           const muteMins = config.strikeMuteDuration ?? 60;
           try {
             await muteUser(msgCtx.api, chatId, userId, muteMins);
             logMod('muted', msgCtx, `strikes:${strikes}/${maxStrikes}`);
           } catch (e) { console.error('[moderation] strike mute error:', e); }
-          await warn(msgCtx, `🚫 ${mention}, ${strikes}/${maxStrikes} предупреждений. Мут на ${muteMins} мин.`);
-          // Reset strikes after mute
+          const muteText = (config.strikeMuteText ?? '🚫 {user}, {n}/{max} предупреждений. Мут на {mins} мин.')
+            .replace(/\{user\}/g, mention).replace(/\{n\}/g, String(strikes)).replace(/\{max\}/g, String(maxStrikes)).replace(/\{mins\}/g, String(muteMins));
+          await warn(msgCtx, muteText);
           strikeTracker.delete(`${chatId}:${userId}`);
         } else {
-          // Issue warning with strike count
-          const baseText = pickWarn(warnConfig, warnKey, msgCtx.from);
-          await warn(msgCtx, `⚠️ ${mention}, предупреждение ${strikes}/${maxStrikes}. ${baseText ?? ''}`);
+          const strikeText = (config.strikeWarnText ?? '⚠️ {user}, предупреждение {n}/{max}.')
+            .replace(/\{user\}/g, mention).replace(/\{n\}/g, String(strikes)).replace(/\{max\}/g, String(maxStrikes));
+          await warn(msgCtx, strikeText);
         }
       } else {
-        // No strike system — old behavior
         if (config.muteOnViolation && userId) {
           try {
             await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5);
