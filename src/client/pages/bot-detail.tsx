@@ -363,49 +363,9 @@ export function BotDetailPage() {
 
             {/* Auto-reply config */}
             {taskType === 'auto_reply' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
-                <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Когда сообщение содержит ключевое слово — бот отвечает заданным текстом.</p>
-                {taskConfig.rules.map((rule: any, i: number) => (
-                  <div key={i} className="flex gap-2 mb-2 items-start">
-                    <div className="flex-1">
-                      <input value={rule.pattern} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], pattern: e.target.value }; setTaskConfig({ ...taskConfig, rules: r }); }}
-                        placeholder="Ключевое слово (например: цена)" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                    </div>
-                    <span className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>→</span>
-                    <div className="flex-1">
-                      <input value={rule.response} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], response: e.target.value }; setTaskConfig({ ...taskConfig, rules: r }); }}
-                        placeholder="Ответ бота ({user} = имя)" className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <label className="text-[9px] flex items-center gap-0.5" title="Regex-паттерн" style={{ color: 'var(--text-muted)' }}>
-                        <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], isRegex: e.target.checked }; setTaskConfig({ ...taskConfig, rules: r }); }} />
-                        .*
-                      </label>
-                      <label className="text-[9px] flex items-center gap-0.5" title="Ответить в ЛС" style={{ color: 'var(--text-muted)' }}>
-                        <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => { const r = [...taskConfig.rules]; r[i] = { ...r[i], replyInDm: e.target.checked }; setTaskConfig({ ...taskConfig, rules: r }); }} />
-                        ЛС
-                      </label>
-                    </div>
-                    <button type="button" onClick={() => { const r = taskConfig.rules.filter((_: any, j: number) => j !== i); setTaskConfig({ ...taskConfig, rules: r.length ? r : [{ pattern: '', response: '' }] }); }}
-                      className="p-1 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => setTaskConfig({ ...taskConfig, rules: [...taskConfig.rules, { pattern: '', response: '', isRegex: false }] })}
-                  className="text-[11px] text-blue-400 hover:text-blue-300">+ Добавить правило</button>
-                <p className="text-[10px] mt-1 mb-3" style={{ color: 'var(--text-muted)' }}>
-                  В ответе: {'{user}'} — имя, {'{username}'} — @username. <b>.*</b> — regex-режим, <b>ЛС</b> — ответ в личку.
-                </p>
-                <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                  <label className="flex items-center gap-1.5 text-xs">
-                    <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами одному юзеру:</span>
-                    <input type="number" min={0} value={taskConfig.cooldownSeconds ?? 0} onChange={(e) => setTaskConfig({ ...taskConfig, cooldownSeconds: Number(e.target.value) })}
-                      className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек</span>
-                    <InfoTip text="Чтобы бот не спамил одному юзеру. 0 = отвечать каждый раз. 60 = не чаще раза в минуту." position="right" />
-                  </label>
-                </div>
-              </div>
+              <AutoReplyConfigUI rules={taskConfig.rules ?? [{ pattern: '', response: '' }]} cooldownSeconds={taskConfig.cooldownSeconds ?? 0}
+                onChangeRules={(r: any) => setTaskConfig({ ...taskConfig, rules: r })}
+                onChangeCooldown={(v: number) => setTaskConfig({ ...taskConfig, cooldownSeconds: v })} />
             )}
 
             {/* Welcome config */}
@@ -510,6 +470,81 @@ export function BotDetailPage() {
 }
 
 // ─── Edit Task Modal ─────────────────────────────────────────────────────────
+
+// ─── Auto-Reply Config UI ────────────────────────────────────────────────────
+
+function AutoReplyConfigUI({ rules, cooldownSeconds, onChangeRules, onChangeCooldown }: {
+  rules: any[]; cooldownSeconds: number;
+  onChangeRules: (r: any[]) => void; onChangeCooldown: (v: number) => void;
+}) {
+  const updateRule = (i: number, patch: any) => {
+    const r = [...rules]; r[i] = { ...r[i], ...patch }; onChangeRules(r);
+  };
+  const removeRule = (i: number) => {
+    const r = rules.filter((_: any, j: number) => j !== i);
+    onChangeRules(r.length ? r : [{ pattern: '', response: '' }]);
+  };
+
+  return (
+    <div className="mb-4">
+      <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
+      <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Когда сообщение совпадает с ключевым словом — бот отправляет ответ.</p>
+
+      <div className="space-y-3">
+        {rules.map((rule: any, i: number) => (
+          <div key={i} className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+            <div className="flex gap-2 items-start">
+              <div className="flex-1">
+                <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Ключевое слово / паттерн</label>
+                <input value={rule.pattern} onChange={(e) => updateRule(i, { pattern: e.target.value })}
+                  placeholder="цена, /start, привет"
+                  className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+              <button type="button" onClick={() => removeRule(i)} className="mt-4 p-1 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
+            </div>
+            <div>
+              <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Ответ бота (HTML)</label>
+              <textarea value={rule.response} onChange={(e) => updateRule(i, { response: e.target.value })}
+                placeholder="Привет, {user}! Вот наш прайс..."
+                rows={2} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            </div>
+            <div className="flex gap-3 flex-wrap">
+              <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={rule.exactMatch ?? false} onChange={(e) => updateRule(i, { exactMatch: e.target.checked })} />
+                Точное слово
+                <InfoTip text="Совпадает только целое слово, а не подстрока. 'да' не поймает 'давай'." position="top" />
+              </label>
+              <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => updateRule(i, { isRegex: e.target.checked })} />
+                Regex
+                <InfoTip text="Регулярное выражение. Например: ^/help$ или (цена|стоимость|прайс)" position="top" />
+              </label>
+              <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => updateRule(i, { replyInDm: e.target.checked })} />
+                Ответить в ЛС
+                <InfoTip text="Бот ответит в ЛС юзеру. Важно: юзер должен хотя бы раз написать боту /start в личку, иначе Telegram не разрешит отправить." position="top" />
+              </label>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button type="button" onClick={() => onChangeRules([...rules, { pattern: '', response: '' }])}
+        className="text-[11px] text-blue-400 hover:text-blue-300 mt-2">+ Добавить правило</button>
+
+      <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+        Переменные в ответе: {'{user}'} — имя, {'{username}'} — @username, {'{chatTitle}'} — название чата.
+      </p>
+
+      <div className="flex items-center gap-2 text-xs mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+        <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами одному юзеру:</span>
+        <input type="number" min={0} value={cooldownSeconds} onChange={(e) => onChangeCooldown(Number(e.target.value))}
+          className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек (0 = всегда)</span>
+      </div>
+    </div>
+  );
+}
 
 // ─── Banned Words Input ──────────────────────────────────────────────────────
 
@@ -972,36 +1007,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
 
         {/* Auto-reply rules */}
         {task.type === 'auto_reply' && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Правила авто-ответов</label>
-            {rules.map((rule, i) => (
-              <div key={i} className="flex gap-2 mb-2 items-start">
-                <input value={rule.pattern} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], pattern: e.target.value }; setRules(r); }}
-                  placeholder="Ключевое слово" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                <span className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>→</span>
-                <input value={rule.response} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], response: e.target.value }; setRules(r); }}
-                  placeholder="Ответ ({user} = имя)" className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                <div className="flex items-center gap-1 shrink-0 mt-1">
-                  <label className="text-[9px] flex items-center gap-0.5" title="Regex" style={{ color: 'var(--text-muted)' }}>
-                    <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], isRegex: e.target.checked }; setRules(r); }} /> .*
-                  </label>
-                  <label className="text-[9px] flex items-center gap-0.5" title="В ЛС" style={{ color: 'var(--text-muted)' }}>
-                    <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => { const r = [...rules]; r[i] = { ...r[i], replyInDm: e.target.checked }; setRules(r); }} /> ЛС
-                  </label>
-                </div>
-                <button type="button" onClick={() => setRules(rules.filter((_, j) => j !== i))} className="text-red-400/50 hover:text-red-400 mt-1"><Trash2 size={12} /></button>
-              </div>
-            ))}
-            <button type="button" onClick={() => setRules([...rules, { pattern: '', response: '' }])} className="text-[11px] text-blue-400">+ Добавить</button>
-            <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              {'{user}'} — имя, {'{username}'} — @username. <b>.*</b> — regex, <b>ЛС</b> — ответ в личку.
-            </p>
-            <div className="flex items-center gap-2 text-xs mt-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Пауза:</span>
-              <input type="number" min={0} value={cooldownSec} onChange={(e) => setCooldownSec(Number(e.target.value))} className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек между ответами одному юзеру</span>
-            </div>
-          </div>
+          <AutoReplyConfigUI rules={rules} cooldownSeconds={cooldownSec}
+            onChangeRules={setRules} onChangeCooldown={setCooldownSec} />
         )}
 
         {/* Welcome config */}

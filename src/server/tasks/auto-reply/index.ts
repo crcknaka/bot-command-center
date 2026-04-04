@@ -4,6 +4,7 @@ interface AutoReplyRule {
   pattern: string;
   response: string;
   isRegex?: boolean;
+  exactMatch?: boolean; // Match whole word, not substring
   replyInDm?: boolean; // Reply in DM instead of group
 }
 
@@ -39,9 +40,22 @@ export class AutoReplyTask implements TaskModule {
 
       for (const rule of config.rules) {
         if (!rule.pattern) continue;
-        const matches = rule.isRegex
-          ? new RegExp(rule.pattern, 'i').test(text)
-          : text.toLowerCase().includes(rule.pattern.toLowerCase());
+        let matches = false;
+        try {
+          if (rule.isRegex) {
+            matches = new RegExp(rule.pattern, 'i').test(text);
+          } else if (rule.exactMatch) {
+            // Match as whole word (with word boundaries)
+            const escaped = rule.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            matches = new RegExp(`(?:^|\\s|[^а-яёa-z])${escaped}(?:$|\\s|[^а-яёa-z])`, 'i').test(text)
+              || text.toLowerCase() === rule.pattern.toLowerCase(); // exact full message match
+          } else {
+            matches = text.toLowerCase().includes(rule.pattern.toLowerCase());
+          }
+        } catch (e) {
+          console.error(`[auto-reply] Invalid pattern "${rule.pattern}":`, e);
+          continue;
+        }
 
         if (matches) {
           // Update cooldown
@@ -55,7 +69,12 @@ export class AutoReplyTask implements TaskModule {
             .replace(/\{chatTitle\}/g, 'title' in msgCtx.chat ? (msgCtx.chat as any).title : '');
 
           if (rule.replyInDm && userId) {
-            try { await msgCtx.api.sendMessage(userId, response, { parse_mode: 'HTML' }); } catch (e) { console.error('[auto-reply] DM send error:', e); }
+            try {
+              await msgCtx.api.sendMessage(userId, response, { parse_mode: 'HTML' });
+            } catch {
+              // Fallback: если ЛС не удалось (юзер не начал чат) — ответить в группе
+              await msgCtx.reply(response, { parse_mode: 'HTML' });
+            }
           } else {
             await msgCtx.reply(response, { parse_mode: 'HTML' });
           }
