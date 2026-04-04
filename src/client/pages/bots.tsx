@@ -117,7 +117,7 @@ export function BotsPage() {
 
       {/* Add Bot Modal */}
       {showAddBot && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAddBot(false)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setShowAddBot(false)}>
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-1">Добавить Telegram-бота</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>

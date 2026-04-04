@@ -2386,7 +2386,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-md p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-bold mb-3">{title}</h2>
         {children}

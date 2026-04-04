@@ -334,7 +334,7 @@ function AIModelsTab() {
         const selected = providerTypes.find((t) => t.value === form.type);
         const isLocal = selected?.group === 'local' || selected?.group === 'custom';
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setShowAdd(false)}>
             <div className="w-full max-w-md mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
               <h2 className="text-lg font-bold mb-1">Добавить AI-провайдера</h2>
               <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Облачный сервис или локальная модель на вашем компьютере.</p>
@@ -504,7 +504,7 @@ function SearchTab() {
       )}
 
       {showAdd && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setShowAdd(false)}>
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-1">Добавить поисковый провайдер</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Выберите сервис и вставьте API-ключ.</p>
@@ -622,7 +622,7 @@ function TemplatesTab() {
       )}
 
       {showAdd && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { setShowAdd(false); setEditId(null); }}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) (() => { setShowAdd(false); setEditId(null); })(); }}>
           <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-4">{editId ? 'Редактировать шаблон' : 'Новый шаблон'}</h2>
             <form onSubmit={(e) => { e.preventDefault(); editId ? updateMut.mutate({ id: editId, ...form }) : createMut.mutate(form); }} className="space-y-3">

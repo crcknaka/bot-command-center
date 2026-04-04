@@ -436,7 +436,7 @@ export function AnalyticsPage() {
 
       {/* Edit thread name modal */}
       {editThread && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEditThread(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setEditThread(null)}>
           <div className="w-full max-w-sm p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold mb-3">Переименовать топик</h3>
             <input value={editThread.title} onChange={(e) => setEditThread({ ...editThread, title: e.target.value })} autoFocus

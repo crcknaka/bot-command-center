@@ -26,7 +26,7 @@ export function UserProfileModal({ chatId, userId, onClose }: { chatId: string; 
   if (!profile) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="p-5 border-b" style={{ borderColor: 'var(--border)' }}>

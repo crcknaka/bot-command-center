@@ -194,7 +194,7 @@ export function MembersPage() {
 
           {/* Action modal */}
           {actionUser && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setActionUser(null)}>
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setActionUser(null)}>
               <div className="w-full max-w-sm p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-lg font-bold">

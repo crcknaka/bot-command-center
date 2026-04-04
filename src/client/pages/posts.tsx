@@ -411,7 +411,7 @@ export function PostsPage() {
 
       {/* Preview Modal */}
       {previewPost && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setPreviewPost(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setPreviewPost(null)}>
           <div onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Так пост будет выглядеть в Telegram:</div>
             <TelegramPreview content={previewPost.content} imageUrl={previewPost.imageUrl} />
@@ -421,7 +421,7 @@ export function PostsPage() {
 
       {/* Edit Modal */}
       {editPost && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEditPost(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setEditPost(null)}>
           <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-1">Редактировать пост</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>HTML-теги: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href="..."&gt;ссылка&lt;/a&gt;</p>
@@ -481,7 +481,7 @@ function CreatePostModal({ channels, onClose, onCreate, isPending }: {
   const [content, setContent] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-bold mb-1">Создать пост вручную</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Выберите канал и напишите текст поста.</p>
@@ -538,7 +538,7 @@ function AiGenerateModal({ channels, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Sparkles size={18} className="text-purple-400" /> Создать пост с AI</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Введите тему — AI сгенерирует пост. Без источников, просто по теме.</p>
@@ -676,7 +676,7 @@ function ScheduleModal({ onClose, onSchedule }: { onClose: () => void; onSchedul
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-xs mx-4 p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold mb-1 flex items-center gap-2"><Calendar size={16} /> Запланировать публикацию</h3>
         <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Выберите дату и время.</p>
