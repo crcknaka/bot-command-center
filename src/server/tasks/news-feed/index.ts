@@ -100,7 +100,7 @@ export class NewsFeedTask implements TaskModule {
         steps.push({
           action: `Источник: ${source.name}`,
           status: 'ok',
-          detail: count > 0 ? `${count} новых статей загружено` : 'Все статьи уже загружены ранее',
+          detail: count > 0 ? `${count} новых статей в базе` : 'Новых статей нет',
         });
       } catch (err) {
         steps.push({
@@ -206,7 +206,12 @@ export class NewsFeedTask implements TaskModule {
     }
 
     if (steps.length === 0) {
-      steps.push({ action: 'Результат', status: 'skipped', detail: 'Нечего делать — нет источников и поисковых запросов.' });
+      steps.push({ action: 'Результат', status: 'skipped', detail: 'Нечего делать — нет источников.' });
+    } else {
+      const postsCreated = steps.filter(s => s.status === 'ok' && (s.detail.includes('Пост') || s.detail.includes('AI-пост'))).length;
+      if (postsCreated > 0) {
+        steps.push({ action: 'Итого', status: 'ok', detail: `Создано ${postsCreated} постов. Проверьте на странице «Посты».` });
+      }
     }
 
     return { steps };

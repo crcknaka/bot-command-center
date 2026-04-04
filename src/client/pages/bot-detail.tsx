@@ -1792,6 +1792,14 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
     onSuccess: () => { setShowSend(false); setSendText(''); setSendImage(''); },
   });
 
+  const [showEditChannel, setShowEditChannel] = useState(false);
+  const [editChatId, setEditChatId] = useState(channel.chatId);
+  const [editThreadTitle, setEditThreadTitle] = useState(channel.threadTitle ?? '');
+  const editChannelMut = useMutation({
+    mutationFn: (data: any) => apiFetch(`/channels/${channel.id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowEditChannel(false); },
+  });
+
   return (
     <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       {/* Channel header */}
@@ -1820,6 +1828,9 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
           </button>
           <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
+          </button>
+          <button onClick={() => setShowEditChannel(true)} className="p-1.5 rounded-lg hover:bg-white/5" title="Редактировать канал">
+            <Pencil size={14} className="text-zinc-400/60 hover:text-zinc-300" />
           </button>
           <button onClick={() => setShowDuplicate(true)} className="p-1.5 rounded-lg hover:bg-white/5" title="Дублировать канал со всеми задачами">
             <Copy size={14} className="text-zinc-400/60 hover:text-zinc-300" />
@@ -1918,6 +1929,47 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
           </form>
           {sendMut.isError && <p className="text-xs text-red-400 mt-2">{(sendMut.error as Error).message}</p>}
           {sendMut.isSuccess && <p className="text-xs text-green-400 mt-2">Сообщение отправлено!</p>}
+        </Modal>
+      )}
+
+      {/* Edit Channel Modal */}
+      {showEditChannel && (
+        <Modal title="Редактировать канал" onClose={() => setShowEditChannel(false)}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const raw = editChatId.trim();
+            if (!raw) return;
+            const tmeMatch = raw.match(/(?:https?:\/\/)?t\.me\/([^\/\s]+)(?:\/(\d+))?/);
+            let chatId = raw;
+            let threadId: number | null = channel.threadId;
+            if (tmeMatch) {
+              chatId = `@${tmeMatch[1]}`;
+              if (tmeMatch[2]) threadId = Number(tmeMatch[2]);
+            } else if (!raw.startsWith('@') && !raw.startsWith('-') && !/^\d+$/.test(raw)) {
+              chatId = `@${raw}`;
+            }
+            editChannelMut.mutate({ chatId, threadId, threadTitle: editThreadTitle.trim() || null });
+          }}>
+            <label className="block text-sm font-medium mb-1">Канал или группа</label>
+            <input value={editChatId} onChange={(e) => setEditChatId(e.target.value)}
+              placeholder="https://t.me/channel/123 или @channel"
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+            {channel.threadId && (
+              <div className="mb-3">
+                <label className="block text-xs font-medium mb-1">Название топика</label>
+                <input value={editThreadTitle} onChange={(e) => setEditThreadTitle(e.target.value)}
+                  placeholder="Например: Обсуждение"
+                  className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => setShowEditChannel(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+              <button type="submit" disabled={editChannelMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                {editChannelMut.isPending ? 'Сохраняю...' : 'Сохранить'}
+              </button>
+            </div>
+          </form>
+          {editChannelMut.isError && <p className="text-xs text-red-400 mt-2">{(editChannelMut.error as Error).message}</p>}
         </Modal>
       )}
     </div>

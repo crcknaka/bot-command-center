@@ -348,7 +348,12 @@ export function PostsPage() {
                     <span className="font-medium">Ошибка:</span> {post.errorMessage}
                   </div>
                 )}
-                <div className="text-sm line-clamp-3 mb-3" dangerouslySetInnerHTML={safeHtml(post.content)} />
+                <div className="flex gap-3">
+                  {post.imageUrl && (
+                    <img src={post.imageUrl} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+                  )}
+                  <div className="text-sm line-clamp-3 flex-1" dangerouslySetInnerHTML={safeHtml(post.content)} />
+                </div>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setPreviewPost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                     <Eye size={12} /> Превью

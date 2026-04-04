@@ -56,9 +56,30 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
 // PATCH /api/channels/:id
 channelsApi.patch('/channels/:id', async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json<{ title?: string; isTest?: boolean; threadId?: number | null }>();
+  const body = await c.req.json<{ chatId?: string; title?: string; threadId?: number | null; threadTitle?: string | null }>();
 
-  const updated = db.update(channels).set(body).where(eq(channels.id, id)).returning().get();
+  // If chatId changed, try to resolve new channel info
+  if (body.chatId) {
+    const channel = db.select().from(channels).where(eq(channels.id, id)).limit(1).get();
+    if (channel) {
+      const botRecord = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+      if (botRecord) {
+        try {
+          const tempBot = new Bot(botRecord.token);
+          const chat = await tempBot.api.getChat(body.chatId);
+          body.title = ('title' in chat ? chat.title : chat.first_name) ?? body.chatId;
+          if (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') {
+            (body as any).type = chat.type;
+          }
+          (body as any).isLinked = true;
+        } catch {
+          (body as any).isLinked = false;
+        }
+      }
+    }
+  }
+
+  const updated = db.update(channels).set(body as any).where(eq(channels.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
   return c.json(updated);
