@@ -161,9 +161,12 @@ export class NewsFeedTask implements TaskModule {
             }
             const modelId = resolveModel(config.aiModel, provider.id);
             const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+            const articleContent = article.content ?? article.summary ?? '';
+            const userPrompt = articleContent.trim()
+              ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${article.title}\nТекст: ${articleContent}\nИсточник: ${article.url}\n${article.author ? `Автор: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Сохрани ключевые факты. Добавь ссылку на источник.`
+              : `Напиши пост для Telegram-канала на основе этого заголовка:\n\nЗаголовок: ${article.title}\nСсылка: ${article.url}\n${article.author ? `Автор/Источник: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Используй только информацию из заголовка — НЕ выдумывай факты. Если информации мало — напиши кратко. Добавь ссылку.`;
             const generated = await generatePost({
-              providerId: provider.id, modelId, systemPrompt,
-              userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
+              providerId: provider.id, modelId, systemPrompt, userPrompt,
             });
             content = generated.content;
             aiModel = modelId;

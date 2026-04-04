@@ -285,15 +285,20 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   const modelId = resolveModel(config.aiModel, provider.id);
   const systemPrompt = config.systemPrompt ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.';
 
+  const articleContent = article.content ?? article.summary ?? '';
+  const userPrompt = articleContent.trim()
+    ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${article.title}\nТекст: ${articleContent}\nИсточник: ${article.url}\n${article.author ? `Автор: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Сохрани ключевые факты. Добавь ссылку на источник.`
+    : `Напиши пост для Telegram-канала на основе этого заголовка:\n\nЗаголовок: ${article.title}\nСсылка: ${article.url}\n${article.author ? `Автор/Источник: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Используй только информацию из заголовка — НЕ выдумывай факты. Если информации мало — напиши кратко. Добавь ссылку.`;
+
   try {
     const generated = await generatePost({
-      providerId: provider.id, modelId, systemPrompt,
-      userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
+      providerId: provider.id, modelId, systemPrompt, userPrompt,
     });
 
     return c.json({
       ok: true,
-      article: { title: article.title, url: article.url, imageUrl: article.imageUrl },
+      article: { title: article.title, summary: articleContent.slice(0, 300), url: article.url, author: article.author, imageUrl: article.imageUrl },
+      aiInput: userPrompt,
       post: generated.content,
       model: modelId,
       tokensUsed: generated.tokensUsed,

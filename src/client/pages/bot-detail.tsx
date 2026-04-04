@@ -2198,16 +2198,30 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
             </div>
           )}
           {/* Test AI result */}
-          {testAi && (
-            <div className="mt-3 rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.05)' }}>
-              <div className="text-[10px] font-medium mb-1 flex items-center justify-between">
-                <span>✨ Тест AI ({testAi.model}, {testAi.tokensUsed} токенов)</span>
-                <button onClick={() => setTestAi(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">×</button>
+          {testAi?.ok && (
+            <div className="mt-3 space-y-2">
+              {/* What AI received */}
+              <details className="rounded-lg border p-2" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                <summary className="text-[10px] font-medium cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                  📥 Что получил AI (вход) — {testAi.article?.summary ? 'есть текст' : 'только заголовок'}
+                </summary>
+                <div className="mt-2 text-[10px] whitespace-pre-wrap p-2 rounded" style={{ background: 'rgba(0,0,0,0.2)', color: 'var(--text-muted)' }}>
+                  {testAi.aiInput}
+                </div>
+              </details>
+              {/* What AI generated */}
+              <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.05)' }}>
+                <div className="text-[10px] font-medium mb-2 flex items-center justify-between">
+                  <span>✨ Результат AI ({testAi.model}, {testAi.tokensUsed} токенов)</span>
+                  <button onClick={() => setTestAi(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">×</button>
+                </div>
+                <div className="flex gap-3">
+                  {testAi.article?.imageUrl && (
+                    <img src={testAi.article.imageUrl} alt="" className="w-20 h-20 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+                  )}
+                  <div className="text-xs" dangerouslySetInnerHTML={{ __html: testAi.post }} />
+                </div>
               </div>
-              <div className="text-xs mt-2 p-2 rounded" style={{ background: 'rgba(0,0,0,0.2)' }} dangerouslySetInnerHTML={{ __html: testAi.post }} />
-              {testAi.article?.imageUrl && (
-                <img src={testAi.article.imageUrl} alt="" className="mt-2 rounded max-h-32 object-cover" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
-              )}
             </div>
           )}
           {testAi?.error && (
