@@ -354,7 +354,8 @@ botsApi.get('/:id/members', async (c) => {
   for (const user of users.slice(0, 50)) {
     if (botInstance) {
       try {
-        const member = await botInstance.api.getChatMember(chatId, user.userId);
+        const numId = /^-?\d+$/.test(chatId) ? Number(chatId) : chatId;
+        const member = await botInstance.api.getChatMember(numId, user.userId);
         (user as any).status = member.status; // 'member', 'restricted', 'kicked', 'administrator', 'creator'
       } catch {
         (user as any).status = 'unknown';
@@ -381,6 +382,7 @@ botsApi.post('/:id/moderate', async (c) => {
   if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
 
   const user = (c as any).get('user');
+  const numChatId = /^-?\d+$/.test(chatId) ? Number(chatId) : chatId;
   const untilDate = duration && duration > 0 ? Math.floor(Date.now() / 1000) + duration * 60 : 0;
 
   try {
@@ -391,22 +393,22 @@ botsApi.post('/:id/moderate', async (c) => {
 
     switch (action) {
       case 'mute':
-        await botInstance.api.restrictChatMember(chatId, userId, { permissions: muted, until_date: untilDate || undefined } as any);
+        await botInstance.api.restrictChatMember(numChatId, userId, { permissions: muted, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
       case 'unmute':
-        await botInstance.api.restrictChatMember(chatId, userId, { permissions: unmuted } as any);
+        await botInstance.api.restrictChatMember(numChatId, userId, { permissions: unmuted, use_independent_chat_permissions: true } as any);
         break;
       case 'ban':
-        await botInstance.api.banChatMember(chatId, userId, { until_date: untilDate || undefined });
+        await botInstance.api.banChatMember(numChatId, userId, { until_date: untilDate || undefined });
         break;
       case 'unban':
-        await botInstance.api.unbanChatMember(chatId, userId, { only_if_banned: true });
+        await botInstance.api.unbanChatMember(numChatId, userId, { only_if_banned: true });
         break;
       case 'restrict_media':
-        await botInstance.api.restrictChatMember(chatId, userId, { permissions: noMedia, until_date: untilDate || undefined } as any);
+        await botInstance.api.restrictChatMember(numChatId, userId, { permissions: noMedia, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
       case 'restrict_links':
-        await botInstance.api.restrictChatMember(chatId, userId, { permissions: noLinks, until_date: untilDate || undefined } as any);
+        await botInstance.api.restrictChatMember(numChatId, userId, { permissions: noLinks, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
     }
 
