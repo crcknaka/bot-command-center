@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Users, MessageSquare, Clock, TrendingUp, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
@@ -52,13 +52,23 @@ export function AnalyticsPage() {
     queryFn: () => apiFetch(`/stats/chat/${selectedChat}/types?period=${period}${threadParam}`),
     enabled: !!selectedChat,
   });
+  const { data: hourly } = useQuery({
+    queryKey: ['stats-hourly', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/hourly?period=${period}${threadParam}`),
+    enabled: !!selectedChat,
+  });
+  const { data: weekdays } = useQuery({
+    queryKey: ['stats-weekdays', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/weekdays?period=${period}${threadParam}`),
+    enabled: !!selectedChat,
+  });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Аналитика</h1>
-          <InfoTip text="Статистика сообщений в группах. Данные собираются автоматически пока бот работает." position="bottom" />
+          <InfoTip text="Статистика сообщений в группах. Данные собираются автоматически пока бот запущен и работает в группе." position="bottom" />
         </div>
       </div>
 
@@ -72,7 +82,7 @@ export function AnalyticsPage() {
           </div>
         )}
         {chats?.map((chat: any) => (
-          <button key={chat.chatId} onClick={() => setSelectedChat(chat.chatId)}
+          <button key={chat.chatId} onClick={() => { setSelectedChat(chat.chatId); setSelectedThread('all'); }}
             className={cn('px-4 py-3 rounded-xl border text-left transition-colors', selectedChat === chat.chatId ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
             style={{ borderColor: selectedChat === chat.chatId ? undefined : 'var(--border)', background: selectedChat === chat.chatId ? undefined : 'var(--bg-card)' }}>
             <div className="text-sm font-medium">{chat.type === 'channel' ? '📢' : '👥'} {chat.title}</div>
@@ -117,10 +127,10 @@ export function AnalyticsPage() {
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             {[
-              { label: 'Сообщений', value: (summary[period] ?? summary.week)?.messages ?? 0, icon: MessageSquare, color: 'text-blue-400' },
-              { label: 'Активных юзеров', value: (summary[period] ?? summary.week)?.users ?? 0, icon: Users, color: 'text-green-400' },
-              { label: 'Среднее в день', value: (summary[period] ?? summary.week)?.avgPerDay ?? 0, icon: TrendingUp, color: 'text-yellow-400' },
-              { label: 'Пиковый час', value: summary.peakHour ? `${String(summary.peakHour.hour).padStart(2, '0')}:00` : '—', icon: Clock, color: 'text-purple-400' },
+              { label: 'Сообщений', value: (summary[period] ?? summary.week)?.messages ?? 0, icon: MessageSquare, color: 'text-blue-400', tip: 'Общее количество сообщений за выбранный период.' },
+              { label: 'Активных юзеров', value: (summary[period] ?? summary.week)?.users ?? 0, icon: Users, color: 'text-green-400', tip: 'Уникальные пользователи, написавшие хотя бы одно сообщение.' },
+              { label: 'Среднее в день', value: (summary[period] ?? summary.week)?.avgPerDay ?? 0, icon: TrendingUp, color: 'text-yellow-400', tip: 'Среднее количество сообщений в день за период.' },
+              { label: 'Пиковый час', value: summary.peakHour ? `${String(summary.peakHour.hour).padStart(2, '0')}:00` : '—', icon: Clock, color: 'text-purple-400', tip: 'Час дня когда чат наиболее активен (по всем данным).' },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -128,7 +138,10 @@ export function AnalyticsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-2xl font-bold">{s.value}</div>
-                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+                      <div className="text-[10px] flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                        {s.label}
+                        <InfoTip text={s.tip} position="top" />
+                      </div>
                     </div>
                     <Icon size={20} className={s.color} />
                   </div>
@@ -137,20 +150,72 @@ export function AnalyticsPage() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Row 1: Activity + Hourly heatmap */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Activity chart */}
             {activity?.length > 0 && (
               <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                <h3 className="text-sm font-semibold mb-3">Активность по дням</h3>
-                <div className="flex items-end gap-1 h-28">
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  Активность по дням
+                  <InfoTip text="Количество сообщений за каждый день выбранного периода." position="top" />
+                </h3>
+                <div className="flex items-end gap-[2px] h-28 mt-2">
                   {activity.map((day: any) => {
                     const maxVal = Math.max(...activity.map((d: any) => d.count), 1);
                     return (
-                      <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                      <div key={day.date} className="flex-1 flex flex-col items-center gap-1" title={`${day.date}: ${day.count} сообщ.`}>
                         <div className="w-full flex flex-col justify-end" style={{ height: '100px' }}>
-                          <div className="bg-blue-500/60 rounded-t" style={{ height: `${Math.max((day.count / maxVal) * 100, day.count > 0 ? 4 : 1)}px` }} />
+                          <div className="bg-blue-500/60 rounded-sm min-h-[1px]" style={{ height: `${Math.max((day.count / maxVal) * 100, day.count > 0 ? 3 : 1)}px` }} />
                         </div>
-                        <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>{day.date.slice(8)}</span>
+                        {activity.length <= 14 && <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>{day.date.slice(8)}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Hourly heatmap */}
+            {hourly?.length > 0 && (
+              <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  Активность по часам
+                  <InfoTip text="В какие часы дня чат наиболее активен. Чем ярче — тем больше сообщений." position="top" />
+                </h3>
+                <div className="grid grid-cols-12 gap-1 mt-2">
+                  {hourly.map((h: any) => {
+                    const maxVal = Math.max(...hourly.map((x: any) => x.count), 1);
+                    const intensity = h.count / maxVal;
+                    return (
+                      <div key={h.hour} className="text-center" title={`${String(h.hour).padStart(2, '0')}:00 — ${h.count} сообщ.`}>
+                        <div className="rounded-sm h-8 mb-0.5" style={{ background: h.count > 0 ? `rgba(59, 130, 246, ${0.15 + intensity * 0.7})` : 'rgba(255,255,255,0.03)' }} />
+                        <span className="text-[7px]" style={{ color: 'var(--text-muted)' }}>{h.hour}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: Weekdays + Types */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Weekdays */}
+            {weekdays?.length > 0 && (
+              <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  По дням недели
+                  <InfoTip text="Суммарная активность по дням недели. Показывает когда чат живее всего." position="top" />
+                </h3>
+                <div className="flex items-end gap-2 h-24 mt-2">
+                  {weekdays.map((d: any) => {
+                    const maxVal = Math.max(...weekdays.map((x: any) => x.count), 1);
+                    return (
+                      <div key={d.day} className="flex-1 flex flex-col items-center gap-1" title={`${d.name}: ${d.count} сообщ.`}>
+                        <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
+                          <div className="bg-green-500/60 rounded-sm" style={{ height: `${Math.max((d.count / maxVal) * 80, d.count > 0 ? 3 : 1)}px` }} />
+                        </div>
+                        <span className="text-[9px] font-medium" style={{ color: 'var(--text-muted)' }}>{d.name}</span>
                       </div>
                     );
                   })}
@@ -161,8 +226,11 @@ export function AnalyticsPage() {
             {/* Types distribution */}
             {types && Object.keys(types).length > 0 && (
               <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                <h3 className="text-sm font-semibold mb-3">Типы контента</h3>
-                <div className="space-y-2">
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  Типы контента
+                  <InfoTip text="Какой контент отправляют участники: текст, фото, видео, стикеры и т.д." position="top" />
+                </h3>
+                <div className="space-y-1.5 mt-2">
                   {Object.entries(types as Record<string, number>)
                     .sort((a, b) => b[1] - a[1])
                     .map(([type, cnt]) => {
@@ -170,11 +238,11 @@ export function AnalyticsPage() {
                       const pct = Math.round((cnt / total) * 100);
                       return (
                         <div key={type} className="flex items-center gap-2 text-xs">
-                          <span className="w-20 truncate" style={{ color: 'var(--text-muted)' }}>{typeLabels[type] ?? type}</span>
-                          <div className="flex-1 h-3 rounded-full bg-zinc-800 overflow-hidden">
+                          <span className="w-16 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>{typeLabels[type] ?? type}</span>
+                          <div className="flex-1 h-2.5 rounded-full bg-zinc-800 overflow-hidden">
                             <div className={cn('h-full rounded-full', typeColors[type] ?? 'bg-zinc-500')} style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="w-12 text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>{cnt} ({pct}%)</span>
+                          <span className="w-14 text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>{cnt} ({pct}%)</span>
                         </div>
                       );
                     })}
@@ -186,21 +254,24 @@ export function AnalyticsPage() {
           {/* Top users */}
           {topUsers?.users?.length > 0 && (
             <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-              <h3 className="text-sm font-semibold mb-3">Топ участников</h3>
-              <div className="space-y-2">
+              <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                Топ участников
+                <InfoTip text="Самые активные участники за выбранный период. Показывает количество сообщений, долю от общего числа, и основной тип контента." position="top" />
+              </h3>
+              <div className="space-y-1.5 mt-2">
                 <div className="flex text-[10px] font-medium pb-1 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
                   <span className="w-8">#</span>
                   <span className="flex-1">Участник</span>
                   <span className="w-20 text-right">Сообщений</span>
                   <span className="w-12 text-right">%</span>
-                  <span className="w-32 text-right hidden sm:block">Основной тип</span>
+                  <span className="w-32 text-right hidden sm:block">Тип</span>
                 </div>
                 {topUsers.users.map((u: any, i: number) => {
                   const pct = topUsers.total > 0 ? Math.round((u.count / topUsers.total) * 100) : 0;
                   const mainType = Object.entries(u.types as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
                   return (
-                    <div key={u.userId} className="flex items-center text-xs">
-                      <span className="w-8 font-bold" style={{ color: i < 3 ? ['text-yellow-400', 'text-zinc-400', 'text-orange-400'][i] : 'var(--text-muted)' }}>
+                    <div key={u.userId} className="flex items-center text-xs py-0.5">
+                      <span className="w-8 font-bold" style={{ color: i < 3 ? undefined : 'var(--text-muted)' }}>
                         {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -215,6 +286,9 @@ export function AnalyticsPage() {
                     </div>
                   );
                 })}
+              </div>
+              <div className="text-[10px] mt-3 pt-2 border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                Всего сообщений за период: {topUsers.total} · Показано топ-{Math.min(topUsers.users.length, 20)}
               </div>
             </div>
           )}

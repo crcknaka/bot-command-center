@@ -271,6 +271,37 @@ statsApi.get('/chat/:chatId/threads', async (c) => {
   return c.json(result);
 });
 
+// GET /api/stats/chat/:chatId/hourly — messages by hour of day
+statsApi.get('/chat/:chatId/hourly', async (c) => {
+  const chatId = c.req.param('chatId');
+  const period = c.req.query('period') ?? 'week';
+  const threadId = c.req.query('threadId');
+
+  const msgs = getChatMessages(chatId, period, threadId);
+  const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+  for (const m of msgs) {
+    const h = new Date(m.createdAt + 'Z').getHours();
+    hours[h].count++;
+  }
+  return c.json(hours);
+});
+
+// GET /api/stats/chat/:chatId/weekdays — messages by day of week
+statsApi.get('/chat/:chatId/weekdays', async (c) => {
+  const chatId = c.req.param('chatId');
+  const period = c.req.query('period') ?? 'month';
+  const threadId = c.req.query('threadId');
+
+  const msgs = getChatMessages(chatId, period, threadId);
+  const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name, i) => ({ day: i, name, count: 0 }));
+  for (const m of msgs) {
+    const d = new Date(m.createdAt + 'Z').getDay();
+    const idx = d === 0 ? 6 : d - 1; // Mon=0, Sun=6
+    days[idx].count++;
+  }
+  return c.json(days);
+});
+
 // PATCH /api/stats/chat/:chatId/threads/:threadId — rename a thread
 statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
   const chatId = c.req.param('chatId');
