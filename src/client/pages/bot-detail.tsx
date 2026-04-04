@@ -414,11 +414,26 @@ export function BotDetailPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
                   <textarea value={(taskConfig.bannedWords ?? []).join(', ')} onChange={(e) => setTaskConfig({ ...taskConfig, bannedWords: e.target.value.split(',').map((w: string) => w.trim()).filter(Boolean) })}
-                    rows={2} placeholder="спам, реклама, казино (через запятую)" className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Сообщение с этими словами будет удалено. Через запятую.</p>
+                    rows={3} placeholder="спам, реклама, казино, бесплатно, скидка 90%" className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Перечислите слова <b>через запятую</b>. Если сообщение содержит любое из этих слов — оно будет удалено автоматически.
+                  </p>
+                  {(taskConfig.bannedWords ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {(taskConfig.bannedWords as string[]).map((w: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 flex items-center gap-1">
+                          {w}
+                          <button type="button" onClick={() => setTaskConfig({ ...taskConfig, bannedWords: (taskConfig.bannedWords as string[]).filter((_: string, j: number) => j !== i) })} className="hover:text-red-300">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Макс. ссылок в сообщении</label>
+                  <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
+                    Макс. ссылок в сообщении
+                    <InfoTip text="Если в одном сообщении больше ссылок чем указано — оно удаляется. Защита от спама. 0 = не ограничивать." position="right" />
+                  </label>
                   <input type="number" min={0} max={20} value={taskConfig.maxLinksPerMessage} onChange={(e) => setTaskConfig({ ...taskConfig, maxLinksPerMessage: Number(e.target.value) })}
                     className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                   <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений</span>
@@ -728,14 +743,32 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
             <div>
               <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
               <textarea value={bannedWords.join(', ')} onChange={(e) => setBannedWords(e.target.value.split(',').map(w => w.trim()).filter(Boolean))}
-                rows={2} placeholder="спам, реклама, казино" className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                rows={3} placeholder="спам, реклама, казино, бесплатно" className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Перечислите <b>через запятую</b>. Сообщение с любым из этих слов удаляется.</p>
+              {bannedWords.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {bannedWords.map((w, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 flex items-center gap-1">
+                      {w}
+                      <button type="button" onClick={() => setBannedWords(bannedWords.filter((_, j) => j !== i))} className="hover:text-red-300">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Макс. ссылок</label>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
+                Макс. ссылок в сообщении
+                <InfoTip text="Если в одном сообщении больше ссылок чем указано — оно будет удалено. Защита от спама ссылками. 0 = не ограничивать." position="right" />
+              </label>
               <input type="number" min={0} value={maxLinks} onChange={(e) => setMaxLinks(Number(e.target.value))} className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений</span>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Текст предупреждения</label>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
+                Текст предупреждения
+                <InfoTip text="Сообщение которое бот отправит нарушителю. {user} заменится на имя пользователя. Удалится автоматически через 10 секунд." position="right" />
+              </label>
               <input value={warnText} onChange={(e) => setWarnText(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
           </div>
