@@ -43,11 +43,17 @@ export function SchedulePage() {
   const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
   // Group posts by day
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const toLocalDayKey = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
+
   const postsByDay = useMemo(() => {
     const map: Record<string, any[]> = {};
     (posts ?? []).forEach((post: any) => {
       if (!post.scheduledFor) return;
-      const dayKey = post.scheduledFor.slice(0, 10);
+      const dayKey = toLocalDayKey(post.scheduledFor);
       if (!map[dayKey]) map[dayKey] = [];
       map[dayKey].push(post);
     });
@@ -138,9 +144,10 @@ export function SchedulePage() {
           <div className="flex-1 overflow-x-auto">
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))' }}>
               {weekDays.map((day) => {
-                const dayKey = day.toISOString().slice(0, 10);
+                const dayKey = `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
                 const dayPosts = postsByDay[dayKey] ?? [];
-                const isToday = dayKey === today.toISOString().slice(0, 10);
+                const todayKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+                const isToday = dayKey === todayKey;
 
                 return (
                   <DroppableDay key={dayKey} dayKey={dayKey} isActive={activeId !== null}>
