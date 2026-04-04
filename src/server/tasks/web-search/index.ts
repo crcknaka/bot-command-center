@@ -20,6 +20,7 @@ interface WebSearchConfig {
   timeRange?: 'day' | 'week' | 'month' | 'year';
   searchLang?: string; // 'ru', 'en', etc.
   searchCountry?: string; // 'ru', 'us', etc.
+  includeDomains?: string[]; // only search these domains
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
@@ -93,6 +94,7 @@ export class WebSearchTask implements TaskModule {
           language: lang,
           searchLang: config.searchLang,
           searchCountry: config.searchCountry,
+          includeDomains: config.includeDomains,
         });
 
         if (results.length === 0) {

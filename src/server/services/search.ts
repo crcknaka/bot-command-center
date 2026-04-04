@@ -105,6 +105,14 @@ async function safeFetchJson(res: Response, providerName: string): Promise<any> 
   }
 }
 
+/** Build query with site: operator for domain filtering (Serper, SerpAPI, Google CSE, Brave) */
+function buildQueryWithDomains(query: string, domains?: string[]): string {
+  if (!domains?.length) return query;
+  if (domains.length === 1) return `site:${domains[0]} ${query}`;
+  // Multiple domains: (site:a.com OR site:b.com) query
+  return `(${domains.map(d => `site:${d}`).join(' OR ')}) ${query}`;
+}
+
 // ─── Search Implementations ─────────────────────────────────────────────────
 
 async function searchTavily(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
@@ -133,7 +141,7 @@ async function searchTavily(apiKey: string, opts: SearchOptions): Promise<Search
 async function searchSerper(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const locale = getLocale(opts);
   const params: any = {
-    q: opts.query,
+    q: buildQueryWithDomains(opts.query, opts.includeDomains),
     num: opts.maxResults ?? 5,
     gl: locale.gl,
     hl: locale.hl,
@@ -187,7 +195,7 @@ async function searchSerper(apiKey: string, opts: SearchOptions): Promise<Search
 async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const locale = getLocale(opts);
   const params = new URLSearchParams({
-    q: opts.query,
+    q: buildQueryWithDomains(opts.query, opts.includeDomains),
     api_key: apiKey,
     engine: 'google',
     num: String(opts.maxResults ?? 5),
@@ -210,7 +218,7 @@ async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<Searc
 async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const locale = getLocale(opts);
   const params = new URLSearchParams({
-    q: opts.query,
+    q: buildQueryWithDomains(opts.query, opts.includeDomains),
     count: String(opts.maxResults ?? 5),
     search_lang: locale.hl,
     country: locale.gl,
@@ -235,7 +243,7 @@ async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: st
   const locale = getLocale(opts);
   const cseId = baseUrl ?? '';
   const params = new URLSearchParams({
-    q: opts.query,
+    q: buildQueryWithDomains(opts.query, opts.includeDomains),
     key: apiKey,
     cx: cseId,
     num: String(Math.min(opts.maxResults ?? 5, 10)),

@@ -369,7 +369,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountry: taskConfig.searchCountry };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountry: taskConfig.searchCountry, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -743,7 +743,9 @@ function WarnConfig({ label, warnKey, value, onChange }: {
 
 function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch: any) => void }) {
   const [newQ, setNewQ] = useState('');
+  const [newDomain, setNewDomain] = useState('');
   const queries: string[] = config.queries ?? [];
+  const domains: string[] = config.includeDomains ?? [];
   const { data: searchProviders } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
 
   return (
@@ -777,6 +779,34 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
               <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
                 🔍 {q}
                 <button type="button" onClick={() => onChange({ queries: queries.filter((_: string, j: number) => j !== i) })} className="hover:text-blue-300">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Domains filter */}
+      <div>
+        <label className="block text-xs font-medium mb-1">Искать только на этих сайтах <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(необязательно)</span></label>
+        <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
+          Если указать домены — поиск будет только по ним. Пусто = искать везде.
+        </p>
+        <div className="flex gap-2 mb-2">
+          <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const d = newDomain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); if (d) { onChange({ includeDomains: [...domains, d] }); setNewDomain(''); } } }}
+            placeholder="euc.sale, electrotransport.ru"
+            className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <button type="button" onClick={() => { const d = newDomain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); if (d) { onChange({ includeDomains: [...domains, d] }); setNewDomain(''); } }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
+            Добавить
+          </button>
+        </div>
+        {domains.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {domains.map((d: string, i: number) => (
+              <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/10 text-purple-400 flex items-center gap-1">
+                🌐 {d}
+                <button type="button" onClick={() => onChange({ includeDomains: domains.filter((_: string, j: number) => j !== i) })} className="hover:text-purple-300">×</button>
               </span>
             ))}
           </div>
