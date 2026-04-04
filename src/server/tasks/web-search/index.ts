@@ -94,11 +94,11 @@ export class WebSearchTask implements TaskModule {
           db.insert(posts).values({
             channelId: ctx.channelId, taskId: ctx.taskId,
             content: generated.content, imageUrl: results[0]?.imageUrl,
-            status: config.autoApprove ? 'queued' : 'draft',
+            status: config.autoApprove ? 'approved' : 'draft',
             aiProviderId: provider.id, aiModel: modelId,
           }).run();
 
-          steps.push({ action: `✍️ "${query}"`, status: 'ok', detail: `AI-пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.` });
+          steps.push({ action: `✍️ "${query}"`, status: 'ok', detail: `AI-пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.` });
         } else {
           for (const sr of results) {
             const content = rawTemplate
@@ -111,11 +111,11 @@ export class WebSearchTask implements TaskModule {
             db.insert(posts).values({
               channelId: ctx.channelId, taskId: ctx.taskId,
               content, imageUrl: sr.imageUrl,
-              status: config.autoApprove ? 'queued' : 'draft',
+              status: config.autoApprove ? 'approved' : 'draft',
             }).run();
           }
 
-          steps.push({ action: `📋 "${query}"`, status: 'ok', detail: `${results.length} постов из шаблона. Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.` });
+          steps.push({ action: `📋 "${query}"`, status: 'ok', detail: `${results.length} постов из шаблона. Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.` });
         }
       } catch (err) {
         steps.push({ action: `🔍 "${query}"`, status: 'error', detail: (err as Error).message });

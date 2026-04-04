@@ -183,7 +183,7 @@ export class NewsFeedTask implements TaskModule {
             articleId: article.id,
             content,
             imageUrl: article.imageUrl,
-            status: config.autoApprove ? 'queued' : 'draft',
+            status: config.autoApprove ? 'approved' : 'draft',
             aiProviderId: aiPid,
             aiModel,
           }).run();
@@ -193,8 +193,8 @@ export class NewsFeedTask implements TaskModule {
             action: `Статья: "${article.title.slice(0, 50)}..."`,
             status: 'ok',
             detail: useAi
-              ? `AI-пост (${tokensUsed} токенов, ${aiModel}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`
-              : `Пост из шаблона (без AI). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+              ? `AI-пост (${tokensUsed} токенов, ${aiModel}). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.`
+              : `Пост из шаблона (без AI). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.`,
           });
         } catch (err) {
           const errMsg = (err as Error).message;

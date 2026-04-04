@@ -12,7 +12,7 @@ const ctrlEnter = (e: React.KeyboardEvent) => {
     if (btn && !btn.disabled) btn.click();
   }
 };
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle } from 'lucide-react';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle, Clock, Calendar } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { useToast } from '../components/ui/toast.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -28,6 +28,7 @@ import { Link } from 'react-router-dom';
 const statusFilters = [
   { value: 'all', label: 'Все' },
   { value: 'draft', label: 'Черновики' },
+  { value: 'approved', label: 'Одобренные' },
   { value: 'queued', label: 'В очереди' },
   { value: 'published', label: 'Опубликовано' },
   { value: 'failed', label: 'Ошибки' },
@@ -35,8 +36,9 @@ const statusFilters = [
 
 const statusBadge: Record<string, { cls: string; label: string }> = {
   draft: { cls: 'bg-zinc-500/15 text-zinc-400', label: 'Черновик' },
+  approved: { cls: 'bg-blue-500/15 text-blue-400', label: 'Одобрен' },
   queued: { cls: 'bg-yellow-500/15 text-yellow-400', label: 'В очереди' },
-  publishing: { cls: 'bg-blue-500/15 text-blue-400', label: 'Публикуется...' },
+  publishing: { cls: 'bg-cyan-500/15 text-cyan-400', label: 'Публикуется...' },
   published: { cls: 'bg-green-500/15 text-green-400', label: 'Опубликован' },
   failed: { cls: 'bg-red-500/15 text-red-400', label: 'Ошибка' },
 };
@@ -54,6 +56,7 @@ export function PostsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [exportPostId, setExportPostId] = useState<number | null>(null);
+  const [schedulePost, setSchedulePost] = useState<any>(null);
 
   const qc = useQueryClient();
   const toast = useToast();
@@ -152,7 +155,7 @@ export function PostsPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Посты</h1>
-          <InfoTip text="Все посты со всех ботов. Используйте фильтры чтобы найти нужные. Черновик → одобрите → автопубликация." position="bottom" />
+          <InfoTip text="Все посты со всех ботов. Черновик → Одобрить → Запланировать или Опубликовать." position="bottom" />
         </div>
       </div>
 
@@ -257,18 +260,18 @@ export function PostsPage() {
           <span className="text-xs font-medium">Выбрано: {selected.size}</span>
           <div className="flex gap-2 ml-auto">
             <button
-              onClick={() => confirm({ title: 'Одобрить посты?', message: `${selected.size} постов будут поставлены в очередь.`, confirmLabel: 'Одобрить', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'approve' }) })}
+              onClick={() => confirm({ title: 'Одобрить посты?', message: `${selected.size} постов будут одобрены.`, confirmLabel: 'Одобрить', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'approve' }) })}
               disabled={bulkMut.isPending}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors"
             >
-              Одобрить все
+              <CheckCircle size={10} /> Одобрить
             </button>
             <button
               onClick={() => confirm({ title: 'Опубликовать посты?', message: `${selected.size} постов будут отправлены в Telegram.`, confirmLabel: 'Опубликовать', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'publish' }) })}
               disabled={bulkMut.isPending}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors"
             >
-              <Send size={10} /> Опубликовать все
+              <Send size={10} /> Опубликовать
             </button>
             <button
               onClick={() => confirm({ title: 'Удалить посты?', message: `${selected.size} постов будут удалены безвозвратно.`, onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'delete' }) })}
@@ -345,6 +348,11 @@ export function PostsPage() {
                   <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.cls)}>{badge.label}</span>
                   {post.taskName && <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{post.taskName}</span>}
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
+                  {post.scheduledFor && post.status === 'queued' && (
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 flex items-center gap-1">
+                      <Clock size={10} /> {new Date(post.scheduledFor).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
                   <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(post.createdAt)}</span>
                 </div>
                 {post.errorMessage && (
@@ -382,11 +390,16 @@ export function PostsPage() {
                     </button>
                   )}
                   {post.status === 'draft' && (
-                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'queued' })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors">
+                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'approved' })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors">
                       <CheckCircle size={12} /> Одобрить
                     </button>
                   )}
-                  {(post.status === 'queued' || post.status === 'draft') && (
+                  {(post.status === 'draft' || post.status === 'approved') && (
+                    <button onClick={() => setSchedulePost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors">
+                      <Calendar size={12} /> Запланировать
+                    </button>
+                  )}
+                  {(post.status === 'draft' || post.status === 'approved' || post.status === 'queued') && (
                     <button onClick={() => publishMut.mutate(post.id, { onError: (err) => toast.error(`Публикация: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
                       <Send size={12} /> Опубликовать
                     </button>
@@ -448,6 +461,18 @@ export function PostsPage() {
           channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: ch.botName }))}
           onClose={() => setShowAiGen(false)}
           onSave={(channelId, content) => { createMut.mutate({ channelId, content, status: 'draft' }); setShowAiGen(false); }}
+        />
+      )}
+
+      {/* Schedule Modal */}
+      {schedulePost && (
+        <ScheduleModal
+          onClose={() => setSchedulePost(null)}
+          onSchedule={(dateTime) => {
+            updateMut.mutate({ id: schedulePost.id, scheduledFor: dateTime, status: 'queued' });
+            setSchedulePost(null);
+            toast.success('Запланировано!');
+          }}
         />
       )}
     </div>
@@ -633,6 +658,47 @@ const exportFormats = [
   { id: 'markdown', label: 'Markdown', icon: '📝', transform: (h: string) => htmlToMarkdown(h) },
   { id: 'html', label: 'HTML', icon: '🏷️', transform: (h: string) => h },
 ];
+
+function ScheduleModal({ onClose, onSchedule }: { onClose: () => void; onSchedule: (dateTime: string) => void }) {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 30 - (now.getMinutes() % 30)); // round to next 30 min
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const defaultDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const defaultTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState(defaultTime);
+
+  const handleSchedule = () => {
+    const dt = new Date(`${date}T${time}:00`);
+    onSchedule(dt.toISOString());
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="w-full max-w-xs mx-4 p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-bold mb-1 flex items-center gap-2"><Calendar size={16} /> Запланировать публикацию</h3>
+        <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>Выберите дату и время.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[11px] font-medium mb-1">Дата</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium mb-1">Время</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+          <button onClick={handleSchedule} disabled={!date || !time} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+            Запланировать
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ExportDropdown({ content, onClose }: { content: string; onClose: () => void }) {
   const [copied, setCopied] = useState<string | null>(null);

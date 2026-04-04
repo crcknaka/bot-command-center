@@ -794,7 +794,7 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
       {/* Auto-approve */}
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={config.autoApprove ?? false} onChange={(e) => onChange({ autoApprove: e.target.checked })} />
-        Авто-одобрение (сразу в очередь, без ручной проверки)
+        Авто-одобрение (пост создаётся одобренным, без ручной проверки)
       </label>
     </div>
   );
@@ -1295,7 +1295,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
         {task.type === 'news_feed' && (
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
-            Авто-одобрение (сразу в очередь, без ручной проверки)
+            Авто-одобрение (пост создаётся одобренным, без ручной проверки)
           </label>
         )}
 

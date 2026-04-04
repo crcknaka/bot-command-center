@@ -67,7 +67,7 @@ export function SchedulePage() {
   }, [posts]);
 
   // Unscheduled posts
-  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'queued'));
+  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved' || p.status === 'queued'));
 
   const activePost = activeId ? (posts ?? []).find((p: any) => p.id === activeId) : null;
 
@@ -84,7 +84,7 @@ export function SchedulePage() {
 
     if (target === 'unscheduled') {
       // Move back to unscheduled
-      updateMut.mutate({ id: postId, scheduledFor: null as any, status: 'draft' }, {
+      updateMut.mutate({ id: postId, scheduledFor: null as any, status: 'approved' }, {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
       });
       return;
@@ -113,7 +113,7 @@ export function SchedulePage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Расписание</h1>
-            <InfoTip text="Перетащите черновик из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
+            <InfoTip text="Перетащите пост из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
           </div>
           <div className="flex items-center gap-2">
             {unscheduled.length > 0 && (

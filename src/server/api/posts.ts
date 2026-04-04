@@ -201,7 +201,7 @@ postsApi.post('/:id/publish', async (c) => {
 
 // POST /api/posts/bulk — bulk operations
 postsApi.post('/bulk', async (c) => {
-  const { ids, action } = await c.req.json<{ ids: number[]; action: 'approve' | 'publish' | 'delete' }>();
+  const { ids, action, scheduledFor } = await c.req.json<{ ids: number[]; action: 'approve' | 'schedule' | 'publish' | 'delete'; scheduledFor?: string }>();
 
   if (!ids?.length) return c.json({ error: 'Не выбраны посты' }, 400);
 
@@ -216,7 +216,14 @@ postsApi.post('/bulk', async (c) => {
       switch (action) {
         case 'approve':
           if (post.status === 'draft') {
-            db.update(posts).set({ status: 'queued', updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+            db.update(posts).set({ status: 'approved', updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+            ok++;
+          } else { failed++; }
+          break;
+
+        case 'schedule':
+          if (post.status === 'draft' || post.status === 'approved') {
+            db.update(posts).set({ status: 'queued', scheduledFor: scheduledFor ?? null, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
             ok++;
           } else { failed++; }
           break;
