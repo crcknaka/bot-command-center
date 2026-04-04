@@ -61,6 +61,7 @@
     { "idx": 16, "version": "6", "when": 1775238000000, "tag": "0016_task_name", "breakpoints": true },
     { "idx": 17, "version": "6", "when": 1775238100000, "tag": "0017_post_delete_at", "breakpoints": true },
     { "idx": 18, "version": "6", "when": 1775238200000, "tag": "0018_source_status", "breakpoints": true },
-    { "idx": 19, "version": "6", "when": 1775238300000, "tag": "0019_source_last_error", "breakpoints": true }
+    { "idx": 19, "version": "6", "when": 1775238300000, "tag": "0019_source_last_error", "breakpoints": true },
+    { "idx": 20, "version": "6", "when": 1775238400000, "tag": "0020_channel_thread_title", "breakpoints": true }
   ]
 }

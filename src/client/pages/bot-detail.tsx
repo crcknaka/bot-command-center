@@ -35,6 +35,7 @@ export function BotDetailPage() {
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [channelInput, setChannelInput] = useState('');
   const [threadId, setThreadId] = useState('');
+  const [threadTitle, setThreadTitle] = useState('');
 
   // Add task state
   const [showAddTask, setShowAddTask] = useState<{ channelId: number; channelType: string } | null>(null);
@@ -247,7 +248,6 @@ export function BotDetailPage() {
             e.preventDefault();
             const raw = channelInput.trim();
             if (!raw) return;
-            // Parse t.me links: https://t.me/channel_name/123 → chatId=@channel_name, threadId=123
             const tmeMatch = raw.match(/(?:https?:\/\/)?t\.me\/([^\/\s]+)(?:\/(\d+))?/);
             let chatId = raw;
             let parsedThread = threadId ? Number(threadId) : undefined;
@@ -257,12 +257,33 @@ export function BotDetailPage() {
             } else if (!raw.startsWith('@') && !raw.startsWith('-') && !/^\d+$/.test(raw)) {
               chatId = `@${raw}`;
             }
-            addChannelMut.mutate({ chatId, threadId: parsedThread });
+            addChannelMut.mutate({ chatId, threadId: parsedThread, threadTitle: threadTitle.trim() || undefined } as any);
           }}>
             <label className="block text-sm font-medium mb-1">Канал или группа</label>
-            <input value={channelInput} onChange={(e) => setChannelInput(e.target.value)}
+            <input value={channelInput} onChange={(e) => {
+              setChannelInput(e.target.value);
+              // Auto-detect thread from t.me link
+              const m = e.target.value.match(/(?:https?:\/\/)?t\.me\/[^\/\s]+\/(\d+)/);
+              if (m && !threadTitle) setThreadTitle('');
+            }}
               placeholder="https://t.me/my_channel/123 или @my_channel"
               className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-1" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+            {/* Show thread title input when topic detected */}
+            {(() => {
+              const m = channelInput.match(/(?:https?:\/\/)?t\.me\/[^\/\s]+\/(\d+)/);
+              const detectedThread = m?.[1];
+              return detectedThread ? (
+                <div className="mb-1">
+                  <div className="text-[10px] mb-1 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-mono"># топик {detectedThread}</span>
+                    определён из ссылки
+                  </div>
+                  <input value={threadTitle} onChange={(e) => setThreadTitle(e.target.value)}
+                    placeholder="Название топика (например: Обсуждение, Новости)"
+                    className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                </div>
+              ) : null;
+            })()}
             <p className="text-[10px] mb-3" style={{ color: 'var(--text-muted)' }}>
               Ссылка t.me — топик определится автоматически. Или @username, или числовой ID.
             </p>
@@ -1596,6 +1617,11 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
             : <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
           }
           <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">{channel.title}</span>
+          {channel.threadId && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
+              # {channel.threadTitle || `топик ${channel.threadId}`}
+            </span>
+          )}
           <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
           {channel.isLinked ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50" style={{ color: 'var(--text-muted)' }}>Подключён</span>

@@ -104,6 +104,7 @@ export const channels = sqliteTable('channels', {
   isTest: integer('is_test', { mode: 'boolean' }).notNull().default(false),
   isLinked: integer('is_linked', { mode: 'boolean' }).notNull().default(false),
   threadId: integer('thread_id'), // Forum topic thread_id (null = default/General)
+  threadTitle: text('thread_title'), // Forum topic name for display
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
