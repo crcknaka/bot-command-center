@@ -226,6 +226,9 @@ export class ModerationTask implements TaskModule {
 
       const mention = mentionUser(msgCtx.from);
 
+      // Always send violation-specific warning first (e.g. "ссылки запрещены")
+      const violationText = pickWarn(warnConfig, warnKey, msgCtx.from, config.deleteOnBan !== false);
+
       if (config.strikesEnabled && userId) {
         const maxStrikes = config.maxStrikes ?? 3;
         const resetHours = config.strikeResetHours ?? 24;
@@ -239,12 +242,12 @@ export class ModerationTask implements TaskModule {
           } catch (e) { console.error('[moderation] strike mute error:', e); }
           const muteText = (config.strikeMuteText ?? '🚫 {user}, {n}/{max} предупреждений. Мут на {mins} мин.')
             .replace(/\{user\}/g, mention).replace(/\{n\}/g, String(strikes)).replace(/\{max\}/g, String(maxStrikes)).replace(/\{mins\}/g, String(muteMins));
-          await warn(msgCtx, muteText);
+          await warn(msgCtx, violationText ? `${violationText}\n${muteText}` : muteText);
           strikeTracker.delete(`${chatId}:${userId}`);
         } else {
           const strikeText = (config.strikeWarnText ?? '⚠️ {user}, предупреждение {n}/{max}.')
             .replace(/\{user\}/g, mention).replace(/\{n\}/g, String(strikes)).replace(/\{max\}/g, String(maxStrikes));
-          await warn(msgCtx, strikeText);
+          await warn(msgCtx, violationText ? `${violationText}\n${strikeText}` : strikeText);
         }
       } else {
         if (config.muteOnViolation && userId) {

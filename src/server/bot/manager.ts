@@ -109,12 +109,21 @@ class BotManager {
           textPreview: (msg.text ?? msg.caption ?? '').slice(0, 200) || null,
         }).run();
 
-        // Ensure numeric chatId exists in channels for analytics
+        // Normalize existing channel chatIds to numeric form
+        const numericId = String(ctx.chat.id);
         const chatTitle = 'title' in ctx.chat ? (ctx.chat as any).title : null;
         if (chatTitle) {
-          const numericId = String(ctx.chat.id);
-          const existsByNumeric = db.select().from(channels).all().find(ch => ch.chatId === numericId);
-          if (!existsByNumeric) {
+          const botChannels = db.select().from(channels).where(eq(channels.botId, botId)).all();
+          // Check if already exists by numeric ID or by @username
+          const chatUsername = 'username' in ctx.chat ? (ctx.chat as any).username : null;
+          const existing = botChannels.find(ch =>
+            ch.chatId === numericId ||
+            (chatUsername && ch.chatId === `@${chatUsername}`)
+          );
+          if (existing && existing.chatId !== numericId) {
+            // Normalize @username → numeric ID
+            db.update(channels).set({ chatId: numericId, title: chatTitle, isLinked: true }).where(eq(channels.id, existing.id)).run();
+          } else if (!existing) {
             try {
               db.insert(channels).values({ botId: botId, chatId: numericId, title: chatTitle, type: ctx.chat.type as any, isLinked: true }).run();
             } catch {}
