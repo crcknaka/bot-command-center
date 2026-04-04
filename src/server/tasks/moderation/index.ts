@@ -114,6 +114,15 @@ export class ModerationTask implements TaskModule {
       const userId = msgCtx.from?.id;
       const chatId = msgCtx.chat.id;
 
+      // Block forwards (check inside message handler to avoid ordering issues)
+      if (config.blockForwards && (msgCtx.message as any).forward_origin) {
+        try {
+          await msgCtx.deleteMessage();
+          await sendWarn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
+        } catch (e) { console.error('[moderation] forward error:', e); }
+        return;
+      }
+
       // Anti-flood
       if (config.antiFlood && config.maxMessagesPerMinute && userId) {
         const key = `${chatId}:${userId}`;
