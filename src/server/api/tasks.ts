@@ -72,15 +72,22 @@ tasksApi.patch('/tasks/:id', async (c) => {
     config?: Record<string, unknown>;
     schedule?: string;
     enabled?: boolean;
+    channelId?: number; // move task to another channel
   }>();
 
   if (body.schedule && !cron.validate(body.schedule)) {
     return c.json({ error: `Неверное cron-выражение: ${body.schedule}` }, 400);
   }
 
+  // If moving to another channel, restart both old and new bots
+  const oldTask = body.channelId ? db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get() : null;
+
   const updated = db.update(tasks).set(body as any).where(eq(tasks.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
+  if (oldTask && oldTask.channelId !== updated.channelId) {
+    await restartBotForChannel(oldTask.channelId);
+  }
   await restartBotForChannel(updated.channelId);
   return c.json(updated);
 });

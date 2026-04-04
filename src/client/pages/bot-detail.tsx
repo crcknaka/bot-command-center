@@ -1,7 +1,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { safeHtml } from '../lib/sanitize.js';
@@ -218,6 +218,7 @@ export function BotDetailPage() {
                 key={channel.id}
                 channel={channel}
                 botId={botId}
+                allChannels={bot.channels}
                 onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
                 onDeleteChannel={() => confirm({ title: 'Удалить канал?', message: `Канал "${channel.title}" и все его задачи будут удалены.`, onConfirm: () => deleteChannelMut.mutate(channel.id) })}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
@@ -1577,7 +1578,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
 
 // ── Channel Card (inline sub-component) ─────────────────────────────────────
 
-function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
+function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
   const qc = useQueryClient();
   const { data: tasks } = useQuery({
     queryKey: ['tasks', channel.id],
@@ -1597,6 +1598,14 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
     mutationFn: (taskId: number) => apiFetch(`/tasks/${taskId}/duplicate`, { method: 'POST' }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', channel.id] }); },
   });
+
+  const moveTaskMut = useMutation({
+    mutationFn: ({ taskId, channelId }: { taskId: number; channelId: number }) =>
+      apiFetch(`/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ channelId }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
+
+  const otherChannels = (allChannels ?? []).filter((ch: any) => ch.id !== channel.id);
 
   const [showSend, setShowSend] = useState(false);
   const [sendText, setSendText] = useState('');
@@ -1669,6 +1678,8 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
                 onDuplicate={() => duplicateTaskMut.mutate(task.id)}
+                onMove={otherChannels.length > 0 ? (chId: number) => moveTaskMut.mutate({ taskId: task.id, channelId: chId }) : undefined}
+                otherChannels={otherChannels}
                 onAddSource={() => onAddSource(task.id)}
                 onFetchSource={onFetchSource}
                 onDeleteSource={onDeleteSource}
@@ -1753,7 +1764,8 @@ function cronToHuman(cron: string | null): string {
   return presets[cron] ?? cron;
 }
 
-function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove, otherChannels, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+  const [showMove, setShowMove] = useState(false);
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -1792,11 +1804,31 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
               </button>
             )}
           </div>
-          {/* Right: edit + duplicate + delete */}
+          {/* Right: edit + move + duplicate + delete */}
           <div className="flex gap-1">
             <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Редактировать">
               <Pencil size={12} className="text-zinc-500 hover:text-zinc-300" />
             </button>
+            {onMove && otherChannels?.length > 0 && (
+              <div className="relative">
+                <button onClick={() => setShowMove(!showMove)} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Переместить в другой канал">
+                  <ArrowRightLeft size={12} className="text-zinc-500 hover:text-zinc-300" />
+                </button>
+                {showMove && (
+                  <div className="absolute right-0 top-8 z-50 rounded-lg border p-1 min-w-48 shadow-xl" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                    <div className="text-[10px] px-2 py-1 font-medium" style={{ color: 'var(--text-muted)' }}>Переместить в:</div>
+                    {otherChannels.map((ch: any) => (
+                      <button key={ch.id} onClick={() => { onMove(ch.id); setShowMove(false); }}
+                        className="w-full text-left px-2 py-1.5 rounded text-[11px] hover:bg-white/5 transition-colors flex items-center gap-2">
+                        <span>{ch.type === 'channel' ? '📢' : '👥'}</span>
+                        <span className="truncate">{ch.title}</span>
+                        {ch.threadId && <span className="text-[9px] text-cyan-400">#{ch.threadTitle || ch.threadId}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={onDuplicate} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Дублировать задачу">
               <Copy size={12} className="text-zinc-500 hover:text-zinc-300" />
             </button>
