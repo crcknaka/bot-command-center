@@ -5,7 +5,20 @@ import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
 import { fetchAndStore } from '../tasks/news-feed/fetcher.js';
+import { botManager } from '../bot/manager.js';
 import cron from 'node-cron';
+
+/** Restart the bot that owns this channel (so new handlers register) */
+async function restartBotForChannel(channelId: number) {
+  const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
+  if (!channel) return;
+  if (botManager.isRunning(channel.botId)) {
+    try {
+      await botManager.restartBot(channel.botId);
+      console.log(`🔄 Bot ${channel.botId} auto-restarted after task change`);
+    } catch (e) { console.error('[tasks] auto-restart error:', e); }
+  }
+}
 
 const tasksApi = new Hono();
 tasksApi.use('*', requireAuth);
@@ -48,6 +61,7 @@ tasksApi.post('/channels/:channelId/tasks', async (c) => {
     enabled: body.enabled ?? true,
   }).returning().get();
 
+  await restartBotForChannel(channelId);
   return c.json(created, 201);
 });
 
@@ -67,6 +81,7 @@ tasksApi.patch('/tasks/:id', async (c) => {
   const updated = db.update(tasks).set(body as any).where(eq(tasks.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
+  await restartBotForChannel(updated.channelId);
   return c.json(updated);
 });
 
@@ -112,7 +127,9 @@ tasksApi.delete('/tasks/:id', async (c) => {
     const bot = ch ? db.select().from(bots).where(eq(bots.id, ch.botId)).limit(1).get() : null;
     if (!bot || bot.ownerId !== user.id) return c.json({ error: 'Нет доступа' }, 403);
   }
+  const channelId = task.channelId;
   db.delete(tasks).where(eq(tasks.id, id)).run();
+  await restartBotForChannel(channelId);
   return c.json({ ok: true });
 });
 

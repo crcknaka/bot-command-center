@@ -8,7 +8,8 @@ interface ViolationWarn {
 interface ModerationConfig {
   bannedWords: string[];
   bannedWordsWarn?: ViolationWarn;
-  maxLinksPerMessage?: number;
+  blockLinks?: boolean; // Delete messages with links
+  maxLinksPerMessage?: number; // Legacy — treated as blockLinks if > 0
   linksWarn?: ViolationWarn;
   // Anti-flood
   antiFlood?: boolean;
@@ -34,7 +35,7 @@ interface ModerationConfig {
 
 const DEFAULTS: Record<string, string> = {
   bannedWords: '⚠️ {user}, ваше сообщение удалено за нарушение правил.',
-  links: '🔗 {user}, слишком много ссылок в сообщении.',
+  links: '🔗 {user}, ссылки запрещены в этом чате.',
   flood: '🚫 {user}, слишком много сообщений! Подождите минуту.',
   shortMsg: '✏️ {user}, сообщение слишком короткое.',
   forwards: '🚫 {user}, пересланные сообщения запрещены.',
@@ -42,21 +43,30 @@ const DEFAULTS: Record<string, string> = {
   voice: '🚫 {user}, голосовые сообщения запрещены.',
 };
 
-/** Pick a random warning text, replace {user}, return null if warn disabled */
-function pickWarn(warn: ViolationWarn | undefined, fallbackKey: string, userName: string, legacyText?: string): string | null {
+/** Build a mention link for the user */
+function mentionUser(from: any): string {
+  if (!from) return 'Пользователь';
+  const name = from.first_name ?? 'Пользователь';
+  return `<a href="tg://user?id=${from.id}">${name}</a>`;
+}
+
+/** Pick a random warning text, replace {user} with mention, return null if warn disabled */
+function pickWarn(warn: ViolationWarn | undefined, fallbackKey: string, from: any, legacyText?: string): string | null {
+  const mention = mentionUser(from);
+
   // New config format
   if (warn) {
     if (!warn.enabled) return null;
-    const texts = warn.texts?.filter(t => t.trim()) ?? [];
+    const texts = Array.isArray(warn.texts) ? warn.texts.filter((t: string) => t && t.trim()) : [];
     const template = texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : DEFAULTS[fallbackKey];
-    return template.replace(/\{user\}/g, userName);
+    return template.replace(/\{user\}/g, mention);
   }
   // Legacy fallback
-  if (legacyText) return legacyText.replace(/\{user\}/g, userName);
-  return DEFAULTS[fallbackKey].replace(/\{user\}/g, userName);
+  if (legacyText) return legacyText.replace(/\{user\}/g, mention);
+  return DEFAULTS[fallbackKey].replace(/\{user\}/g, mention);
 }
 
-/** Send a warning, auto-delete after 10s */
+/** Send a warning as reply to the offending message, auto-delete after 10s */
 async function sendWarn(msgCtx: any, text: string | null) {
   if (!text) return;
   try {
@@ -92,8 +102,6 @@ export class ModerationTask implements TaskModule {
     const config = ctx.config as unknown as ModerationConfig;
     if (!ctx.bot) return;
 
-    const userName = (msgCtx: any) => msgCtx.from?.first_name ?? 'Пользователь';
-
     const tryMute = async (msgCtx: any, chatId: number, userId: number | undefined) => {
       if (config.muteOnViolation && userId) {
         try { await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5); } catch (e) { console.error('[moderation] mute error:', e); }
@@ -119,7 +127,7 @@ export class ModerationTask implements TaskModule {
           try {
             await msgCtx.deleteMessage();
             await tryMute(msgCtx, chatId, userId);
-            await sendWarn(msgCtx, pickWarn(config.floodWarn, 'flood', userName(msgCtx), config.floodWarnText));
+            await sendWarn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, config.floodWarnText));
           } catch (e) { console.error('[moderation] flood handler error:', e); }
           return;
         }
@@ -129,7 +137,7 @@ export class ModerationTask implements TaskModule {
       if (config.minMessageLength && config.minMessageLength > 0 && text.length < config.minMessageLength) {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from));
         } catch (e) { console.error('[moderation] short msg error:', e); }
         return;
       }
@@ -143,21 +151,21 @@ export class ModerationTask implements TaskModule {
             await msgCtx.deleteMessage();
             await tryMute(msgCtx, chatId, userId);
             const muteNote = config.muteOnViolation ? ` Мут на ${config.muteDurationMinutes ?? 5} мин.` : '';
-            const warnMsg = pickWarn(config.bannedWordsWarn, 'bannedWords', userName(msgCtx), config.warnText);
+            const warnMsg = pickWarn(config.bannedWordsWarn, 'bannedWords', msgCtx.from, config.warnText);
             if (warnMsg) await sendWarn(msgCtx, warnMsg + muteNote);
           } catch (e) { console.error('[moderation] banned word error:', e); }
           return;
         }
       }
 
-      // Links limit
-      if (config.maxLinksPerMessage && config.maxLinksPerMessage > 0) {
-        const linkCount = countLinks(text);
-        if (linkCount > config.maxLinksPerMessage) {
+      // Block links
+      if (config.blockLinks || (config.maxLinksPerMessage && config.maxLinksPerMessage > 0)) {
+        if (countLinks(text) > 0) {
           try {
             await msgCtx.deleteMessage();
-            await sendWarn(msgCtx, pickWarn(config.linksWarn, 'links', userName(msgCtx)));
+            await sendWarn(msgCtx, pickWarn(config.linksWarn, 'links', msgCtx.from));
           } catch (e) { console.error('[moderation] links error:', e); }
+          return;
         }
       }
     });
@@ -167,7 +175,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:forward_origin', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
       });
     }
@@ -177,13 +185,13 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:sticker', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] sticker error:', e); }
       });
       ctx.bot.on('message:animation', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] animation error:', e); }
       });
     }
@@ -193,13 +201,13 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:voice', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] voice error:', e); }
       });
       ctx.bot.on('message:video_note', async (msgCtx) => {
         try {
           await msgCtx.deleteMessage();
-          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', userName(msgCtx)));
+          await sendWarn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] video_note error:', e); }
       });
     }
@@ -215,7 +223,7 @@ export class ModerationTask implements TaskModule {
       properties: {
         bannedWords: { type: 'array', items: { type: 'string' } },
         bannedWordsWarn: { type: 'object' },
-        maxLinksPerMessage: { type: 'number' },
+        blockLinks: { type: 'boolean' },
         linksWarn: { type: 'object' },
         antiFlood: { type: 'boolean' },
         maxMessagesPerMinute: { type: 'number' },

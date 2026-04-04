@@ -468,9 +468,9 @@ export function BotDetailPage() {
             <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--text-muted)' }}>
               {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в уникальные посты.</>}
               {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон — без AI, бесплатно.</>}
-              {taskType === 'auto_reply' && <>💡 Настройте правила ниже. Бот будет отвечать в реальном времени. <b>Перезапустите бота</b> после создания.</>}
-              {taskType === 'welcome' && <>💡 Задайте текст приветствия ниже. <b>Перезапустите бота</b> после создания.</>}
-              {taskType === 'moderation' && <>💡 Задайте запрещённые слова ниже. <b>Перезапустите бота</b> после создания.</>}
+              {taskType === 'auto_reply' && <>💡 Настройте правила. Бот перезапустится автоматически при сохранении.</>}
+              {taskType === 'welcome' && <>💡 Задайте текст приветствия. Бот перезапустится автоматически.</>}
+              {taskType === 'moderation' && <>💡 Задайте настройки модерации. Бот перезапустится автоматически.</>}
             </div>
 
             <div className="flex gap-3 justify-end">
@@ -621,23 +621,19 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
         <WarnConfig label="запрещённые слова" warnKey="bannedWords" value={config.bannedWordsWarn} onChange={(v) => set({ bannedWordsWarn: v })} />
       </div>
 
-      {/* Links limit */}
-      <div>
-        <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
-          Макс. ссылок в сообщении
-          <InfoTip text="Ловит http://, t.me/, @mention, голые домены. 0 = без ограничений." position="right" />
-        </label>
-        <input type="number" min={0} max={20} value={config.maxLinksPerMessage ?? 0} onChange={(e) => set({ maxLinksPerMessage: Number(e.target.value) })}
-          className="w-24 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-        <span className="text-[10px] ml-2" style={{ color: 'var(--text-muted)' }}>0 = без ограничений</span>
-        {(config.maxLinksPerMessage ?? 0) > 0 && (
-          <WarnConfig label="ссылки" warnKey="links" value={config.linksWarn} onChange={(v) => set({ linksWarn: v })} />
-        )}
-      </div>
-
-      {/* Anti-flood */}
+      {/* Additional protection */}
       <div className="pt-2 mt-2 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
         <div className="text-xs font-medium">Дополнительная защита</div>
+
+        {/* Block links */}
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={config.blockLinks ?? false} onChange={(e) => set({ blockLinks: e.target.checked })} />
+          Запретить ссылки
+          <InfoTip text="Удаляет сообщения со ссылками (http, t.me, @упоминания каналов)." position="right" />
+        </label>
+        {config.blockLinks && (
+          <WarnConfig label="ссылки" warnKey="links" value={config.linksWarn} onChange={(v) => set({ linksWarn: v })} />
+        )}
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={config.antiFlood ?? false} onChange={(e) => set({ antiFlood: e.target.checked })} />
           Анти-флуд
@@ -1828,7 +1824,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
           💡 {task.type === 'auto_reply' && 'Авто-ответы работают в реальном времени. Бот отвечает при получении сообщения.'}
           {task.type === 'welcome' && 'Приветствия отправляются автоматически при входе нового участника.'}
           {task.type === 'moderation' && 'Модерация работает в реальном времени. Запрещённые сообщения удаляются сразу.'}
-          {' '}Нажмите ✏️ чтобы настроить. Перезапустите бота для применения.
+          {' '}Нажмите ✏️ чтобы настроить. Бот перезапустится автоматически.
         </div>
       )}
     </div>

@@ -19,7 +19,11 @@ export class AutoReplyTask implements TaskModule {
 
   onInit(ctx: TaskContext): void {
     const config = ctx.config as unknown as AutoReplyConfig;
-    if (!config.rules?.length || !ctx.bot) return;
+    if (!config.rules?.length || !ctx.bot) {
+      console.log(`[auto-reply] Task#${ctx.taskId} skipped: rules=${config.rules?.length ?? 0}, bot=${!!ctx.bot}`);
+      return;
+    }
+    console.log(`[auto-reply] Task#${ctx.taskId} registered ${config.rules.length} rule(s) for chat ${ctx.chatId}`);
     const cooldown = (config.cooldownSeconds ?? 0) * 1000;
 
     ctx.bot.on('message:text', async (msgCtx) => {
