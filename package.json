@@ -43,12 +43,12 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
     "rss-parser": "^3.13.0",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@openrouter/ai-sdk-provider": "^2.3.3",
     "@tailwindcss/vite": "^4.2.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
