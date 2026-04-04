@@ -340,6 +340,7 @@ export function PostsPage() {
                     </span>
                   )}
                   <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.cls)}>{badge.label}</span>
+                  {post.taskName && <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{post.taskName}</span>}
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
                   <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(post.createdAt)}</span>
                 </div>

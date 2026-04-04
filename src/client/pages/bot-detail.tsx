@@ -1,7 +1,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 
@@ -1994,6 +1994,8 @@ function cronToHuman(cron: string | null): string {
 
 function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove, otherChannels, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
   const [showMove, setShowMove] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -2026,11 +2028,22 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
               title={task.enabled ? 'Выключить задачу' : 'Включить задачу'}>
               {task.enabled ? '✓ Вкл' : '✗ Выкл'}
             </button>
-            {(task.type === 'news_feed' || task.type === 'web_search') && (
-              <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
+            {(task.type === 'news_feed' || task.type === 'web_search') && (<>
+              {task.type === 'news_feed' && (task.config as any)?.useAi !== false && (
+                <button onClick={async () => {
+                  setPreviewLoading(true);
+                  try {
+                    const data = await apiFetch(`/tasks/${task.id}/preview`, { method: 'POST' });
+                    setPreview(data);
+                  } catch {} finally { setPreviewLoading(false); }
+                }} disabled={previewLoading} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 flex items-center gap-1 transition-colors" title="Показать что получит AI">
+                  <Eye size={12} /> {previewLoading ? '...' : 'Превью'}
+                </button>
+              )}
+              <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить — создать посты">
                 <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить'}
               </button>
-            )}
+            </>)}
           </div>
           {/* Right: edit + move + duplicate + delete */}
           <div className="flex gap-1">
@@ -2176,6 +2189,40 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
           💡 «Запустить» найдёт статьи в интернете по запросам и создаст черновики. Кол-во постов = запросы × макс. результатов.
         </div>
+      )}
+
+      {/* Preview Modal */}
+      {preview && (
+        <Modal title="Превью: что получит AI" onClose={() => setPreview(null)}>
+          <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+            {preview.available} статей готово к обработке (из {preview.total} в базе, {preview.filtered} прошли фильтр). Лимит: {preview.limit} в день.
+          </p>
+          {preview.articles?.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Нет статей для обработки.</p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {preview.articles.map((a: any) => (
+                <div key={a.id} className="rounded-lg border p-3 flex gap-3" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                  {a.imageUrl && <img src={a.imageUrl} alt="" className="w-16 h-16 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium mb-1">{a.title}</div>
+                    <div className="text-[10px] line-clamp-2 mb-1" style={{ color: 'var(--text-muted)' }}>{a.summary}</div>
+                    <div className="flex gap-2 text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                      {a.author && <span>{a.author}</span>}
+                      {a.publishedAt && <span>{new Date(a.publishedAt).toLocaleDateString('ru')}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-3 justify-end mt-4">
+            <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
+            <button onClick={() => { setPreview(null); onRun(); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-1.5" style={{ background: 'var(--primary)' }}>
+              <Zap size={14} /> Запустить генерацию
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

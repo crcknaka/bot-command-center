@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { posts, channels, bots } from '../db/schema.js';
+import { posts, channels, bots, tasks } from '../db/schema.js';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
@@ -56,7 +56,16 @@ postsApi.get('/', async (c) => {
   if (status) rows = rows.filter((p) => p.status === status);
   if (channelId) rows = rows.filter((p) => p.channelId === Number(channelId));
 
-  return c.json(rows);
+  // Build task name lookup
+  const taskIds = [...new Set(rows.filter(p => p.taskId).map(p => p.taskId!))];
+  const taskNames: Record<number, string> = {};
+  const defaultNames: Record<string, string> = { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' };
+  for (const tid of taskIds) {
+    const t = db.select().from(tasks).where(eq(tasks.id, tid)).limit(1).get();
+    if (t) taskNames[tid] = t.name ?? defaultNames[t.type] ?? t.type;
+  }
+
+  return c.json(rows.map(p => ({ ...p, taskName: p.taskId ? taskNames[p.taskId] ?? null : null })));
 });
 
 // GET /api/posts/:id

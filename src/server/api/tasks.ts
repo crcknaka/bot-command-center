@@ -166,6 +166,67 @@ tasksApi.post('/tasks/:id/run', async (c) => {
   }
 });
 
+// POST /api/tasks/:id/preview — show what articles will be processed (without generating)
+tasksApi.post('/tasks/:id/preview', async (c) => {
+  const id = Number(c.req.param('id'));
+  const task = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
+  if (!task) return c.json({ error: 'Not found' }, 404);
+
+  const config = task.config as any;
+  const maxAgeDays = config?.maxAgeDays ?? 7;
+
+  // Fetch from all sources (store in DB like normal run)
+  const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
+  for (const source of taskSources) {
+    if (source.enabled) {
+      try { await fetchAndStore(source.id, maxAgeDays); } catch {}
+    }
+  }
+
+  // Get articles that would be processed
+  const { articles } = await import('../db/schema.js');
+  const { posts: postsTable } = await import('../db/schema.js');
+  const allArticles = taskSources.flatMap((src) =>
+    db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
+  );
+
+  // Apply keyword filter
+  const keywords: string[] = config?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
+  const filtered = keywords.length > 0
+    ? allArticles.filter((a) => {
+        const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
+        return keywords.some((kw) => text.includes(kw.toLowerCase()));
+      })
+    : allArticles;
+
+  // Only unprocessed
+  const unprocessed = filtered.filter((article) => {
+    const existing = db.select({ id: postsTable.id }).from(postsTable)
+      .where(eq(postsTable.articleId, article.id)).limit(1).get();
+    return !existing;
+  });
+
+  const channel = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
+  const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
+  const maxPerDay = bot?.maxPostsPerDay ?? 5;
+
+  return c.json({
+    total: allArticles.length,
+    filtered: filtered.length,
+    available: unprocessed.length,
+    limit: maxPerDay,
+    articles: unprocessed.slice(0, maxPerDay).map((a) => ({
+      id: a.id,
+      title: a.title,
+      summary: (a.summary ?? '').slice(0, 300),
+      url: a.url,
+      imageUrl: a.imageUrl,
+      author: a.author,
+      publishedAt: a.publishedAt,
+    })),
+  });
+});
+
 // ── Sources sub-routes ──────────────────────────────────────────────────────
 
 // GET /api/tasks/:taskId/sources
