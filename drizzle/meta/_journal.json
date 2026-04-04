@@ -64,6 +64,9 @@
     { "idx": 19, "version": "6", "when": 1775238300000, "tag": "0019_source_last_error", "breakpoints": true },
     { "idx": 20, "version": "6", "when": 1775238400000, "tag": "0020_channel_thread_title", "breakpoints": true },
     { "idx": 21, "version": "6", "when": 1775238500000, "tag": "0021_article_processed", "breakpoints": true },
-    { "idx": 22, "version": "6", "when": 1775238600000, "tag": "0022_ai_provider_model", "breakpoints": true }
+    { "idx": 22, "version": "6", "when": 1775238600000, "tag": "0022_ai_provider_model", "breakpoints": true },
+    { "idx": 23, "version": "6", "when": 1775238700000, "tag": "0023_message_stats", "breakpoints": true },
+    { "idx": 24, "version": "6", "when": 1775238800000, "tag": "0024_message_stats_indexes", "breakpoints": true },
+    { "idx": 25, "version": "6", "when": 1775238900000, "tag": "0025_message_stats_user_idx", "breakpoints": true }
   ]
 }

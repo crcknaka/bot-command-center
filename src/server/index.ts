@@ -7,7 +7,7 @@ import { api } from './api/index.js';
 import { serve } from '@hono/node-server';
 import { scheduler } from './services/scheduler.js';
 import { db } from './db/client.js';
-import { sessions } from './db/schema.js';
+import { sessions, messageStats } from './db/schema.js';
 import { lt } from 'drizzle-orm';
 
 async function main() {
@@ -33,7 +33,15 @@ async function main() {
     if (deleted.changes > 0) console.log(`🧹 Cleaned ${deleted.changes} expired session(s)`);
   });
 
-  // 6. Start HTTP server
+  // 6. Message stats cleanup (daily at 3 AM — delete older than 90 days)
+  scheduler.register('stats-cleanup', '0 3 * * *', async () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const deleted = db.delete(messageStats).where(lt(messageStats.createdAt, cutoff.toISOString())).run();
+    if (deleted.changes > 0) console.log(`🧹 Cleaned ${deleted.changes} old message stats`);
+  });
+
+  // 7. Start HTTP server
   const server = serve({
     fetch: api.fetch,
     port: env.PORT,

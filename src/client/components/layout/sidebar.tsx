@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bot, FileText, Calendar, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
@@ -10,6 +10,7 @@ const navItems = [
   { path: '/bots', labelKey: 'nav.bots', icon: Bot },
   { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
+  { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },
   { path: '/users', labelKey: 'nav.users', icon: Users, superadminOnly: true },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings },

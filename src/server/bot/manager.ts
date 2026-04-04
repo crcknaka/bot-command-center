@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
 import { db } from '../db/client.js';
-import { bots, channels, tasks } from '../db/schema.js';
+import { bots, channels, tasks, messageStats } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { scheduler } from '../services/scheduler.js';
 import { getTaskModule } from '../tasks/registry.js';
@@ -73,6 +73,42 @@ class BotManager {
 
     bot.catch((err) => {
       console.error(`❌ Bot @${me.username} error:`, err.message);
+    });
+
+    // ── Message stats middleware (before task handlers) ──────────────────
+    bot.on('message', (ctx, next) => {
+      try {
+        const from = ctx.from;
+        if (!from || from.is_bot) return next(); // skip bots
+
+        const msg = ctx.message;
+        let messageType = 'other';
+        let textLength = 0;
+
+        if (msg.text) { messageType = 'text'; textLength = msg.text.length; }
+        else if (msg.photo) messageType = 'photo';
+        else if (msg.video) messageType = 'video';
+        else if (msg.sticker) messageType = 'sticker';
+        else if (msg.voice) messageType = 'voice';
+        else if (msg.video_note) messageType = 'video_note';
+        else if (msg.animation) messageType = 'animation';
+        else if (msg.document) messageType = 'document';
+        else if (msg.audio) messageType = 'audio';
+
+        if ((msg as any).forward_origin) messageType = 'forward';
+
+        db.insert(messageStats).values({
+          chatId: String(ctx.chat.id),
+          userId: from.id,
+          userName: from.first_name,
+          username: from.username ?? null,
+          messageType,
+          textLength,
+        }).run();
+      } catch (e) {
+        // Don't break message handling if stats fail
+      }
+      return next();
     });
 
     // ── Load channels → tasks → register cron + onInit ──────────────────

@@ -203,6 +203,19 @@ export const activityLog = sqliteTable('activity_log', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
+// ─── Message Stats (for channel analytics) ─────────────────────────────────
+
+export const messageStats = sqliteTable('message_stats', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: text('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  userName: text('user_name'),
+  username: text('username'),
+  messageType: text('message_type').notNull(), // text, photo, video, sticker, voice, video_note, forward, other
+  textLength: integer('text_length').default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
 // ─── Settings (key-value) ───────────────────────────────────────────────────
 
 export const settings = sqliteTable('settings', {
