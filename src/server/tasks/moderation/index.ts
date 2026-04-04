@@ -45,14 +45,24 @@ interface ModerationConfig {
   deleteAndWarn?: boolean;
 }
 
-const DEFAULTS: Record<string, string> = {
+const DEFAULTS_DELETE: Record<string, string> = {
   bannedWords: '⚠️ {user}, ваше сообщение удалено за нарушение правил.',
+  links: '🔗 {user}, сообщение удалено — ссылки запрещены.',
+  flood: '🚫 {user}, слишком много сообщений! Подождите минуту.',
+  shortMsg: '✏️ {user}, сообщение удалено — слишком короткое.',
+  forwards: '🚫 {user}, пересланное сообщение удалено.',
+  stickers: '🚫 {user}, стикер удалён — стикеры и GIF запрещены.',
+  voice: '🚫 {user}, голосовое сообщение удалено.',
+};
+
+const DEFAULTS_WARN: Record<string, string> = {
+  bannedWords: '⚠️ {user}, пожалуйста, соблюдайте правила чата.',
   links: '🔗 {user}, ссылки запрещены в этом чате.',
   flood: '🚫 {user}, слишком много сообщений! Подождите минуту.',
-  shortMsg: '✏️ {user}, сообщение слишком короткое.',
-  forwards: '🚫 {user}, пересланные сообщения запрещены.',
-  stickers: '🚫 {user}, стикеры и GIF запрещены.',
-  voice: '🚫 {user}, голосовые сообщения запрещены.',
+  shortMsg: '✏️ {user}, пишите более развёрнуто.',
+  forwards: '🚫 {user}, пересланные сообщения не приветствуются.',
+  stickers: '🚫 {user}, стикеры и GIF запрещены в этом чате.',
+  voice: '🚫 {user}, голосовые сообщения запрещены в этом чате.',
 };
 
 /** Build a mention link for the user */
@@ -63,19 +73,20 @@ function mentionUser(from: any): string {
 }
 
 /** Pick a random warning text, replace {user} with mention, return null if warn disabled */
-function pickWarn(warn: ViolationWarn | undefined, fallbackKey: string, from: any, legacyText?: string): string | null {
+function pickWarn(warn: ViolationWarn | undefined, fallbackKey: string, from: any, isDelete: boolean, legacyText?: string): string | null {
   const mention = mentionUser(from);
+  const defaults = isDelete ? DEFAULTS_DELETE : DEFAULTS_WARN;
 
   // New config format
   if (warn) {
     if (!warn.enabled) return null;
     const texts = Array.isArray(warn.texts) ? warn.texts.filter((t: string) => t && t.trim()) : [];
-    const template = texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : DEFAULTS[fallbackKey];
+    const template = texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : defaults[fallbackKey];
     return template.replace(/\{user\}/g, mention);
   }
   // Legacy fallback
   if (legacyText) return legacyText.replace(/\{user\}/g, mention);
-  return DEFAULTS[fallbackKey].replace(/\{user\}/g, mention);
+  return defaults[fallbackKey].replace(/\{user\}/g, mention);
 }
 
 /** Send a warning, optionally auto-delete after N seconds */
@@ -242,7 +253,7 @@ export class ModerationTask implements TaskModule {
             logMod('muted', msgCtx, reason);
           } catch (e) { console.error('[moderation] mute error:', e); }
         }
-        await warn(msgCtx, pickWarn(warnConfig, warnKey, msgCtx.from));
+        await warn(msgCtx, pickWarn(warnConfig, warnKey, msgCtx.from, config.deleteOnBan !== false));
       }
     };
 
@@ -266,7 +277,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'forward');
-          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from, true));
         } catch (e) { console.error('[moderation] forward error:', e); }
         return;
       }
@@ -286,7 +297,7 @@ export class ModerationTask implements TaskModule {
             await msgCtx.deleteMessage();
             logMod('deleted', msgCtx, 'flood');
             await tryMute(msgCtx, chatId, userId, 'flood');
-            await warn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, config.floodWarnText));
+            await warn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, true, config.floodWarnText));
           } catch (e) { console.error('[moderation] flood handler error:', e); }
           return;
         }
@@ -297,7 +308,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'short_message');
-          await warn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from, true));
         } catch (e) { console.error('[moderation] short msg error:', e); }
         return;
       }
@@ -334,7 +345,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'forward');
-          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from, true));
         } catch (e) { console.error('[moderation] forward error:', e); }
         await next();
       });
@@ -346,7 +357,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'sticker');
-          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from, true));
         } catch (e) { console.error('[moderation] sticker error:', e); }
         await next();
       });
@@ -354,7 +365,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'animation');
-          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from, true));
         } catch (e) { console.error('[moderation] animation error:', e); }
         await next();
       });
@@ -366,7 +377,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'voice');
-          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from, true));
         } catch (e) { console.error('[moderation] voice error:', e); }
         await next();
       });
@@ -374,7 +385,7 @@ export class ModerationTask implements TaskModule {
         try {
           await msgCtx.deleteMessage();
           logMod('deleted', msgCtx, 'video_note');
-          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
+          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from, true));
         } catch (e) { console.error('[moderation] video_note error:', e); }
         await next();
       });
