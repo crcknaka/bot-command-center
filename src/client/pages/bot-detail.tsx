@@ -1221,9 +1221,15 @@ function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, o
           <button onClick={onEdit} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors" title="Редактировать настройки задачи">
             <Pencil size={12} />
           </button>
-          <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
-            <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить сейчас'}
-          </button>
+          {task.type === 'news_feed' ? (
+            <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
+              <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить сейчас'}
+            </button>
+          ) : (
+            <span className={cn('px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1', task.enabled ? 'bg-green-500/10 text-green-400' : 'bg-zinc-700/50 text-zinc-500')}>
+              {task.enabled ? '✓ Активна' : '✗ Выключена'}
+            </span>
+          )}
           <button onClick={onDelete} className="p-1.5 rounded hover:bg-white/5" title="Удалить задачу">
             <Trash2 size={12} className="text-red-400/60 hover:text-red-400" />
           </button>
@@ -1263,8 +1269,8 @@ function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, o
         </div>
       )}
 
-      {/* Sources */}
-      <div className="ml-5 mt-2">
+      {/* Sources — only for news_feed */}
+      {task.type === 'news_feed' && <div className="ml-5 mt-2">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>Источники контента</span>
           <button onClick={onAddSource} className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">+ Добавить</button>
@@ -1309,7 +1315,17 @@ function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, o
             })}
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* Event-driven tasks info */}
+      {task.type !== 'news_feed' && (
+        <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+          💡 {task.type === 'auto_reply' && 'Авто-ответы работают в реальном времени. Бот отвечает при получении сообщения.'}
+          {task.type === 'welcome' && 'Приветствия отправляются автоматически при входе нового участника.'}
+          {task.type === 'moderation' && 'Модерация работает в реальном времени. Запрещённые сообщения удаляются сразу.'}
+          {' '}Нажмите ✏️ чтобы настроить. Перезапустите бота для применения.
+        </div>
+      )}
     </div>
   );
 }
