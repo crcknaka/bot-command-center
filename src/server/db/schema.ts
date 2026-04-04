@@ -48,6 +48,7 @@ export const aiProviders = sqliteTable('ai_providers', {
   oauthRefreshToken: text('oauth_refresh_token'),
   oauthExpiresAt: text('oauth_expires_at'),
   baseUrl: text('base_url'),
+  modelId: text('model_id'), // selected model (null = default for provider type)
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),

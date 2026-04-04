@@ -208,6 +208,49 @@ const providerTypes = [
   { value: 'custom', label: 'Свой сервер', desc: 'Любой OpenAI-совместимый API (vLLM, LocalAI, text-generation-webui)', models: [], group: 'custom', needsKey: false },
 ];
 
+function ModelSelector({ providerId, currentModel, providerType }: { providerId: number; currentModel: string | null; providerType: string }) {
+  const [models, setModels] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const qc = useQueryClient();
+
+  const loadModels = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/ai-providers/${providerId}/models`);
+      setModels(data.models ?? []);
+    } catch { setModels([]); }
+    setLoading(false);
+  };
+
+  const selectModel = async (modelId: string | null) => {
+    await apiFetch(`/ai-providers/${providerId}`, { method: 'PATCH', body: JSON.stringify({ modelId }) });
+    qc.invalidateQueries({ queryKey: ['ai-providers'] });
+    setModels(null);
+  };
+
+  if (models === null) {
+    return (
+      <button onClick={loadModels} disabled={loading} className="mt-2 text-[11px] text-blue-400 hover:text-blue-300">
+        {loading ? 'Загрузка моделей...' : '🔧 Выбрать модель'}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Модель ({models.length} доступно)</label>
+      <div className="flex gap-2">
+        <select value={currentModel ?? ''} onChange={(e) => selectModel(e.target.value || null)}
+          className="flex-1 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+          <option value="">По умолчанию для {providerType}</option>
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <button onClick={() => setModels(null)} className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Скрыть</button>
+      </div>
+    </div>
+  );
+}
+
 function AIModelsTab() {
   const qc = useQueryClient();
   const { data: providers, isLoading } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
@@ -264,13 +307,17 @@ function AIModelsTab() {
                       {p.name}
                       {p.isDefault && <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">По умолчанию</span>}
                     </div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{typeInfo?.label ?? p.type} · {typeInfo?.desc ?? ''} · Ключ: {p.apiKey ?? 'не задан'}</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {typeInfo?.label ?? p.type} · Ключ: {p.apiKey ?? 'не задан'}
+                      {p.modelId && <span className="ml-1 text-blue-400">· Модель: {p.modelId}</span>}
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => testMut.mutate({ id: p.id, modelId: typeInfo?.models[0] ?? 'gpt-4o' })} disabled={testMut.isPending} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25">Проверить</button>
+                    <button onClick={() => testMut.mutate({ id: p.id, modelId: p.modelId ?? typeInfo?.models[0] ?? 'gpt-4o' })} disabled={testMut.isPending} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25">Проверить</button>
                     <button onClick={() => confirm({ title: 'Удалить?', message: 'Провайдер будет удалён.', onConfirm: () => deleteMut.mutate(p.id) })} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={16} /></button>
                   </div>
                 </div>
+                <ModelSelector providerId={p.id} currentModel={p.modelId} providerType={p.type} />
                 {test && (
                   <div className={`mt-2 text-xs p-2 rounded-lg ${test.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                     {test.ok ? <><Check size={12} className="inline mr-1" />Работает: {test.msg}</> : <><X size={12} className="inline mr-1" />Ошибка: {test.msg}</>}

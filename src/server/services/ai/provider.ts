@@ -118,12 +118,13 @@ const DEFAULT_MODELS: Record<string, string> = {
  * Resolve model: use config override, or pick default for provider type.
  */
 export function resolveModel(configModel: string | undefined, providerId: number): string {
-  if (configModel) return configModel;
+  if (configModel && configModel !== '__default__') return configModel;
 
   const provider = db.select().from(aiProviders).where(eq(aiProviders.id, providerId)).limit(1).get();
   if (!provider) return 'gpt-4o';
 
-  return DEFAULT_MODELS[provider.type] ?? 'gpt-4o';
+  // Use provider's selected model, or default for type
+  return provider.modelId ?? DEFAULT_MODELS[provider.type] ?? 'gpt-4o';
 }
 
 // Keep backward compat
