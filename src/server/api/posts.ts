@@ -182,10 +182,12 @@ postsApi.delete('/:id', async (c) => {
 
 // POST /api/posts/:id/publish
 postsApi.post('/:id/publish', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
 
   const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
   if (!post) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
   if (post.status === 'published') return c.json({ error: 'Already published' }, 400);
 
   const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
@@ -244,6 +246,7 @@ postsApi.post('/:id/publish', async (c) => {
 
 // POST /api/posts/bulk — bulk operations
 postsApi.post('/bulk', async (c) => {
+  const user = (c as any).get('user');
   const { ids, action, scheduledFor } = await c.req.json<{ ids: number[]; action: 'approve' | 'schedule' | 'publish' | 'delete'; scheduledFor?: string }>();
 
   if (!ids?.length) return c.json({ error: 'Не выбраны посты' }, 400);
@@ -254,6 +257,7 @@ postsApi.post('/bulk', async (c) => {
   for (const id of ids) {
     const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
     if (!post) { failed++; continue; }
+    if (!checkPostAccess(user, post)) { failed++; continue; }
 
     try {
       switch (action) {
