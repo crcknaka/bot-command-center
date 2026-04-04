@@ -335,7 +335,9 @@ export function PostsPage() {
                       <Clock size={10} /> {new Date(post.scheduledFor).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
-                  <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(post.createdAt)}</span>
+                  <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>
+                    {post.status === 'published' && post.publishedAt ? `опубл. ${timeAgo(post.publishedAt)}` : timeAgo(post.updatedAt ?? post.createdAt)}
+                  </span>
                 </div>
                 {post.errorMessage && (
                   <div className="text-[11px] text-red-400 bg-red-500/10 rounded-lg px-2.5 py-1.5 mb-2">
