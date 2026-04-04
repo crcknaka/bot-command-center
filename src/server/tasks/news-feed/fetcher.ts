@@ -253,19 +253,29 @@ function extractImageFromContent(html: string): string | undefined {
   return match?.[1];
 }
 
-/** Fetch og:image from article URL */
+/** Fetch og:image from article URL (follows redirects, resolves Google News URLs) */
 async function fetchOgImage(url: string): Promise<string | undefined> {
   try {
+    // Google News URLs need special handling — follow the redirect chain
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; bot)' },
-      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      signal: AbortSignal.timeout(8000),
       redirect: 'follow',
     });
     if (!res.ok) return undefined;
     const html = await res.text();
-    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+
+    // Try og:image
+    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    return match?.[1] || undefined;
+    if (ogMatch?.[1]) return ogMatch[1];
+
+    // Try twitter:image
+    const twMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+    if (twMatch?.[1]) return twMatch[1];
+
+    return undefined;
   } catch {
     return undefined;
   }
