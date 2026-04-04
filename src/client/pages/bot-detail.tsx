@@ -1108,7 +1108,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <div>
             <label className="block text-sm font-medium mb-1">Поисковые запросы</label>
             <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
-              Бот будет искать новости по этим запросам и генерировать посты из результатов.
+              Бот будет искать статьи в интернете по этим запросам. С AI — перепишет в пост. Без AI — подставит в шаблон.
               {searchProvidersList?.length ? (
                 <span className="text-green-400"> Поисковый провайдер подключён.</span>
               ) : (

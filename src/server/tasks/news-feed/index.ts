@@ -125,46 +125,73 @@ export class NewsFeedTask implements TaskModule {
 
           steps.push({ action: `Поиск: "${query}"`, status: 'ok', detail: `Найдено ${results.length} результатов` });
 
-          // Generate post
-          const provider = resolveProvider({
-            taskConfigProviderId: config.aiProviderId,
-            botId,
-            ownerId,
-          });
+          if (useAi) {
+            // AI mode — generate post from search results
+            const provider = resolveProvider({
+              taskConfigProviderId: config.aiProviderId,
+              botId,
+              ownerId,
+            });
 
-          if (!provider) {
-            steps.push({ action: 'Генерация поста', status: 'error', detail: 'Не настроен AI-провайдер. Перейдите в «AI Модели» и добавьте API-ключ.' });
-            continue;
+            if (!provider) {
+              steps.push({ action: 'Генерация поста', status: 'error', detail: 'Режим «С AI» — но AI-провайдер не настроен. Добавьте в Настройки → AI-модели, или переключите на «Без AI».' });
+              continue;
+            }
+
+            const modelId = resolveModel(config.aiModel, provider.id);
+            const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+
+            const generated = await generatePostFromSearch({
+              providerId: provider.id,
+              modelId,
+              systemPrompt,
+              searchResults: results,
+              topic: query,
+              language: lang,
+              maxLength: maxLen,
+            });
+
+            db.insert(posts).values({
+              channelId: ctx.channelId,
+              taskId: ctx.taskId,
+              content: generated.content,
+              imageUrl: results[0]?.imageUrl,
+              status: config.autoApprove ? 'queued' : 'draft',
+              aiProviderId: provider.id,
+              aiModel: modelId,
+            }).run();
+
+            steps.push({
+              action: `Генерация: "${query}"`,
+              status: 'ok',
+              detail: `AI-пост (${generated.tokensUsed} токенов, ${modelId}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+            });
+          } else {
+            // Raw mode — create posts from search results using template
+            for (const sr of results.slice(0, remainingToday)) {
+              const content = formatRaw({
+                title: sr.title,
+                summary: sr.content,
+                content: sr.content,
+                url: sr.url,
+                author: null,
+              }, rawTemplate, maxLen);
+
+              db.insert(posts).values({
+                channelId: ctx.channelId,
+                taskId: ctx.taskId,
+                content,
+                imageUrl: sr.imageUrl,
+                status: config.autoApprove ? 'queued' : 'draft',
+              }).run();
+            }
+
+            steps.push({
+              action: `Поиск: "${query}"`,
+              status: 'ok',
+              detail: `${results.length} постов из шаблона (без AI). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
+            });
           }
-
-          const modelId = resolveModel(config.aiModel, provider.id);
-          const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-
-          const generated = await generatePostFromSearch({
-            providerId: provider.id,
-            modelId,
-            systemPrompt,
-            searchResults: results,
-            topic: query,
-            language: lang,
-            maxLength: maxLen,
-          });
-
-          db.insert(posts).values({
-            channelId: ctx.channelId,
-            taskId: ctx.taskId,
-            content: generated.content,
-            imageUrl: results[0]?.imageUrl,
-            status: config.autoApprove ? 'queued' : 'draft',
-            aiProviderId: provider.id,
-            aiModel: modelId,
-          }).run();
-
-          steps.push({
-            action: `Генерация: "${query}"`,
-            status: 'ok',
-            detail: `Пост создан (${generated.tokensUsed} токенов, модель: ${modelId}). Статус: ${config.autoApprove ? 'в очереди' : 'черновик'}.`,
-          });
         } catch (err) {
           steps.push({ action: `Поиск: "${query}"`, status: 'error', detail: (err as Error).message });
         }
