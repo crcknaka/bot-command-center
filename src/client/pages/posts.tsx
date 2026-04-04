@@ -341,6 +341,11 @@ export function PostsPage() {
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
                   <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(post.createdAt)}</span>
                 </div>
+                {post.errorMessage && (
+                  <div className="text-[11px] text-red-400 bg-red-500/10 rounded-lg px-2.5 py-1.5 mb-2">
+                    <span className="font-medium">Ошибка:</span> {post.errorMessage}
+                  </div>
+                )}
                 <div className="text-sm line-clamp-3 mb-3" dangerouslySetInnerHTML={safeHtml(post.content)} />
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setPreviewPost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
