@@ -9,6 +9,43 @@ import { logActivity } from '../services/activity.js';
 
 const botsApi = new Hono();
 
+// Avatar route BEFORE auth middleware — browser <img> can't send Bearer header
+// Auth via ?token= query param instead
+botsApi.get('/:id/avatar/:userId', async (c) => {
+  const token = c.req.query('token');
+  if (!token) return c.body(null, 401);
+  const { getSession } = await import('../auth/index.js');
+  if (!getSession(token)) return c.body(null, 401);
+
+  const botId = Number(c.req.param('id'));
+  const userId = Number(c.req.param('userId'));
+
+  const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
+  if (!botRecord) return c.body(null, 404);
+
+  const botInstance = botManager.getBotInstance(botId);
+  if (!botInstance) return c.body(null, 404);
+
+  try {
+    const photos = await botInstance.api.getUserProfilePhotos(userId, { limit: 1 });
+    if (!photos.total_count || !photos.photos[0]?.[0]) return c.body(null, 404);
+    const photo = photos.photos[0][0];
+    const file = await botInstance.api.getFile(photo.file_id);
+    if (!file.file_path) return c.body(null, 404);
+
+    const url = `https://api.telegram.org/file/bot${botRecord.token}/${file.file_path}`;
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return c.body(null, 404);
+
+    const buffer = await imgRes.arrayBuffer();
+    c.header('Content-Type', imgRes.headers.get('content-type') ?? 'image/jpeg');
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(new Uint8Array(buffer));
+  } catch {
+    return c.body(null, 404);
+  }
+});
+
 botsApi.use('*', requireAuth);
 
 // GET /api/bots
@@ -368,39 +405,6 @@ botsApi.get('/:id/members', async (c) => {
   return c.json(users);
 });
 
-// GET /api/bots/:id/avatar/:userId — proxy user's Telegram avatar
-botsApi.get('/:id/avatar/:userId', async (c) => {
-  const botId = Number(c.req.param('id'));
-  const userId = Number(c.req.param('userId'));
-
-  const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
-  if (!botRecord) return c.body(null, 404);
-
-  const botInstance = botManager.getBotInstance(botId);
-  if (!botInstance) return c.body(null, 404);
-
-  try {
-    const photos = await botInstance.api.getUserProfilePhotos(userId, { limit: 1 });
-    if (!photos.total_count || !photos.photos[0]?.[0]) {
-      return c.body(null, 404);
-    }
-    const sizes = photos.photos[0];
-    const photo = sizes[0];
-    const file = await botInstance.api.getFile(photo.file_id);
-    if (!file.file_path) return c.body(null, 404);
-
-    const url = `https://api.telegram.org/file/bot${botRecord.token}/${file.file_path}`;
-    const imgRes = await fetch(url);
-    if (!imgRes.ok) return c.body(null, 404);
-
-    const buffer = await imgRes.arrayBuffer();
-    c.header('Content-Type', imgRes.headers.get('content-type') ?? 'image/jpeg');
-    c.header('Cache-Control', 'public, max-age=3600');
-    return c.body(new Uint8Array(buffer));
-  } catch {
-    return c.body(null, 404);
-  }
-});
 
 // POST /api/bots/:id/moderate — ban/mute/unban a user
 botsApi.post('/:id/moderate', async (c) => {

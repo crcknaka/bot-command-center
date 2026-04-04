@@ -163,9 +163,9 @@ export function MembersPage() {
                     <div key={u.userId} className="flex items-center px-4 py-2.5 hover:bg-white/[0.02]">
                       <span className="w-8 text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
                       <img
-                        src={`/api/bots/${selectedBotId}/avatar/${u.userId}`}
+                        src={`/api/bots/${selectedBotId}/avatar/${u.userId}?token=${localStorage.getItem('token') ?? ''}`}
                         alt=""
-                        className="w-7 h-7 rounded-full mr-2.5 shrink-0 bg-zinc-700"
+                        className="w-7 h-7 rounded-full mr-2.5 shrink-0 bg-zinc-700 object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
                       <div className="flex-1 min-w-0">
