@@ -1,7 +1,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 
@@ -1819,6 +1819,16 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
           <button onClick={() => setShowSend(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors" title="Написать от лица бота">
             <Send size={12} />
           </button>
+          {(channel.type === 'supergroup' || channel.type === 'group') && (
+            <>
+              <Link to="/analytics" className="p-1.5 rounded-lg hover:bg-white/5" title="Аналитика группы">
+                <BarChart3 size={13} className="text-blue-400/60 hover:text-blue-400" />
+              </Link>
+              <Link to="/members" className="p-1.5 rounded-lg hover:bg-white/5" title="Участники группы">
+                <Users size={13} className="text-green-400/60 hover:text-green-400" />
+              </Link>
+            </>
+          )}
           <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
           </button>
