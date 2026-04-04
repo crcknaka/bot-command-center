@@ -3,58 +3,11 @@ import { db } from '../db/client.js';
 import { bots, channels, tasks, sources, messageStats, activityLog } from '../db/schema.js';
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
-import { getSession } from '../auth/index.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
 import { logActivity } from '../services/activity.js';
 
 const botsApi = new Hono();
-
-// Avatar route BEFORE auth middleware — browser <img> can't send Bearer header
-// Auth via ?token= query param instead
-botsApi.get('/:id/avatar/:userId', async (c) => {
-  const token = c.req.query('token');
-  if (!token) return c.body(null, 401);
-  if (!getSession(token)) return c.body(null, 401);
-
-  const botId = Number(c.req.param('id'));
-  const userId = Number(c.req.param('userId'));
-
-  const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
-  if (!botRecord) return c.body(null, 404);
-
-  const botInstance = botManager.getBotInstance(botId);
-  if (!botInstance) return c.body(null, 404);
-
-  try {
-    const photos = await botInstance.api.getUserProfilePhotos(userId, { limit: 1 });
-    if (!photos.total_count || !photos.photos[0]?.[0]) {
-      console.log(`[avatar] No photo for user ${userId}`);
-      return c.body(null, 404);
-    }
-    const photo = photos.photos[0][0];
-    const file = await botInstance.api.getFile(photo.file_id);
-    if (!file.file_path) {
-      console.log(`[avatar] No file_path for user ${userId}`);
-      return c.body(null, 404);
-    }
-
-    const url = `https://api.telegram.org/file/bot${botRecord.token}/${file.file_path}`;
-    const imgRes = await fetch(url);
-    if (!imgRes.ok) {
-      console.log(`[avatar] Telegram file fetch failed for user ${userId}: ${imgRes.status}`);
-      return c.body(null, 404);
-    }
-
-    const buffer = await imgRes.arrayBuffer();
-    c.header('Content-Type', imgRes.headers.get('content-type') ?? 'image/jpeg');
-    c.header('Cache-Control', 'public, max-age=3600');
-    return c.body(new Uint8Array(buffer));
-  } catch (err) {
-    console.error(`[avatar] Error for user ${userId}:`, (err as Error).message);
-    return c.body(null, 404);
-  }
-});
 
 botsApi.use('*', requireAuth);
 

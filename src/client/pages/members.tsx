@@ -162,16 +162,8 @@ export function MembersPage() {
                   return (
                     <div key={u.userId} className="flex items-center px-4 py-2.5 hover:bg-white/[0.02]">
                       <span className="w-8 text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
-                      <div className="w-7 h-7 rounded-full mr-2.5 shrink-0 relative">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${u.userId % 360}, 50%, 40%)` }}>
-                          {(u.userName ?? '?')[0]?.toUpperCase()}
-                        </div>
-                        <img
-                          src={`/api/bots/${selectedBotId}/avatar/${u.userId}?token=${localStorage.getItem('token') ?? ''}`}
-                          alt=""
-                          className="w-7 h-7 rounded-full object-cover absolute inset-0"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
+                      <div className="w-7 h-7 rounded-full mr-2.5 shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${u.userId % 360}, 50%, 40%)` }}>
+                        {(u.userName ?? '?')[0]?.toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-medium">{u.userName}</span>
