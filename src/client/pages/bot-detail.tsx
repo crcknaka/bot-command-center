@@ -159,9 +159,18 @@ export function BotDetailPage() {
         </div>
       )}
 
+      {/* Breadcrumbs */}
+      <div className="flex items-center gap-1.5 text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+        <Link to="/bots" className="hover:text-zinc-300 transition-colors">Боты</Link>
+        <span>›</span>
+        <span>{bot.name}</span>
+        <span className="ml-auto flex gap-2">
+          <Link to={`/posts?botId=${botId}`} className="text-blue-400/70 hover:text-blue-400 transition-colors">Посты →</Link>
+        </span>
+      </div>
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <Link to="/" className="p-2 rounded-lg hover:bg-white/5"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{bot.name}</h1>

@@ -28,7 +28,7 @@ import { postStatusConfig, postStatusFilters } from '../lib/constants.js';
 
 export function PostsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [botFilter, setBotFilter] = useState<string>('all');
+  const [botFilter, setBotFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('botId') ?? 'all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
   const [previewPost, setPreviewPost] = useState<any>(null);
@@ -661,29 +661,44 @@ function ScheduleModal({ onClose, onSchedule }: { onClose: () => void; onSchedul
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState(defaultTime);
 
+  const scheduledDate = date && time ? new Date(`${date}T${time}:00`) : null;
+  const isPast = scheduledDate ? scheduledDate.getTime() < Date.now() : false;
+
   const handleSchedule = () => {
-    const dt = new Date(`${date}T${time}:00`);
-    onSchedule(dt.toISOString());
+    if (!scheduledDate || isPast) return;
+    onSchedule(scheduledDate.toISOString());
+  };
+
+  const setQuickDate = (daysAhead: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    setDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="w-full max-w-xs mx-4 p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold mb-1 flex items-center gap-2"><Calendar size={16} /> Запланировать публикацию</h3>
-        <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>Выберите дату и время.</p>
+        <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Выберите дату и время.</p>
+        <div className="flex gap-1 mb-3">
+          <button type="button" onClick={() => setQuickDate(0)} className="px-2.5 py-1 rounded-lg text-[10px] bg-white/5 hover:bg-white/10">Сегодня</button>
+          <button type="button" onClick={() => setQuickDate(1)} className="px-2.5 py-1 rounded-lg text-[10px] bg-white/5 hover:bg-white/10">Завтра</button>
+          <button type="button" onClick={() => setQuickDate(7)} className="px-2.5 py-1 rounded-lg text-[10px] bg-white/5 hover:bg-white/10">Через неделю</button>
+        </div>
         <div className="space-y-3">
           <div>
             <label className="block text-[11px] font-medium mb-1">Дата</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} min={defaultDate} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
           </div>
           <div>
             <label className="block text-[11px] font-medium mb-1">Время</label>
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
           </div>
         </div>
+        {isPast && <p className="text-[10px] text-red-400 mt-2">Нельзя запланировать в прошлое.</p>}
         <div className="flex gap-3 justify-end mt-4">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
-          <button onClick={handleSchedule} disabled={!date || !time} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+          <button onClick={handleSchedule} disabled={!date || !time || isPast} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: isPast ? 'var(--text-muted)' : 'var(--primary)' }}>
             Запланировать
           </button>
         </div>

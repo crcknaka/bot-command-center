@@ -376,11 +376,9 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   };
 
   // Engagement tiers (based on total messages in period, not per-day average)
+  // Note: reactions already excluded by getChatMessages/filterByThread above
   const userMsgCount: Record<number, number> = {};
-  for (const m of currentMsgs) {
-    if (m.messageType === 'reaction') continue; // reactions are not messages
-    userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
-  }
+  for (const m of currentMsgs) userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
 
   const tiers = {
     power: 0,    // 20+ messages in period
