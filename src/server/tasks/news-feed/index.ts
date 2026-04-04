@@ -25,13 +25,24 @@ const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Ч�
 
 /** Format article without AI — just fill template */
 function formatRaw(article: { title: string; summary?: string | null; content?: string | null; url: string; author?: string | null }, template: string, maxLen: number): string {
-  const summary = (article.summary || article.content || '').slice(0, maxLen);
-  return template
+  let summary = (article.summary || article.content || '').slice(0, maxLen);
+  // Don't duplicate: if summary is same as title (or nearly), clear it
+  if (summary.trim().toLowerCase().startsWith(article.title.trim().toLowerCase().slice(0, 30))) {
+    summary = '';
+  }
+  // Clean up: strip HTML tags from summary for raw mode
+  summary = summary.replace(/<[^>]+>/g, '').trim();
+
+  let result = template
     .replace(/\{title\}/g, article.title)
     .replace(/\{summary\}/g, summary)
-    .replace(/\{content\}/g, article.content?.slice(0, maxLen) ?? '')
+    .replace(/\{content\}/g, (article.content ?? '').replace(/<[^>]+>/g, '').slice(0, maxLen))
     .replace(/\{url\}/g, article.url)
     .replace(/\{author\}/g, article.author ?? '');
+
+  // Clean up empty lines from empty placeholders
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+  return result;
 }
 
 export class NewsFeedTask implements TaskModule {

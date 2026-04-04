@@ -217,18 +217,22 @@ export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): P
 
     if (existing) continue;
 
-    // Try to fetch og:image if no image from RSS
+    // Try to enrich from article page if missing image or summary
     let imageUrl = article.imageUrl;
-    if (!imageUrl && article.url) {
-      imageUrl = await fetchOgImage(article.url);
+    let summary = article.summary;
+    const needsEnrich = (!imageUrl || !summary || summary === article.title) && article.url;
+    if (needsEnrich) {
+      const og = await fetchOgMeta(article.url);
+      if (!imageUrl && og?.image) imageUrl = og.image;
+      if ((!summary || summary === article.title) && og?.description) summary = og.description;
     }
 
     db.insert(articles).values({
       sourceId,
       externalId: article.externalId,
       title: article.title,
-      summary: article.summary,
-      content: article.content,
+      summary: summary || article.summary,
+      content: article.content || summary,
       url: article.url,
       imageUrl,
       author: article.author,
@@ -253,10 +257,9 @@ function extractImageFromContent(html: string): string | undefined {
   return match?.[1];
 }
 
-/** Fetch og:image from article URL (follows redirects, resolves Google News URLs) */
-async function fetchOgImage(url: string): Promise<string | undefined> {
+/** Fetch og:image + og:description from article URL */
+async function fetchOgMeta(url: string): Promise<{ image?: string; description?: string } | undefined> {
   try {
-    // Google News URLs need special handling — follow the redirect chain
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
       signal: AbortSignal.timeout(8000),
@@ -265,17 +268,16 @@ async function fetchOgImage(url: string): Promise<string | undefined> {
     if (!res.ok) return undefined;
     const html = await res.text();
 
-    // Try og:image
-    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    if (ogMatch?.[1]) return ogMatch[1];
+    const getMetaContent = (property: string): string | undefined => {
+      const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`, 'i'))
+        ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`, 'i'));
+      return m?.[1];
+    };
 
-    // Try twitter:image
-    const twMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
-    if (twMatch?.[1]) return twMatch[1];
-
-    return undefined;
+    return {
+      image: getMetaContent('og:image') ?? getMetaContent('twitter:image'),
+      description: getMetaContent('og:description') ?? getMetaContent('description'),
+    };
   } catch {
     return undefined;
   }
