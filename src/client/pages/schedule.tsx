@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { apiFetch } from '../lib/api.js';
 import { Spinner } from '../components/ui/spinner.js';
@@ -8,6 +8,7 @@ import { safeHtml } from '../lib/sanitize.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 import { useUpdatePost } from '../hooks/use-posts.js';
+import { TelegramPreview } from '../components/telegram-preview.js';
 import { postStatusConfig } from '../lib/constants.js';
 
 export function SchedulePage() {
@@ -18,6 +19,8 @@ export function SchedulePage() {
   const qc = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [scheduleModal, setScheduleModal] = useState<{ postId: number; date: string } | null>(null);
+  const [viewPost, setViewPost] = useState<any>(null);
+  const [viewContent, setViewContent] = useState('');
 
   // Channel lookup
   const channelMap: Record<number, { botName: string; title: string; botId: number }> = {};
@@ -125,7 +128,7 @@ export function SchedulePage() {
                 <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{activeId ? '📥 Бросьте сюда чтобы снять с расписания' : 'Нет черновиков'}</p>
               ) : (
                 unscheduled.map((post: any) => (
-                  <DraggablePost key={post.id} post={post} channelMap={channelMap} />
+                  <DraggablePost key={post.id} post={post} channelMap={channelMap} onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
                 ))
               )}
             </div>
@@ -152,7 +155,7 @@ export function SchedulePage() {
                         const time = post.scheduledFor ? new Date(post.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                         const ctx = channelMap[post.channelId];
                         return (
-                          <DraggablePost key={post.id} post={post} channelMap={channelMap} compact />
+                          <DraggablePost key={post.id} post={post} channelMap={channelMap} compact onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
                         );
                       })}
 
@@ -214,20 +217,70 @@ export function SchedulePage() {
           </div>
         )}
       </div>
+
+      {/* View/Edit Post Modal */}
+      {viewPost && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewPost(null); }}>
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">{viewPost.status === 'published' ? 'Просмотр поста' : 'Редактирование поста'}</h2>
+              <button onClick={() => setViewPost(null)} className="p-1.5 rounded-lg hover:bg-white/5"><X size={16} /></button>
+            </div>
+            <div className="flex gap-6 flex-col lg:flex-row">
+              <div className="lg:w-[340px] shrink-0">
+                <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Telegram превью:</div>
+                <TelegramPreview
+                  content={viewPost.status === 'published' ? viewPost.content : viewContent}
+                  imageUrl={viewPost.imageUrl}
+                  channelTitle={channelMap[viewPost.channelId]?.title}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                {viewPost.status === 'published' ? (
+                  <div>
+                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>HTML-код:</div>
+                    <pre className="w-full px-3 py-2 rounded-lg border text-xs font-mono whitespace-pre-wrap break-all" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>{viewPost.content}</pre>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Редактор (HTML):</div>
+                    <textarea value={viewContent} onChange={(e) => setViewContent(e.target.value)} rows={12}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <div className="flex gap-3 justify-end mt-4">
+                      <button onClick={() => setViewPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+                      <button
+                        onClick={() => { updateMut.mutate({ id: viewPost.id, content: viewContent }); setViewPost(null); }}
+                        disabled={viewContent === viewPost.content}
+                        className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                        style={{ background: viewContent === viewPost.content ? 'var(--text-muted)' : 'var(--primary)' }}
+                      >Сохранить</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 }
 
 // ─── Draggable Post ──────────────────────────────────────────────────────────
 
-function DraggablePost({ post, channelMap, compact }: { post: any; channelMap: Record<number, any>; compact?: boolean }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: post.id });
+function DraggablePost({ post, channelMap, compact, onPostClick }: { post: any; channelMap: Record<number, any>; compact?: boolean; onPostClick?: (post: any) => void }) {
+  const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({ id: post.id });
   const ctx = channelMap[post.channelId];
   const time = post.scheduledFor ? new Date(post.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
+  // Open post viewer on click, but only if not dragging
+  const handleClick = () => {
+    if (!transform && onPostClick) onPostClick(post);
+  };
+
   if (compact) {
     return (
-      <div ref={setNodeRef} {...listeners} {...attributes}
+      <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick}
         className={cn('rounded-lg p-2 border text-[10px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
         style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-1 mb-0.5">
@@ -241,7 +294,7 @@ function DraggablePost({ post, channelMap, compact }: { post: any; channelMap: R
   }
 
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes}
+    <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick}
       className={cn('rounded-lg p-2.5 border text-[11px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
       style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       <div className="flex items-center gap-1.5 mb-1">
