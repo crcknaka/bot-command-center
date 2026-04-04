@@ -2103,13 +2103,23 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
         )}
       </div>}
 
-      {/* Event-driven tasks info */}
-      {task.type !== 'news_feed' && (
+      {/* Task info hints */}
+      {task.type !== 'news_feed' && task.type !== 'web_search' && (
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
           💡 {task.type === 'auto_reply' && 'Авто-ответы работают в реальном времени. Бот отвечает при получении сообщения.'}
           {task.type === 'welcome' && 'Приветствия отправляются автоматически при входе нового участника.'}
           {task.type === 'moderation' && 'Модерация работает в реальном времени. Запрещённые сообщения удаляются сразу.'}
           {' '}Нажмите ✏️ чтобы настроить. Бот перезапустится автоматически.
+        </div>
+      )}
+      {task.type === 'news_feed' && !sources?.length && (
+        <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(234,179,8,0.06)', color: 'var(--text-muted)' }}>
+          ⚠️ Добавьте хотя бы один источник. «Запустить» загрузит статьи из всех источников, отфильтрует по ключевым словам и создаст черновики (макс. {(task.config as any)?.maxPostsPerDay ?? 5} в день).
+        </div>
+      )}
+      {task.type === 'web_search' && (
+        <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+          💡 «Запустить» найдёт статьи в интернете по запросам и создаст черновики. Кол-во постов = запросы × макс. результатов.
         </div>
       )}
     </div>
