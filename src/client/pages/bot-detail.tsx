@@ -1866,7 +1866,7 @@ function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDelete
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
           )}
           <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">
-            {isTopic ? (channel.threadTitle || `Топик ${channel.threadId}`) : channel.title}
+            {isTopic ? (<><span style={{ color: 'var(--text-muted)' }}>{channel.title} ›</span> {channel.threadTitle || `Топик ${channel.threadId}`}</>) : channel.title}
           </span>
           {!isTopic && <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>}
           {channel.isLinked ? (
