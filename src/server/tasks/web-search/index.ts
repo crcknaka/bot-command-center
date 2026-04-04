@@ -18,6 +18,8 @@ interface WebSearchConfig {
   autoApprove?: boolean;
   maxResults?: number; // Max search results per query
   timeRange?: 'day' | 'week' | 'month' | 'year';
+  searchLang?: string; // 'ru', 'en', etc.
+  searchCountry?: string; // 'ru', 'us', etc.
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
@@ -89,6 +91,8 @@ export class WebSearchTask implements TaskModule {
           timeRange: config.timeRange ?? 'day',
           botId,
           language: lang,
+          searchLang: config.searchLang,
+          searchCountry: config.searchCountry,
         });
 
         if (results.length === 0) {

@@ -369,7 +369,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountry: taskConfig.searchCountry };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -802,26 +802,49 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
         </div>
       </div>
 
-      {/* Time range + language + max results */}
-      <div className="flex items-center gap-2 text-xs flex-wrap">
-        <span style={{ color: 'var(--text-muted)' }}>Язык поиска:</span>
-        <select value={config.postLanguage ?? 'Russian'} onChange={(e) => onChange({ postLanguage: e.target.value })}
-          className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-          <option value="Russian">Русский</option>
-          <option value="English">English</option>
-          <option value="Ukrainian">Українська</option>
-          <option value="German">Deutsch</option>
-        </select>
-        <span style={{ color: 'var(--text-muted)' }}>Искать за:</span>
-        <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
-          className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-          <option value="day">Последний день</option>
-          <option value="week">Неделю</option>
-          <option value="month">Месяц</option>
-        </select>
-        <span style={{ color: 'var(--text-muted)' }}>Макс.:</span>
-        <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
-          className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+      {/* Search settings */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          <span style={{ color: 'var(--text-muted)' }}>Язык:</span>
+          <select value={config.searchLang ?? 'ru'} onChange={(e) => onChange({ searchLang: e.target.value })}
+            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+            <option value="uk">Українська</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+            <option value="zh">中文</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+          </select>
+          <span style={{ color: 'var(--text-muted)' }}>Страна:</span>
+          <select value={config.searchCountry ?? 'ru'} onChange={(e) => onChange({ searchCountry: e.target.value })}
+            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+            <option value="ru">🇷🇺 Россия</option>
+            <option value="us">🇺🇸 США</option>
+            <option value="ua">🇺🇦 Украина</option>
+            <option value="de">🇩🇪 Германия</option>
+            <option value="gb">🇬🇧 Великобритания</option>
+            <option value="fr">🇫🇷 Франция</option>
+            <option value="kz">🇰🇿 Казахстан</option>
+            <option value="by">🇧🇾 Беларусь</option>
+            <option value="il">🇮🇱 Израиль</option>
+            <option value="cn">🇨🇳 Китай</option>
+            <option value="jp">🇯🇵 Япония</option>
+            <option value="kr">🇰🇷 Корея</option>
+          </select>
+          <span style={{ color: 'var(--text-muted)' }}>Период:</span>
+          <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
+            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+            <option value="day">День</option>
+            <option value="week">Неделя</option>
+            <option value="month">Месяц</option>
+          </select>
+          <span style={{ color: 'var(--text-muted)' }}>Макс.:</span>
+          <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
+            className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
       </div>
 
       {/* Auto-approve */}

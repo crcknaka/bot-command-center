@@ -18,17 +18,24 @@ export interface SearchOptions {
   includeDomains?: string[];
   excludeDomains?: string[];
   botId?: number;
-  language?: string; // 'Russian', 'English', 'Ukrainian' etc.
+  language?: string; // 'Russian', 'English', etc. (legacy)
+  searchLang?: string; // 'ru', 'en', 'uk', 'de' — language code
+  searchCountry?: string; // 'ru', 'us', 'ua', 'de' — country code
 }
 
-/** Map language name to search API locale codes */
-function getLocale(lang?: string): { gl: string; hl: string } {
-  switch (lang?.toLowerCase()) {
+/** Resolve locale codes from options */
+function getLocale(opts: SearchOptions): { gl: string; hl: string } {
+  // Direct codes take priority
+  if (opts.searchLang || opts.searchCountry) {
+    return { hl: opts.searchLang ?? 'ru', gl: opts.searchCountry ?? 'ru' };
+  }
+  // Legacy: map language name
+  switch (opts.language?.toLowerCase()) {
     case 'russian': return { gl: 'ru', hl: 'ru' };
     case 'ukrainian': return { gl: 'ua', hl: 'uk' };
     case 'english': return { gl: 'us', hl: 'en' };
     case 'german': return { gl: 'de', hl: 'de' };
-    default: return { gl: 'ru', hl: 'ru' }; // default to Russian
+    default: return { gl: 'ru', hl: 'ru' };
   }
 }
 
@@ -103,7 +110,7 @@ async function safeFetchJson(res: Response, providerName: string): Promise<any> 
 async function searchTavily(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const client = tavily({ apiKey });
   // Tavily doesn't support gl/hl, so we hint language in the query itself
-  const locale = getLocale(opts.language);
+  const locale = getLocale(opts);
   const langHints: Record<string, string> = { ru: ' на русском', uk: ' українською', de: ' auf Deutsch' };
   const queryWithLang = locale.hl !== 'en' ? opts.query + (langHints[locale.hl] ?? '') : opts.query;
   const response = await client.search(queryWithLang, {
@@ -124,7 +131,7 @@ async function searchTavily(apiKey: string, opts: SearchOptions): Promise<Search
 }
 
 async function searchSerper(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
-  const locale = getLocale(opts.language);
+  const locale = getLocale(opts);
   const params: any = {
     q: opts.query,
     num: opts.maxResults ?? 5,
@@ -178,7 +185,7 @@ async function searchSerper(apiKey: string, opts: SearchOptions): Promise<Search
 }
 
 async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
-  const locale = getLocale(opts.language);
+  const locale = getLocale(opts);
   const params = new URLSearchParams({
     q: opts.query,
     api_key: apiKey,
@@ -201,7 +208,7 @@ async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<Searc
 }
 
 async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
-  const locale = getLocale(opts.language);
+  const locale = getLocale(opts);
   const params = new URLSearchParams({
     q: opts.query,
     count: String(opts.maxResults ?? 5),
@@ -225,7 +232,7 @@ async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchR
 }
 
 async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: string | null): Promise<SearchResult[]> {
-  const locale = getLocale(opts.language);
+  const locale = getLocale(opts);
   const cseId = baseUrl ?? '';
   const params = new URLSearchParams({
     q: opts.query,
