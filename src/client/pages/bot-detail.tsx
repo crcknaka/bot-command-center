@@ -224,27 +224,52 @@ export function BotDetailPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {bot.channels.map((channel: any) => (
-              <ChannelCard
-                key={channel.id}
-                channel={channel}
-                botId={botId}
-                allChannels={bot.channels}
-                onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
-                onDeleteChannel={() => confirm({ title: 'Удалить канал?', message: `Канал "${channel.title}" и все его задачи будут удалены.`, onConfirm: () => deleteChannelMut.mutate(channel.id) })}
-                onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
-                onEditTask={(task: any) => setEditingTask(task)}
-                onToggleTask={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
-                onDeleteTask={(taskId: number) => confirm({ title: 'Удалить задачу?', message: 'Задача и все её источники будут удалены.', onConfirm: () => deleteTaskMut.mutate(taskId) })}
-                onAddSource={(taskId: number) => setShowAddSource(taskId)}
-                onFetchSource={(sourceId: number) => fetchSourceMut.mutate(sourceId)}
-                onDeleteSource={(sourceId: number) => confirm({ title: 'Удалить источник?', message: 'Источник контента будет удалён.', onConfirm: () => deleteSourceMut.mutate(sourceId) })}
-                runningTaskId={runTaskMut.isPending ? (runTaskMut.variables as number) : null}
-                fetchingSourceId={fetchSourceMut.isPending ? (fetchSourceMut.variables as number) : null}
-                fetchResults={fetchResult}
-                taskRunResults={taskRunResult}
-              />
-            ))}
+            {(() => {
+              // Group channels: parent channels (no threadId) first, topics nested under them
+              const parents = bot.channels.filter((ch: any) => !ch.threadId);
+              const topicsByChatId: Record<string, any[]> = {};
+              for (const ch of bot.channels) {
+                if (ch.threadId) (topicsByChatId[ch.chatId] ??= []).push(ch);
+              }
+              // Standalone topics (no parent row) — show as regular channels
+              const orphanTopics = bot.channels.filter((ch: any) => ch.threadId && !parents.some((p: any) => p.chatId === ch.chatId));
+
+              const renderCard = (channel: any, isTopic = false) => (
+                <div key={channel.id} className={isTopic ? 'ml-6 border-l-2 pl-4' : ''} style={isTopic ? { borderColor: 'var(--border)' } : undefined}>
+                  <ChannelCard
+                    channel={channel}
+                    botId={botId}
+                    allChannels={bot.channels}
+                    isTopic={isTopic}
+                    onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
+                    onDeleteChannel={() => confirm({ title: isTopic ? 'Удалить топик?' : 'Удалить канал?', message: `${isTopic ? 'Топик' : 'Канал'} "${channel.threadTitle || channel.title}" и все его задачи будут удалены.`, onConfirm: () => deleteChannelMut.mutate(channel.id) })}
+                    onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
+                    onEditTask={(task: any) => setEditingTask(task)}
+                    onToggleTask={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
+                    onDeleteTask={(taskId: number) => confirm({ title: 'Удалить задачу?', message: 'Задача и все её источники будут удалены.', onConfirm: () => deleteTaskMut.mutate(taskId) })}
+                    onAddSource={(taskId: number) => setShowAddSource(taskId)}
+                    onFetchSource={(sourceId: number) => fetchSourceMut.mutate(sourceId)}
+                    onDeleteSource={(sourceId: number) => confirm({ title: 'Удалить источник?', message: 'Источник контента будет удалён.', onConfirm: () => deleteSourceMut.mutate(sourceId) })}
+                    runningTaskId={runTaskMut.isPending ? (runTaskMut.variables as number) : null}
+                    fetchingSourceId={fetchSourceMut.isPending ? (fetchSourceMut.variables as number) : null}
+                    fetchResults={fetchResult}
+                    taskRunResults={taskRunResult}
+                  />
+                </div>
+              );
+
+              return (
+                <>
+                  {parents.map((parent: any) => (
+                    <div key={parent.id}>
+                      {renderCard(parent)}
+                      {(topicsByChatId[parent.chatId] ?? []).map((topic: any) => renderCard(topic, true))}
+                    </div>
+                  ))}
+                  {orphanTopics.map((ch: any) => renderCard(ch, true))}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -1781,7 +1806,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
 
 // ── Channel Card (inline sub-component) ─────────────────────────────────────
 
-function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
+function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
   const qc = useQueryClient();
   const { data: tasks } = useQuery({
     queryKey: ['tasks', channel.id],
@@ -1825,17 +1850,17 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
       {/* Channel header */}
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          {channel.type === 'channel'
-            ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">📢 Канал</span>
-            : <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
-          }
-          <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">{channel.title}</span>
-          {channel.threadId && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
-              # {channel.threadTitle || `топик ${channel.threadId}`}
-            </span>
+          {isTopic ? (
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400"># Топик</span>
+          ) : channel.type === 'channel' ? (
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">📢 Канал</span>
+          ) : (
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">👥 Группа</span>
           )}
-          <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
+          <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">
+            {isTopic ? (channel.threadTitle || `Топик ${channel.threadId}`) : channel.title}
+          </span>
+          {!isTopic && <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>}
           {channel.isLinked ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50" style={{ color: 'var(--text-muted)' }}>Подключён</span>
           ) : (
