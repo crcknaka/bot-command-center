@@ -119,10 +119,15 @@ statsApi.get('/moderation', async (c) => {
 
 /** Helper: get filtered messages for a chat */
 function getChatMessages(chatId: string, period: string, threadId?: string) {
+  const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
+  const days = periodDays[period];
+
   let since = '';
-  const now = new Date();
-  if (period === 'week') { now.setDate(now.getDate() - 7); since = now.toISOString(); }
-  else if (period === 'month') { now.setDate(now.getDate() - 30); since = now.toISOString(); }
+  if (days) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    since = d.toISOString();
+  }
 
   let msgs = db.select().from(messageStats)
     .where(since
@@ -130,7 +135,6 @@ function getChatMessages(chatId: string, period: string, threadId?: string) {
       : eq(messageStats.chatId, chatId)
     ).all();
 
-  // Filter by thread if specified
   if (threadId && threadId !== 'all') {
     msgs = msgs.filter(m => String(m.threadId ?? '') === threadId);
   }
@@ -166,7 +170,8 @@ statsApi.get('/chat/:chatId/activity', async (c) => {
   const chatId = c.req.param('chatId');
   const period = c.req.query('period') ?? 'week';
   const threadId = c.req.query('threadId');
-  const days = period === 'month' ? 30 : 7;
+  const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
+  const days = periodDays[period] ?? 7;
 
   const allMsgs = getChatMessages(chatId, 'all', threadId);
 
@@ -204,25 +209,29 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
   const chatId = c.req.param('chatId');
   const threadId = c.req.query('threadId');
 
-  const weekMsgs = getChatMessages(chatId, 'week', threadId);
-  const monthMsgs = getChatMessages(chatId, 'month', threadId);
+  const periods: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
+  const data: Record<string, any> = {};
 
-  const uniqueUsersWeek = new Set(weekMsgs.map(m => m.userId)).size;
-  const uniqueUsersMonth = new Set(monthMsgs.map(m => m.userId)).size;
+  for (const [key, days] of Object.entries(periods)) {
+    const msgs = getChatMessages(chatId, key, threadId);
+    data[key] = { messages: msgs.length, users: new Set(msgs.map(m => m.userId)).size, avgPerDay: Math.round(msgs.length / days) };
+  }
 
-  // Most active hour
+  // All time
+  const allMsgs = getChatMessages(chatId, 'all', threadId);
+  const firstMsg = allMsgs.length > 0 ? allMsgs.reduce((a, b) => a.createdAt < b.createdAt ? a : b) : null;
+  const totalDays = firstMsg ? Math.max(1, Math.round((Date.now() - new Date(firstMsg.createdAt + 'Z').getTime()) / 86400000)) : 1;
+  data['all'] = { messages: allMsgs.length, users: new Set(allMsgs.map(m => m.userId)).size, avgPerDay: Math.round(allMsgs.length / totalDays) };
+
+  // Peak hour from all messages
   const hourCounts: Record<number, number> = {};
-  for (const m of weekMsgs) {
+  for (const m of allMsgs) {
     const h = new Date(m.createdAt + 'Z').getHours();
     hourCounts[h] = (hourCounts[h] ?? 0) + 1;
   }
   const peakHour = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
 
-  return c.json({
-    week: { messages: weekMsgs.length, users: uniqueUsersWeek, avgPerDay: Math.round(weekMsgs.length / 7) },
-    month: { messages: monthMsgs.length, users: uniqueUsersMonth, avgPerDay: Math.round(monthMsgs.length / 30) },
-    peakHour: peakHour ? { hour: Number(peakHour[0]), count: peakHour[1] } : null,
-  });
+  return c.json({ ...data, peakHour: peakHour ? { hour: Number(peakHour[0]), count: peakHour[1] } : null });
 });
 
 // GET /api/stats/chat/:chatId/threads — list known threads/topics
@@ -236,17 +245,45 @@ statsApi.get('/chat/:chatId/threads', async (c) => {
     threads[key] = (threads[key] ?? 0) + 1;
   }
 
-  // Try to get thread names from channels table
-  const allChannels = db.select().from(channels).all();
+  // Get thread names from settings
+  const { settings } = await import('../db/schema.js');
+  const allSettings = db.select().from(settings).all();
 
   const result = Object.entries(threads).map(([tid, count]) => {
     let title = tid === 'general' ? 'Общий' : `Топик #${tid}`;
-    const ch = allChannels.find(c => c.chatId === chatId && String(c.threadId) === tid);
-    if (ch?.threadTitle) title = ch.threadTitle;
+    // Check settings for custom name
+    const settingKey = `thread_name:${chatId}:${tid}`;
+    const setting = allSettings.find(s => s.key === settingKey);
+    if (setting) title = setting.value;
+    // Also check channels table
+    if (title.startsWith('Топик #')) {
+      const allChannels = db.select().from(channels).all();
+      const ch = allChannels.find(c => c.chatId === chatId && String(c.threadId) === tid);
+      if (ch?.threadTitle) title = ch.threadTitle;
+    }
     return { threadId: tid, title, messageCount: count };
   }).sort((a, b) => b.messageCount - a.messageCount);
 
   return c.json(result);
+});
+
+// PATCH /api/stats/chat/:chatId/threads/:threadId — rename a thread
+statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
+  const chatId = c.req.param('chatId');
+  const threadId = c.req.param('threadId');
+  const { title } = await c.req.json<{ title: string }>();
+
+  // Store thread name in settings as key-value
+  const key = `thread_name:${chatId}:${threadId}`;
+  const { settings } = await import('../db/schema.js');
+  const existing = db.select().from(settings).where(eq(settings.key, key)).limit(1).get();
+  if (existing) {
+    db.update(settings).set({ value: title }).where(eq(settings.key, key)).run();
+  } else {
+    db.insert(settings).values({ key, value: title }).run();
+  }
+
+  return c.json({ ok: true });
 });
 
 // GET /api/stats/chats — list chats with stats

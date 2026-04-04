@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp } from 'lucide-react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
@@ -18,8 +18,9 @@ const typeColors: Record<string, string> = {
 };
 
 export function AnalyticsPage() {
+  const qc = useQueryClient();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [period, setPeriod] = useState<'week' | 'month' | 'all'>('week');
+  const [period, setPeriod] = useState<string>('week');
   const [selectedThread, setSelectedThread] = useState<string>('all');
 
   const threadParam = selectedThread !== 'all' ? `&threadId=${selectedThread}` : '';
@@ -85,29 +86,44 @@ export function AnalyticsPage() {
         <div>
           {/* Period + Thread selector */}
           <div className="flex gap-2 mb-4 flex-wrap items-center">
-            {([['week', 'Неделя'], ['month', 'Месяц'], ['all', 'Всё время']] as const).map(([v, l]) => (
+            {[['week', '7 дней'], ['2weeks', '14 дней'], ['month', '30 дней'], ['3months', '90 дней'], ['all', 'Всё время']].map(([v, l]) => (
               <button key={v} onClick={() => setPeriod(v)}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-medium', period === v ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500 hover:text-zinc-300')}>
                 {l}
               </button>
             ))}
             {threads && threads.length > 0 && (
-              <select value={selectedThread} onChange={(e) => setSelectedThread(e.target.value)}
-                className="ml-2 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-                <option value="all">Все топики</option>
-                {threads.map((t: any) => (
-                  <option key={t.threadId} value={t.threadId}>{t.title} ({t.messageCount})</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1 ml-2">
+                <select value={selectedThread} onChange={(e) => setSelectedThread(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                  <option value="all">Все топики</option>
+                  {threads.map((t: any) => (
+                    <option key={t.threadId} value={t.threadId}>{t.title} ({t.messageCount})</option>
+                  ))}
+                </select>
+                {selectedThread !== 'all' && (
+                  <button onClick={() => {
+                    const current = threads.find((t: any) => t.threadId === selectedThread);
+                    const name = prompt('Название топика:', current?.title ?? '');
+                    if (name !== null && selectedChat) {
+                      apiFetch(`/stats/chat/${selectedChat}/threads/${selectedThread}`, {
+                        method: 'PATCH', body: JSON.stringify({ title: name }),
+                      }).then(() => qc.invalidateQueries({ queryKey: ['stats-threads'] }));
+                    }
+                  }} className="p-1 rounded hover:bg-white/5" title="Переименовать топик">
+                    <Pencil size={11} className="text-zinc-500" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             {[
-              { label: 'Сообщений', value: period === 'month' ? summary.month.messages : summary.week.messages, icon: MessageSquare, color: 'text-blue-400' },
-              { label: 'Активных юзеров', value: period === 'month' ? summary.month.users : summary.week.users, icon: Users, color: 'text-green-400' },
-              { label: 'Среднее в день', value: period === 'month' ? summary.month.avgPerDay : summary.week.avgPerDay, icon: TrendingUp, color: 'text-yellow-400' },
+              { label: 'Сообщений', value: (summary[period] ?? summary.week)?.messages ?? 0, icon: MessageSquare, color: 'text-blue-400' },
+              { label: 'Активных юзеров', value: (summary[period] ?? summary.week)?.users ?? 0, icon: Users, color: 'text-green-400' },
+              { label: 'Среднее в день', value: (summary[period] ?? summary.week)?.avgPerDay ?? 0, icon: TrendingUp, color: 'text-yellow-400' },
               { label: 'Пиковый час', value: summary.peakHour ? `${String(summary.peakHour.hour).padStart(2, '0')}:00` : '—', icon: Clock, color: 'text-purple-400' },
             ].map((s) => {
               const Icon = s.icon;
