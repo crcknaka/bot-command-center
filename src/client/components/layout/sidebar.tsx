@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Bot, FileText, Calendar, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
-import { LangSwitcher } from '../ui/lang-switcher.js';
 import { cn } from '../../lib/utils.js';
 
 const navItems = [
@@ -31,7 +30,6 @@ export function Sidebar() {
           <span className="sm:hidden">CC</span>
         </h1>
         <div className="flex items-center gap-2">
-          <LangSwitcher />
           <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1 rounded-lg hover:bg-white/5">
             <X size={18} />
           </button>
