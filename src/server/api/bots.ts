@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { bots, channels, tasks, sources } from '../db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { bots, channels, tasks, sources, messageStats, activityLog } from '../db/schema.js';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
@@ -308,6 +308,97 @@ botsApi.post('/import', async (c) => {
 
   logActivity({ userId: user.id, botId: createdBot.id, action: 'bot.imported', details: { channels: channelCount, tasks: taskCount } });
   return c.json({ ok: true, botId: createdBot.id, channels: channelCount, tasks: taskCount }, 201);
+});
+
+// GET /api/bots/:id/members — list known users from message stats
+botsApi.get('/:id/members', async (c) => {
+  const id = Number(c.req.param('id'));
+  const chatId = c.req.query('chatId');
+  if (!chatId) return c.json({ error: 'chatId required' }, 400);
+
+  // Get unique users from message_stats
+  const msgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
+  const usersMap: Record<number, { userId: number; userName: string; username: string | null; messageCount: number; lastSeen: string }> = {};
+
+  for (const m of msgs) {
+    if (!usersMap[m.userId]) {
+      usersMap[m.userId] = { userId: m.userId, userName: m.userName ?? 'Unknown', username: m.username, messageCount: 0, lastSeen: m.createdAt };
+    }
+    usersMap[m.userId].messageCount++;
+    if (m.createdAt > usersMap[m.userId].lastSeen) usersMap[m.userId].lastSeen = m.createdAt;
+    if (m.userName) usersMap[m.userId].userName = m.userName;
+    if (m.username) usersMap[m.userId].username = m.username;
+  }
+
+  // Check current status via Telegram API
+  const botInstance = botManager.getBotInstance(id);
+  const users = Object.values(usersMap).sort((a, b) => b.messageCount - a.messageCount);
+
+  // Get status for top users (limit to avoid rate limits)
+  for (const user of users.slice(0, 50)) {
+    if (botInstance) {
+      try {
+        const member = await botInstance.api.getChatMember(chatId, user.userId);
+        (user as any).status = member.status; // 'member', 'restricted', 'kicked', 'administrator', 'creator'
+      } catch {
+        (user as any).status = 'unknown';
+      }
+    } else {
+      (user as any).status = 'unknown';
+    }
+  }
+
+  return c.json(users);
+});
+
+// POST /api/bots/:id/moderate — ban/mute/unban a user
+botsApi.post('/:id/moderate', async (c) => {
+  const id = Number(c.req.param('id'));
+  const { chatId, userId, action, duration } = await c.req.json<{
+    chatId: string;
+    userId: number;
+    action: 'mute' | 'ban' | 'unban' | 'unmute' | 'restrict_media' | 'restrict_links';
+    duration?: number; // minutes (0 = forever)
+  }>();
+
+  const botInstance = botManager.getBotInstance(id);
+  if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
+
+  const user = (c as any).get('user');
+  const untilDate = duration && duration > 0 ? Math.floor(Date.now() / 1000) + duration * 60 : 0;
+
+  try {
+    const muted = { can_send_messages: false, can_send_other_messages: false, can_add_web_page_previews: false, can_send_polls: false } as any;
+    const unmuted = { can_send_messages: true, can_send_other_messages: true, can_add_web_page_previews: true, can_send_polls: true, can_send_audios: true, can_send_documents: true, can_send_photos: true, can_send_videos: true, can_send_video_notes: true, can_send_voice_notes: true } as any;
+    const noMedia = { can_send_messages: true, can_send_other_messages: false, can_send_photos: false, can_send_videos: false, can_send_audios: false, can_send_documents: false, can_send_voice_notes: false, can_send_video_notes: false } as any;
+    const noLinks = { can_send_messages: true, can_send_other_messages: true, can_add_web_page_previews: false } as any;
+
+    switch (action) {
+      case 'mute':
+        await botInstance.api.restrictChatMember(chatId, userId, { permissions: muted, until_date: untilDate || undefined } as any);
+        break;
+      case 'unmute':
+        await botInstance.api.restrictChatMember(chatId, userId, { permissions: unmuted } as any);
+        break;
+      case 'ban':
+        await botInstance.api.banChatMember(chatId, userId, { until_date: untilDate || undefined });
+        break;
+      case 'unban':
+        await botInstance.api.unbanChatMember(chatId, userId, { only_if_banned: true });
+        break;
+      case 'restrict_media':
+        await botInstance.api.restrictChatMember(chatId, userId, { permissions: noMedia, until_date: untilDate || undefined } as any);
+        break;
+      case 'restrict_links':
+        await botInstance.api.restrictChatMember(chatId, userId, { permissions: noLinks, until_date: untilDate || undefined } as any);
+        break;
+    }
+
+    logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, duration } });
+    return c.json({ ok: true });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
 });
 
 // POST /api/bots/:id/send — send a message from the bot to a channel
