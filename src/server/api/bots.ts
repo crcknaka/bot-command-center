@@ -15,7 +15,6 @@ const botsApi = new Hono();
 botsApi.get('/:id/avatar/:userId', async (c) => {
   const token = c.req.query('token');
   if (!token) return c.body(null, 401);
-  const { getSession } = await import('../auth/index.js');
   if (!getSession(token)) return c.body(null, 401);
 
   const botId = Number(c.req.param('id'));
