@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
@@ -79,10 +79,18 @@ export function SchedulePage() {
     if (!event.over) return;
 
     const postId = Number(event.active.id);
-    const dayKey = String(event.over.id); // YYYY-MM-DD
+    const target = String(event.over.id);
+
+    if (target === 'unscheduled') {
+      // Move back to unscheduled
+      updateMut.mutate({ id: postId, scheduledFor: null as any, status: 'draft' }, {
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
+      });
+      return;
+    }
 
     // Show time picker modal
-    setScheduleModal({ postId, date: dayKey });
+    setScheduleModal({ postId, date: target });
   };
 
   const schedulePost = (postId: number, date: string, hour: number) => {
@@ -119,21 +127,21 @@ export function SchedulePage() {
         </div>
 
         <div className="flex gap-4">
-          {/* Unscheduled sidebar */}
-          <div className="hidden md:block w-56 shrink-0">
+          {/* Unscheduled sidebar (droppable) */}
+          <DroppableUnscheduled isActive={activeId !== null}>
             <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
               Незапланированные ({unscheduled.length})
             </h3>
             <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
               {unscheduled.length === 0 ? (
-                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Нет черновиков без расписания</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{activeId ? '📥 Бросьте сюда чтобы снять с расписания' : 'Нет черновиков'}</p>
               ) : (
                 unscheduled.map((post: any) => (
                   <DraggablePost key={post.id} post={post} channelMap={channelMap} />
                 ))
               )}
             </div>
-          </div>
+          </DroppableUnscheduled>
 
           {/* Week grid */}
           <div className="flex-1 overflow-x-auto">
@@ -258,6 +266,17 @@ function DraggablePost({ post, channelMap, compact }: { post: any; channelMap: R
 }
 
 // ─── Droppable Day ───────────────────────────────────────────────────────────
+
+function DroppableUnscheduled({ isActive, children }: { isActive: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'unscheduled' });
+  return (
+    <div ref={setNodeRef}
+      className={cn('hidden md:block w-56 shrink-0 rounded-lg p-2 -m-2 transition-colors', isOver && 'bg-yellow-500/10 ring-1 ring-yellow-500/30', isActive && !isOver && 'bg-white/[0.02]')}
+    >
+      {children}
+    </div>
+  );
+}
 
 function DroppableDay({ dayKey, isActive, children }: { dayKey: string; isActive: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: dayKey });
