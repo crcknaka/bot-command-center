@@ -1,5 +1,16 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+
+const ctrlEnter = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    const form = (e.target as HTMLElement).closest('form');
+    if (form) { form.requestSubmit(); return; }
+    const modal = (e.target as HTMLElement).closest('[class*="rounded-2xl"]');
+    const btn = modal?.querySelector('button[class*="text-white"]') as HTMLButtonElement | null;
+    if (btn && !btn.disabled) btn.click();
+  }
+};
 import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -393,7 +404,7 @@ export function PostsPage() {
           <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-1">Редактировать пост</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>HTML-теги: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href="..."&gt;ссылка&lt;/a&gt;</p>
-            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={8} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={ctrlEnter} rows={8} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             <div className="mt-3 mb-4">
               <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
               <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(editContent)} />
@@ -453,7 +464,7 @@ function CreatePostModal({ channels, onClose, onCreate, isPending }: {
         </div>
         <div className="mb-3">
           <label className="block text-sm font-medium mb-1">Текст поста</label>
-          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={6} placeholder="<b>Заголовок</b>\nТекст поста..." className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={ctrlEnter} rows={6} placeholder="<b>Заголовок</b>\nТекст поста... Ctrl+Enter — сохранить" className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
         </div>
         {content && (
           <div className="mb-4">

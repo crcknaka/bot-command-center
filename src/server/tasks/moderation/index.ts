@@ -139,8 +139,8 @@ export class ModerationTask implements TaskModule {
       }
     };
 
-    // Text message moderation
-    ctx.bot.on('message:text', async (msgCtx) => {
+    // Text message moderation (call next() to let other handlers run)
+    ctx.bot.on('message:text', async (msgCtx, next) => {
       const text = msgCtx.message.text;
       const userId = msgCtx.from?.id;
       const chatId = msgCtx.chat.id;
@@ -212,6 +212,9 @@ export class ModerationTask implements TaskModule {
           return;
         }
       }
+
+      // Message passed all checks — let other handlers (auto-reply etc.) process it
+      await next();
     });
 
     // Block forwards

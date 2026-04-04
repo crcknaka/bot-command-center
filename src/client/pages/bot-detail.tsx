@@ -10,6 +10,19 @@ import { useBotAction } from '../hooks/use-bots.js';
 import { apiFetch } from '../lib/api.js';
 import { cn, timeAgo } from '../lib/utils.js';
 
+/** Ctrl+Enter submits the closest form or clicks the nearest primary button */
+const ctrlEnter = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    const form = (e.target as HTMLElement).closest('form');
+    if (form) { form.requestSubmit(); return; }
+    // Fallback: find the save/submit button in the modal
+    const modal = (e.target as HTMLElement).closest('[class*="rounded-2xl"]');
+    const btn = modal?.querySelector('button[class*="text-white"]') as HTMLButtonElement | null;
+    if (btn && !btn.disabled) btn.click();
+  }
+};
+
 export function BotDetailPage() {
   const { id } = useParams();
   const botId = Number(id);
@@ -373,7 +386,7 @@ export function BotDetailPage() {
               <div className="mb-4 space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Текст приветствия</label>
-                  <textarea value={taskConfig.welcomeText} onChange={(e) => setTaskConfig({ ...taskConfig, welcomeText: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <textarea value={taskConfig.welcomeText} onChange={(e) => setTaskConfig({ ...taskConfig, welcomeText: e.target.value })} onKeyDown={ctrlEnter} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                   <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username. Поддерживается HTML.</p>
                   <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Превью: </span>
@@ -504,8 +517,8 @@ function AutoReplyConfigUI({ rules, cooldownSeconds, onChangeRules, onChangeCool
             </div>
             <div>
               <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Ответ бота (HTML)</label>
-              <textarea value={rule.response} onChange={(e) => updateRule(i, { response: e.target.value })}
-                placeholder="Привет, {user}! Вот наш прайс..."
+              <textarea value={rule.response} onChange={(e) => updateRule(i, { response: e.target.value })} onKeyDown={ctrlEnter}
+                placeholder="Привет, {user}! Ctrl+Enter — сохранить"
                 rows={2} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
             <div className="flex gap-3 flex-wrap">
@@ -989,7 +1002,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
             {useAi && (
               <div className="mt-2">
                 <label className="block text-xs font-medium mb-1">AI промпт</label>
-                <textarea value={taskPrompt} onChange={(e) => setTaskPrompt(e.target.value)} rows={3}
+                <textarea value={taskPrompt} onChange={(e) => setTaskPrompt(e.target.value)} onKeyDown={ctrlEnter} rows={3}
                   placeholder="Ты — редактор Telegram-канала. Пиши кратко, с HTML-форматированием. Добавляй ссылку на источник."
                   className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                 <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Опишите стиль постов. Пусто = стандартный промпт.</p>
@@ -1016,7 +1029,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium mb-1">Текст приветствия</label>
-              <textarea value={welcomeText} onChange={(e) => setWelcomeText(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <textarea value={welcomeText} onChange={(e) => setWelcomeText(e.target.value)} onKeyDown={ctrlEnter} rows={3} className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
               <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{name}'} — имя, {'{username}'} — @username. HTML поддерживается.</p>
             </div>
             <div>
@@ -1482,7 +1495,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
                 Системный промпт (AI)
                 <InfoTip text="Общий промпт для AI-генерации постов этого бота. Можно переопределить на уровне задачи." position="right" />
               </label>
-              <textarea value={botSystemPrompt} onChange={(e) => setBotSystemPrompt(e.target.value)} rows={2}
+              <textarea value={botSystemPrompt} onChange={(e) => setBotSystemPrompt(e.target.value)} onKeyDown={ctrlEnter} rows={2}
                 placeholder="Ты — редактор Telegram-канала. Пиши кратко, с HTML..."
                 className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
@@ -1664,8 +1677,8 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
         <Modal title={`Написать в ${channel.title}`} onClose={() => setShowSend(false)}>
           <form onSubmit={(e) => { e.preventDefault(); if (!sendText.trim()) return; sendMut.mutate({ channelId: channel.id, text: sendText.trim(), imageUrl: sendImage.trim() || undefined }); }}>
             <label className="block text-xs font-medium mb-1">Сообщение (HTML)</label>
-            <textarea value={sendText} onChange={(e) => setSendText(e.target.value)} rows={4} autoFocus required
-              placeholder="Текст сообщения... Поддерживается <b>HTML</b>"
+            <textarea value={sendText} onChange={(e) => setSendText(e.target.value)} onKeyDown={ctrlEnter} rows={4} autoFocus required
+              placeholder="Текст сообщения... Ctrl+Enter — отправить"
               className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             <label className="block text-xs font-medium mb-1 mt-3">Картинка (URL, необязательно)</label>
             <input value={sendImage} onChange={(e) => setSendImage(e.target.value)}

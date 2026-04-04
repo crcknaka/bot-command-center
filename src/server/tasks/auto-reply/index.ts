@@ -27,7 +27,7 @@ export class AutoReplyTask implements TaskModule {
     console.log(`[auto-reply] Task#${ctx.taskId} registered ${config.rules.length} rule(s) for chat ${ctx.chatId}`);
     const cooldown = (config.cooldownSeconds ?? 0) * 1000;
 
-    ctx.bot.on('message:text', async (msgCtx) => {
+    ctx.bot.on('message:text', async (msgCtx, next) => {
       const text = msgCtx.message.text;
       const userId = msgCtx.from?.id;
 
@@ -78,9 +78,11 @@ export class AutoReplyTask implements TaskModule {
           } else {
             await msgCtx.reply(response, { parse_mode: 'HTML' });
           }
-          break;
+          return; // matched — don't call next
         }
       }
+      // No rule matched — let other handlers run
+      await next();
     });
   }
 
