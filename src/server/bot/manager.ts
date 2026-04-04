@@ -19,8 +19,9 @@ class BotManager {
   private starting = new Set<number>();
 
   async startAll() {
-    const activeBots = db.select().from(bots).where(eq(bots.status, 'active')).all();
-    for (const botRecord of activeBots) {
+    // Start all bots (active + stopped) on server startup, skip only error
+    const allBots = db.select().from(bots).all().filter(b => b.status !== 'error');
+    for (const botRecord of allBots) {
       try {
         await this.startBot(botRecord.id);
       } catch (err) {
@@ -147,7 +148,7 @@ class BotManager {
             textPreview: emoji,
           }).run();
         }
-      } catch {}
+      } catch (e) { console.error('[stats] reaction error:', e); }
     });
 
     // ── Load channels → tasks → register cron + onInit ──────────────────

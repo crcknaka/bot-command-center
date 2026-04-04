@@ -1989,6 +1989,8 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
   const [showMove, setShowMove] = useState(false);
   const [preview, setPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [testAi, setTestAi] = useState<any>(null);
+  const [testAiLoading, setTestAiLoading] = useState(false);
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -2195,10 +2197,39 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
               ))}
             </div>
           )}
+          {/* Test AI result */}
+          {testAi && (
+            <div className="mt-3 rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.05)' }}>
+              <div className="text-[10px] font-medium mb-1 flex items-center justify-between">
+                <span>✨ Тест AI ({testAi.model}, {testAi.tokensUsed} токенов)</span>
+                <button onClick={() => setTestAi(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">×</button>
+              </div>
+              <div className="text-xs mt-2 p-2 rounded" style={{ background: 'rgba(0,0,0,0.2)' }} dangerouslySetInnerHTML={{ __html: testAi.post }} />
+              {testAi.article?.imageUrl && (
+                <img src={testAi.article.imageUrl} alt="" className="mt-2 rounded max-h-32 object-cover" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+              )}
+            </div>
+          )}
+          {testAi?.error && (
+            <div className="mt-3 text-xs text-red-400 bg-red-500/10 rounded-lg p-2">{testAi.error}</div>
+          )}
+
           <div className="flex gap-3 justify-end mt-4">
             <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
-            <button onClick={() => { setPreview(null); onRun(); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-1.5" style={{ background: 'var(--primary)' }}>
-              <Zap size={14} /> Запустить генерацию
+            {(task.config as any)?.useAi !== false && preview.articles?.length > 0 && (
+              <button onClick={async () => {
+                setTestAiLoading(true); setTestAi(null);
+                try {
+                  const res = await apiFetch(`/tasks/${task.id}/test-ai`, { method: 'POST' });
+                  setTestAi(res);
+                } catch (e) { setTestAi({ error: (e as Error).message }); }
+                setTestAiLoading(false);
+              }} disabled={testAiLoading} className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 flex items-center gap-1.5">
+                <Eye size={14} /> {testAiLoading ? 'Генерирую...' : 'Тест 1 пост'}
+              </button>
+            )}
+            <button onClick={() => { setPreview(null); setTestAi(null); onRun(); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-1.5" style={{ background: 'var(--primary)' }}>
+              <Zap size={14} /> Запустить все
             </button>
           </div>
         </Modal>

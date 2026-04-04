@@ -177,7 +177,7 @@ statsApi.get('/chat/:chatId/activity', async (c) => {
   const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
   const days = periodDays[period] ?? 7;
 
-  const allMsgs = getChatMessages(chatId, 'all', threadId);
+  const allMsgs = getChatMessages(chatId, period, threadId);
 
   const result: { date: string; count: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
@@ -468,6 +468,7 @@ statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
   const chatId = c.req.param('chatId');
   const threadId = c.req.param('threadId');
   const { title } = await c.req.json<{ title: string }>();
+  if (!title?.trim()) return c.json({ error: 'Название обязательно' }, 400);
 
   // Store thread name in settings as key-value
   const key = `thread_name:${chatId}:${threadId}`;

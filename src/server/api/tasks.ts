@@ -227,6 +227,82 @@ tasksApi.post('/tasks/:id/preview', async (c) => {
   });
 });
 
+// POST /api/tasks/:id/test-ai — generate 1 AI post without saving
+tasksApi.post('/tasks/:id/test-ai', async (c) => {
+  const id = Number(c.req.param('id'));
+  const task = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
+  if (!task) return c.json({ error: 'Not found' }, 404);
+
+  const config = task.config as any;
+  const channel = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
+  const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
+
+  // Get first unprocessed article
+  const { articles, posts: postsTable } = await import('../db/schema.js');
+  const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
+
+  // Fetch fresh articles first
+  for (const source of taskSources) {
+    if (source.enabled) {
+      try { await fetchAndStore(source.id, config.maxAgeDays ?? 7); } catch {}
+    }
+  }
+
+  const allArticles = taskSources.flatMap((src) =>
+    db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
+  );
+
+  // Apply keyword filter
+  const keywords: string[] = config?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
+  const filtered = keywords.length > 0
+    ? allArticles.filter((a) => {
+        const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
+        return keywords.some((kw) => text.includes(kw.toLowerCase()));
+      })
+    : allArticles;
+
+  const unprocessed = filtered.filter((article) => {
+    const existing = db.select({ id: postsTable.id }).from(postsTable)
+      .where(eq(postsTable.articleId, article.id)).limit(1).get();
+    return !existing;
+  });
+
+  if (unprocessed.length === 0) {
+    return c.json({ error: 'Нет статей для тестирования. Добавьте источники и нажмите «Превью».' }, 400);
+  }
+
+  const article = unprocessed[0];
+  const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
+  const { generatePost } = await import('../services/ai/generate.js');
+
+  const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId: bot?.id, ownerId: bot?.ownerId });
+  if (!provider) {
+    return c.json({ error: 'AI-провайдер не настроен. Добавьте в Настройки → AI-модели.' }, 400);
+  }
+
+  const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
+  const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
+  const modelId = resolveModel(config.aiModel, provider.id);
+  const systemPrompt = config.systemPrompt ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.';
+
+  try {
+    const generated = await generatePost({
+      providerId: provider.id, modelId, systemPrompt,
+      userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,
+    });
+
+    return c.json({
+      ok: true,
+      article: { title: article.title, url: article.url, imageUrl: article.imageUrl },
+      post: generated.content,
+      model: modelId,
+      tokensUsed: generated.tokensUsed,
+    });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 // ── Sources sub-routes ──────────────────────────────────────────────────────
 
 // GET /api/tasks/:taskId/sources
