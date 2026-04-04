@@ -426,21 +426,7 @@ export function BotDetailPage() {
               <div className="mb-4 space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
-                  <textarea value={(taskConfig.bannedWords ?? []).join(', ')} onChange={(e) => setTaskConfig({ ...taskConfig, bannedWords: e.target.value.split(',').map((w: string) => w.trim()).filter(Boolean) })}
-                    rows={3} placeholder="спам, реклама, казино, бесплатно, скидка 90%" className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                    Перечислите слова <b>через запятую</b>. Если сообщение содержит любое из этих слов — оно будет удалено автоматически.
-                  </p>
-                  {(taskConfig.bannedWords ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {(taskConfig.bannedWords as string[]).map((w: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 flex items-center gap-1">
-                          {w}
-                          <button type="button" onClick={() => setTaskConfig({ ...taskConfig, bannedWords: (taskConfig.bannedWords as string[]).filter((_: string, j: number) => j !== i) })} className="hover:text-red-300">×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <BannedWordsInput words={taskConfig.bannedWords ?? []} onChange={(w: string[]) => setTaskConfig({ ...taskConfig, bannedWords: w })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
@@ -462,14 +448,21 @@ export function BotDetailPage() {
                   <label className="flex items-center gap-2 text-xs">
                     <input type="checkbox" checked={taskConfig.antiFlood ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, antiFlood: e.target.checked })} />
                     Анти-флуд
-                    <InfoTip text="Удаляет сообщения если юзер пишет слишком часто. Защита от спама сообщениями." position="right" />
+                    <InfoTip text="Если юзер отправляет слишком много сообщений подряд — бот удаляет и предупреждает." position="right" />
                   </label>
                   {taskConfig.antiFlood && (
-                    <div className="ml-5 flex items-center gap-2 text-xs">
-                      <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
-                      <input type="number" min={1} max={30} value={taskConfig.maxMessagesPerMinute ?? 5} onChange={(e) => setTaskConfig({ ...taskConfig, maxMessagesPerMinute: Number(e.target.value) })}
-                        className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                      <span style={{ color: 'var(--text-muted)' }}>сообщ. в минуту</span>
+                    <div className="ml-5 space-y-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
+                        <input type="number" min={1} max={30} value={taskConfig.maxMessagesPerMinute ?? 5} onChange={(e) => setTaskConfig({ ...taskConfig, maxMessagesPerMinute: Number(e.target.value) })}
+                          className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                        <span style={{ color: 'var(--text-muted)' }}>сообщений в минуту от одного юзера</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Предупреждение при флуде:</label>
+                        <input value={taskConfig.floodWarnText ?? '🚫 {user}, слишком много сообщений! Подождите минуту.'} onChange={(e) => setTaskConfig({ ...taskConfig, floodWarnText: e.target.value })}
+                          className="w-full px-2 py-1 rounded-lg border text-[11px] outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      </div>
                     </div>
                   )}
                   <label className="flex items-center gap-2 text-xs">
@@ -539,6 +532,49 @@ export function BotDetailPage() {
 }
 
 // ─── Edit Task Modal ─────────────────────────────────────────────────────────
+
+// ─── Banned Words Input ──────────────────────────────────────────────────────
+
+function BannedWordsInput({ words, onChange }: { words: string[]; onChange: (w: string[]) => void }) {
+  const [input, setInput] = useState('');
+
+  const addWord = () => {
+    const newWords = input.split(',').map((w) => w.trim()).filter(Boolean).filter((w) => !words.includes(w));
+    if (newWords.length) { onChange([...words, ...newWords]); setInput(''); }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addWord(); }
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-2">
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} onBlur={addWord}
+          placeholder="Введите слово и нажмите Enter"
+          className="flex-1 px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        <button type="button" onClick={addWord} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 shrink-0">
+          Добавить
+        </button>
+      </div>
+      <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
+        Нажмите Enter или запятую для добавления. Можно вставить несколько через запятую.
+      </p>
+      {words.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {words.map((w, i) => (
+            <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 flex items-center gap-1">
+              {w}
+              <button type="button" onClick={() => onChange(words.filter((_, j) => j !== i))} className="hover:text-red-300">×</button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Нет запрещённых слов. Добавьте выше.</p>
+      )}
+    </div>
+  );
+}
 
 // ─── Schedule Picker ─────────────────────────────────────────────────────────
 
@@ -795,19 +831,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium mb-1">Запрещённые слова</label>
-              <textarea value={bannedWords.join(', ')} onChange={(e) => setBannedWords(e.target.value.split(',').map(w => w.trim()).filter(Boolean))}
-                rows={3} placeholder="спам, реклама, казино, бесплатно" className="w-full px-3 py-2 rounded-lg border text-xs resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Перечислите <b>через запятую</b>. Сообщение с любым из этих слов удаляется.</p>
-              {bannedWords.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {bannedWords.map((w, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 flex items-center gap-1">
-                      {w}
-                      <button type="button" onClick={() => setBannedWords(bannedWords.filter((_, j) => j !== i))} className="hover:text-red-300">×</button>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <BannedWordsInput words={bannedWords} onChange={setBannedWords} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
