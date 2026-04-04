@@ -138,7 +138,7 @@ export class NewsFeedTask implements TaskModule {
           }
 
           const modelId = resolveModel(config.aiModel, provider.id);
-          const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+          const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
 
           const generated = await generatePostFromSearch({
             providerId: provider.id,
@@ -202,7 +202,7 @@ export class NewsFeedTask implements TaskModule {
               break;
             }
             const modelId = resolveModel(config.aiModel, provider.id);
-            const systemPrompt = config.systemPrompt ?? bot?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+            const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
             const generated = await generatePost({
               providerId: provider.id, modelId, systemPrompt,
               userPrompt: `Create a Telegram post based on this article:\n\nTitle: ${article.title}\nContent: ${article.content ?? article.summary ?? ''}\nURL: ${article.url}\n\nLanguage: ${lang}\nMax length: ${maxLen} characters`,

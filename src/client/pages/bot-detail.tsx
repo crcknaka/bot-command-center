@@ -287,7 +287,7 @@ export function BotDetailPage() {
           <form onSubmit={(e) => {
             e.preventDefault();
             let config: any = {};
-            if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
+            if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern) };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0 };
             if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText };
@@ -343,6 +343,15 @@ export function BotDetailPage() {
                     <div style={{ color: 'var(--text-muted)' }}>Заголовок + описание + ссылка.</div>
                   </button>
                 </div>
+                {taskConfig.useAi && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium mb-1">AI промпт</label>
+                    <textarea value={taskConfig.systemPrompt ?? ''} onChange={(e) => setTaskConfig({ ...taskConfig, systemPrompt: e.target.value })} rows={3}
+                      placeholder="Ты — редактор Telegram-канала. Пиши кратко, информативно, с HTML-форматированием (<b>, <i>, <a href=''>). Используй эмодзи умеренно. Добавляй ссылку на источник."
+                      className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Опишите стиль и тон постов. Если пусто — используется стандартный промпт.</p>
+                  </div>
+                )}
                 {!taskConfig.useAi && (
                   <div className="mt-3">
                     <label className="block text-xs font-medium mb-1">Шаблон поста</label>
@@ -611,6 +620,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [schedule, setSchedule] = useState(task.schedule ?? '');
   const [enabled, setEnabled] = useState(task.enabled ?? true);
   const [useAi, setUseAi] = useState(config.useAi !== false);
+  const [taskPrompt, setTaskPrompt] = useState(config.systemPrompt ?? '');
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
   // Auto-reply
@@ -659,6 +669,15 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
                 <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Шаблон: заголовок + ссылка</div>
               </button>
             </div>
+            {useAi && (
+              <div className="mt-2">
+                <label className="block text-xs font-medium mb-1">AI промпт</label>
+                <textarea value={taskPrompt} onChange={(e) => setTaskPrompt(e.target.value)} rows={3}
+                  placeholder="Ты — редактор Telegram-канала. Пиши кратко, с HTML-форматированием. Добавляй ссылку на источник."
+                  className="w-full px-3 py-2 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Опишите стиль постов. Пусто = стандартный промпт.</p>
+              </div>
+            )}
             {!useAi && (
               <div className="mt-2">
                 <label className="block text-xs font-medium mb-1">Шаблон</label>
@@ -735,7 +754,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, rawTemplate: useAi ? undefined : rawTemplate, autoApprove };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern) };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec };
               if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText };
@@ -987,7 +1006,6 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
   const [editing, setEditing] = useState(false);
   const [aiPid, setAiPid] = useState<string>(bot.aiProviderId?.toString() ?? '');
   const [searchPid, setSearchPid] = useState<string>(bot.searchProviderId?.toString() ?? '');
-  const [sysPrompt, setSysPrompt] = useState(bot.systemPrompt ?? '');
   const [postLang, setPostLang] = useState(bot.postLanguage ?? 'Russian');
   const [maxPerDay, setMaxPerDay] = useState(bot.maxPostsPerDay ?? 5);
   const [minInterval, setMinInterval] = useState(bot.minPostIntervalMinutes ?? 60);
@@ -1063,20 +1081,6 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1 flex items-center gap-1.5">
-              Системный промпт
-              <InfoTip text="Инструкция для AI именно этого бота. Опишите стиль, тон, язык. Если пусто — используется глобальный промпт из настроек." position="right" />
-            </label>
-            <textarea
-              value={sysPrompt}
-              onChange={(e) => setSysPrompt(e.target.value)}
-              rows={3}
-              placeholder="Пусто = глобальный промпт"
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none"
-              style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
-            />
-          </div>
           {/* Content settings */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <div>
@@ -1143,7 +1147,6 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
               onClick={() => saveMut.mutate({
                 aiProviderId: aiPid ? Number(aiPid) : null,
                 searchProviderId: searchPid ? Number(searchPid) : null,
-                systemPrompt: sysPrompt || null,
                 postLanguage: postLang,
                 maxPostsPerDay: maxPerDay,
                 minPostIntervalMinutes: minInterval,

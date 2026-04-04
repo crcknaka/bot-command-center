@@ -74,7 +74,6 @@ function GeneralTab() {
 
   const fields = [
     { key: 'default_timezone', label: 'Часовой пояс', type: 'text', description: 'Например: Europe/Moscow, Asia/Almaty, US/Eastern' },
-    { key: 'default_system_prompt', label: 'Системный промпт по умолчанию', type: 'textarea', description: 'Глобальная инструкция для AI. У каждого бота можно переопределить свой промпт.' },
   ];
 
   if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
