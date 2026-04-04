@@ -1160,6 +1160,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
                 key={task.id}
                 task={task}
                 onEdit={() => onEditTask(task)}
+                onToggle={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
                 onAddSource={() => onAddSource(task.id)}
@@ -1194,7 +1195,7 @@ function cronToHuman(cron: string | null): string {
   return presets[cron] ?? cron;
 }
 
-function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -1213,22 +1214,25 @@ function TaskCard({ task, onEdit, onRun, onDelete, onAddSource, onFetchSource, o
               {(task.config as any)?.useAi === false ? '📋 Без AI' : '🤖 AI'}
             </span>
           )}
-          <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-700/50 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-            🕐 {cronToHuman(task.schedule)}
-          </span>
+          {task.type === 'news_feed' && task.schedule && (
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-700/50 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+              🕐 {cronToHuman(task.schedule)}
+            </span>
+          )}
         </div>
         <div className="flex gap-1.5">
+          <button onClick={() => onToggle(task.id, !task.enabled)}
+            className={cn('px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer', task.enabled ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' : 'bg-zinc-700/50 text-zinc-500 hover:bg-zinc-700')}
+            title={task.enabled ? 'Нажмите чтобы выключить' : 'Нажмите чтобы включить'}>
+            {task.enabled ? '✓ Вкл' : '✗ Выкл'}
+          </button>
           <button onClick={onEdit} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors" title="Редактировать настройки задачи">
             <Pencil size={12} />
           </button>
-          {task.type === 'news_feed' ? (
+          {task.type === 'news_feed' && (
             <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
               <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить сейчас'}
             </button>
-          ) : (
-            <span className={cn('px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1', task.enabled ? 'bg-green-500/10 text-green-400' : 'bg-zinc-700/50 text-zinc-500')}>
-              {task.enabled ? '✓ Активна' : '✗ Выключена'}
-            </span>
           )}
           <button onClick={onDelete} className="p-1.5 rounded hover:bg-white/5" title="Удалить задачу">
             <Trash2 size={12} className="text-red-400/60 hover:text-red-400" />
