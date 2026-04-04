@@ -288,9 +288,9 @@ export function BotDetailPage() {
             e.preventDefault();
             let config: any = {};
             if (taskType === 'news_feed') config = { useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate };
-            if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern) };
+            if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0 };
-            if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText };
+            if (taskType === 'moderation') config = { bannedWords: taskConfig.bannedWords, maxLinksPerMessage: taskConfig.maxLinksPerMessage, warnText: taskConfig.warnText, antiFlood: taskConfig.antiFlood, maxMessagesPerMinute: taskConfig.maxMessagesPerMinute, blockForwards: taskConfig.blockForwards, blockStickers: taskConfig.blockStickers, minMessageLength: taskConfig.minMessageLength };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -383,7 +383,16 @@ export function BotDetailPage() {
                   </div>
                 ))}
                 <button type="button" onClick={() => setTaskConfig({ ...taskConfig, rules: [...taskConfig.rules, { pattern: '', response: '', isRegex: false }] })}
-                  className="text-[11px] text-blue-400 hover:text-blue-300">+ Добавить правило</button>
+                  className="text-[11px] text-blue-400 hover:text-blue-300 mb-3">+ Добавить правило</button>
+                <div className="flex items-center gap-3 mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами одному юзеру:</span>
+                    <input type="number" min={0} value={taskConfig.cooldownSeconds ?? 0} onChange={(e) => setTaskConfig({ ...taskConfig, cooldownSeconds: Number(e.target.value) })}
+                      className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек</span>
+                    <InfoTip text="Чтобы бот не спамил одному юзеру. 0 = отвечать каждый раз. 60 = не чаще раза в минуту." position="right" />
+                  </label>
+                </div>
               </div>
             )}
 
@@ -443,6 +452,39 @@ export function BotDetailPage() {
                   <input value={taskConfig.warnText} onChange={(e) => setTaskConfig({ ...taskConfig, warnText: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                   <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{'{user}'} — имя нарушителя. Предупреждение удалится через 10 секунд.</p>
+                </div>
+                <div className="pt-2 mt-2 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+                  <div className="text-xs font-medium">Дополнительная защита</div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={taskConfig.antiFlood ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, antiFlood: e.target.checked })} />
+                    Анти-флуд
+                    <InfoTip text="Удаляет сообщения если юзер пишет слишком часто. Защита от спама сообщениями." position="right" />
+                  </label>
+                  {taskConfig.antiFlood && (
+                    <div className="ml-5 flex items-center gap-2 text-xs">
+                      <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
+                      <input type="number" min={1} max={30} value={taskConfig.maxMessagesPerMinute ?? 5} onChange={(e) => setTaskConfig({ ...taskConfig, maxMessagesPerMinute: Number(e.target.value) })}
+                        className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      <span style={{ color: 'var(--text-muted)' }}>сообщ. в минуту</span>
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={taskConfig.blockForwards ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, blockForwards: e.target.checked })} />
+                    Блокировать пересланные сообщения
+                    <InfoTip text="Удаляет все пересланные (forward) сообщения. Против рекламного спама." position="right" />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={taskConfig.blockStickers ?? false} onChange={(e) => setTaskConfig({ ...taskConfig, blockStickers: e.target.checked })} />
+                    Блокировать стикеры и GIF
+                    <InfoTip text="Удаляет стикеры и GIF-анимации. Для серьёзных групп." position="right" />
+                  </label>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span style={{ color: 'var(--text-muted)' }}>Мин. длина сообщения:</span>
+                    <input type="number" min={0} max={100} value={taskConfig.minMessageLength ?? 0} onChange={(e) => setTaskConfig({ ...taskConfig, minMessageLength: Number(e.target.value) })}
+                      className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>символов (0 = выкл)</span>
+                    <InfoTip text="Сообщения короче этой длины удаляются. Против спама типа 'ааа', '+1'." position="right" />
+                  </div>
                 </div>
               </div>
             )}
@@ -647,6 +689,13 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [bannedWords, setBannedWords] = useState<string[]>(config.bannedWords ?? []);
   const [maxLinks, setMaxLinks] = useState(config.maxLinksPerMessage ?? 3);
   const [warnText, setWarnText] = useState(config.warnText ?? '⚠️ {user}, ваше сообщение удалено.');
+  const [antiFlood, setAntiFlood] = useState(config.antiFlood ?? false);
+  const [maxMsgPerMin, setMaxMsgPerMin] = useState(config.maxMessagesPerMinute ?? 5);
+  const [blockForwards, setBlockForwards] = useState(config.blockForwards ?? false);
+  const [blockStickers, setBlockStickers] = useState(config.blockStickers ?? false);
+  const [minMsgLen, setMinMsgLen] = useState(config.minMessageLength ?? 0);
+  // Auto-reply
+  const [cooldownSec, setCooldownSec] = useState(config.cooldownSeconds ?? 0);
 
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
@@ -771,6 +820,43 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
               </label>
               <input value={warnText} onChange={(e) => setWarnText(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             </div>
+            <div className="pt-2 mt-2 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="text-xs font-medium">Дополнительная защита</div>
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={antiFlood} onChange={(e) => setAntiFlood(e.target.checked)} />
+                Анти-флуд
+                <InfoTip text="Удаляет сообщения если юзер пишет слишком часто." position="right" />
+              </label>
+              {antiFlood && (
+                <div className="ml-5 flex items-center gap-2 text-xs">
+                  <span style={{ color: 'var(--text-muted)' }}>Макс.</span>
+                  <input type="number" min={1} max={30} value={maxMsgPerMin} onChange={(e) => setMaxMsgPerMin(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                  <span style={{ color: 'var(--text-muted)' }}>сообщ. в минуту</span>
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={blockForwards} onChange={(e) => setBlockForwards(e.target.checked)} />
+                Блокировать пересланные сообщения
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={blockStickers} onChange={(e) => setBlockStickers(e.target.checked)} />
+                Блокировать стикеры и GIF
+              </label>
+              <div className="flex items-center gap-2 text-xs">
+                <span style={{ color: 'var(--text-muted)' }}>Мин. длина:</span>
+                <input type="number" min={0} value={minMsgLen} onChange={(e) => setMinMsgLen(Number(e.target.value))} className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>символов</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Auto-reply cooldown */}
+        {task.type === 'auto_reply' && (
+          <div className="flex items-center gap-2 text-xs">
+            <span style={{ color: 'var(--text-muted)' }}>Пауза между ответами:</span>
+            <input type="number" min={0} value={cooldownSec} onChange={(e) => setCooldownSec(Number(e.target.value))} className="w-16 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>сек (0 = всегда)</span>
           </div>
         )}
 
@@ -788,9 +874,9 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
             onClick={() => {
               let cfg: any = config;
               if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove };
-              if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern) };
+              if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec };
-              if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText };
+              if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText, antiFlood, maxMessagesPerMinute: maxMsgPerMin, blockForwards, blockStickers, minMessageLength: minMsgLen };
               onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
             }}
             disabled={isPending}
