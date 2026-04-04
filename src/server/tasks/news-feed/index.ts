@@ -134,7 +134,12 @@ export class NewsFeedTask implements TaskModule {
         }
       }
 
-      const unprocessed = filtered.filter((article) => !article.processedAt).slice(0, remainingToday);
+      const unprocessed = filtered.filter((article) => {
+        // Skip if already has a post (not deleted)
+        const existingPost = db.select({ id: posts.id }).from(posts)
+          .where(eq(posts.articleId, article.id)).limit(1).get();
+        return !existingPost;
+      }).slice(0, remainingToday);
 
       if (unprocessed.length === 0) {
         steps.push({ action: 'Посты', status: 'skipped', detail: keywords.length > 0 ? 'Все подходящие статьи уже обработаны.' : 'Все статьи уже обработаны. Новые появятся при следующем обновлении фидов.' });
@@ -180,8 +185,6 @@ export class NewsFeedTask implements TaskModule {
             aiModel,
           }).run();
 
-          // Mark article as processed — won't be re-generated if post is deleted
-          db.update(articles).set({ processedAt: new Date().toISOString() }).where(eq(articles.id, article.id)).run();
 
           steps.push({
             action: `Статья: "${article.title.slice(0, 50)}..."`,
