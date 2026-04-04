@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Bot as BotIcon, FileText, Clock, Zap } from 'lucide-react';
+import { Plus, Bot as BotIcon, FileText, Clock, Zap, Shield } from 'lucide-react';
 import { useBots, useCreateBot } from '../hooks/use-bots.js';
 import { useToast } from '../components/ui/toast.js';
 import { BotCard } from '../components/bot-card.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { Stepper } from '../components/ui/stepper.js';
 import { apiFetch } from '../lib/api.js';
+import { cn } from '../lib/utils.js';
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data: bots, isLoading } = useBots();
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => apiFetch('/stats/overview') });
+  const { data: weekly } = useQuery({ queryKey: ['stats-weekly'], queryFn: () => apiFetch('/stats/weekly') });
+  const { data: modStats } = useQuery({ queryKey: ['stats-mod'], queryFn: () => apiFetch('/stats/moderation') });
   const { data: providers } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
   const createBot = useCreateBot();
   const toast = useToast();
@@ -106,6 +109,75 @@ export function DashboardPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Weekly chart + Moderation */}
+      {(weekly?.length > 0 || (modStats?.total > 0)) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {/* Posts chart */}
+          {weekly?.length > 0 && (
+            <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <h3 className="text-sm font-semibold mb-3">Посты за неделю</h3>
+              <div className="flex items-end gap-1 h-24">
+                {weekly.map((day: any) => {
+                  const total = day.published + day.failed + day.drafts;
+                  const maxVal = Math.max(...weekly.map((d: any) => d.published + d.failed + d.drafts), 1);
+                  const h = total > 0 ? Math.max((total / maxVal) * 100, 8) : 4;
+                  return (
+                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
+                        {day.published > 0 && <div className="bg-green-500/60 rounded-t" style={{ height: `${(day.published / maxVal) * 80}px` }} />}
+                        {day.failed > 0 && <div className="bg-red-500/60" style={{ height: `${(day.failed / maxVal) * 80}px` }} />}
+                        {day.drafts > 0 && <div className="bg-zinc-500/40 rounded-b" style={{ height: `${(day.drafts / maxVal) * 80}px` }} />}
+                        {total === 0 && <div className="bg-zinc-800 rounded" style={{ height: '3px' }} />}
+                      </div>
+                      <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{day.date.slice(8)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3 mt-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-500/60" /> опубликовано</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500/60" /> ошибки</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-zinc-500/40" /> черновики</span>
+              </div>
+            </div>
+          )}
+
+          {/* Moderation stats */}
+          {modStats?.total > 0 && (
+            <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Shield size={14} className="text-blue-400" /> Модерация за 7 дней</h3>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-red-400">{modStats.deleted}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>удалено</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-orange-400">{modStats.muted}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>мутов</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-yellow-400">{modStats.warned}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>предупр.</div>
+                </div>
+              </div>
+              {modStats.topViolators?.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Топ нарушителей:</div>
+                  <div className="space-y-1">
+                    {modStats.topViolators.map((v: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-[11px]">
+                        <span>{v.name}</span>
+                        <span className="text-red-400/70">{v.count} нарушений</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -139,8 +139,9 @@ class BotManager {
       }
     }
 
-    // Start polling
+    // Start polling (include chat_member for welcome/farewell)
     bot.start({
+      allowed_updates: ['message', 'chat_member', 'channel_post', 'callback_query', 'inline_query'],
       onStart: () => console.log(`🟢 Bot @${me.username} started polling`),
     });
 

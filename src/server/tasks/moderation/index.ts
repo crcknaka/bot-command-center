@@ -1,4 +1,5 @@
 import type { TaskModule, TaskContext, TaskConfig, TaskRunLog } from '../types.js';
+import { logActivity } from '../../services/activity.js';
 
 interface ViolationWarn {
   enabled: boolean;
@@ -130,12 +131,26 @@ export class ModerationTask implements TaskModule {
     const config = ctx.config as unknown as ModerationConfig;
     if (!ctx.bot) return;
 
-    const deleteSec = config.warnDeleteSeconds ?? 10; // default 10s, 0 = keep
-    const warn = (msgCtx: any, text: string | null) => sendWarn(msgCtx, text, deleteSec);
+    const deleteSec = config.warnDeleteSeconds ?? 10;
+    const warn = async (msgCtx: any, text: string | null) => {
+      await sendWarn(msgCtx, text, deleteSec);
+      if (text) logMod('warned', msgCtx, 'warning_sent');
+    };
 
-    const tryMute = async (msgCtx: any, chatId: number, userId: number | undefined) => {
+    const logMod = (action: string, msgCtx: any, reason: string) => {
+      logActivity({
+        botId: null,
+        action: `mod.${action}`,
+        details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, reason },
+      });
+    };
+
+    const tryMute = async (msgCtx: any, chatId: number, userId: number | undefined, reason: string) => {
       if (config.muteOnViolation && userId) {
-        try { await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5); } catch (e) { console.error('[moderation] mute error:', e); }
+        try {
+          await muteUser(msgCtx.api, chatId, userId, config.muteDurationMinutes ?? 5);
+          logMod('muted', msgCtx, reason);
+        } catch (e) { console.error('[moderation] mute error:', e); }
       }
     };
 
@@ -149,6 +164,7 @@ export class ModerationTask implements TaskModule {
       if (config.blockForwards && (msgCtx.message as any).forward_origin) {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'forward');
           await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
         return;
@@ -166,7 +182,8 @@ export class ModerationTask implements TaskModule {
         if (recent.length > config.maxMessagesPerMinute) {
           try {
             await msgCtx.deleteMessage();
-            await tryMute(msgCtx, chatId, userId);
+            logMod('deleted', msgCtx, 'flood');
+            await tryMute(msgCtx, chatId, userId, 'flood');
             await warn(msgCtx, pickWarn(config.floodWarn, 'flood', msgCtx.from, config.floodWarnText));
           } catch (e) { console.error('[moderation] flood handler error:', e); }
           return;
@@ -177,6 +194,7 @@ export class ModerationTask implements TaskModule {
       if (config.minMessageLength && config.minMessageLength > 0 && text.length < config.minMessageLength) {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'short_message');
           await warn(msgCtx, pickWarn(config.shortMsgWarn, 'shortMsg', msgCtx.from));
         } catch (e) { console.error('[moderation] short msg error:', e); }
         return;
@@ -193,7 +211,8 @@ export class ModerationTask implements TaskModule {
         if (found) {
           try {
             await msgCtx.deleteMessage();
-            await tryMute(msgCtx, chatId, userId);
+            logMod('deleted', msgCtx, `banned_word:${found}`);
+            await tryMute(msgCtx, chatId, userId, `banned_word:${found}`);
             const muteNote = config.muteOnViolation ? ` Мут на ${config.muteDurationMinutes ?? 5} мин.` : '';
             const warnMsg = pickWarn(config.bannedWordsWarn, 'bannedWords', msgCtx.from, config.warnText);
             if (warnMsg) await warn(msgCtx, warnMsg + muteNote);
@@ -207,6 +226,7 @@ export class ModerationTask implements TaskModule {
         if (countLinks(text) > 0) {
           try {
             await msgCtx.deleteMessage();
+            logMod('deleted', msgCtx, 'links');
             await warn(msgCtx, pickWarn(config.linksWarn, 'links', msgCtx.from));
           } catch (e) { console.error('[moderation] links error:', e); }
           return;
@@ -222,6 +242,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:forward_origin', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'forward');
           await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from));
         } catch (e) { console.error('[moderation] forward error:', e); }
         await next();
@@ -233,6 +254,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:sticker', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'sticker');
           await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] sticker error:', e); }
         await next();
@@ -240,6 +262,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:animation', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'animation');
           await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from));
         } catch (e) { console.error('[moderation] animation error:', e); }
         await next();
@@ -251,6 +274,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:voice', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'voice');
           await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] voice error:', e); }
         await next();
@@ -258,6 +282,7 @@ export class ModerationTask implements TaskModule {
       ctx.bot.on('message:video_note', async (msgCtx, next) => {
         try {
           await msgCtx.deleteMessage();
+          logMod('deleted', msgCtx, 'video_note');
           await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from));
         } catch (e) { console.error('[moderation] video_note error:', e); }
         await next();
