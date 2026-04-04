@@ -31,7 +31,6 @@ export function PostsPage() {
   const [botFilter, setBotFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('botId') ?? 'all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
-  const [previewPost, setPreviewPost] = useState<any>(null);
   const [editPost, setEditPost] = useState<any>(null);
   const [editContent, setEditContent] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -359,8 +358,8 @@ export function PostsPage() {
                   <div className="text-sm line-clamp-3 flex-1" dangerouslySetInnerHTML={safeHtml(post.content)} />
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  <button onClick={() => setPreviewPost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
-                    <Eye size={12} /> Превью
+                  <button onClick={() => { setEditPost(post); setEditContent(post.content); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
+                    <Eye size={12} /> {post.status === 'published' ? 'Просмотр' : 'Просмотр / Редактировать'}
                   </button>
                   <div className="relative">
                     <button onClick={() => setExportPostId(exportPostId === post.id ? null : post.id)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors" title="Экспортировать текст для другой платформы">
@@ -370,11 +369,6 @@ export function PostsPage() {
                       <ExportDropdown content={post.content} onClose={() => setExportPostId(null)} />
                     )}
                   </div>
-                  {post.status !== 'published' && (
-                    <button onClick={() => { setEditPost(post); setEditContent(post.content); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
-                      <Pencil size={12} /> Редактировать
-                    </button>
-                  )}
                   {post.aiProviderId && post.status !== 'published' && (
                     <button onClick={() => { setRegenId(post.id); regenMut.mutate(post); }} disabled={regenMut.isPending && regenId === post.id}
                       className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-purple-400/70 hover:text-purple-400 hover:bg-purple-500/10 flex items-center gap-1 transition-colors">
@@ -409,30 +403,61 @@ export function PostsPage() {
         </div>
       )}
 
-      {/* Preview Modal */}
-      {previewPost && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setPreviewPost(null)}>
-          <div onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Так пост будет выглядеть в Telegram:</div>
-            <TelegramPreview content={previewPost.content} imageUrl={previewPost.imageUrl} />
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
+      {/* Preview + Edit Modal (combined) */}
       {editPost && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={() => setEditPost(null)}>
-          <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-1">Редактировать пост</h2>
-            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>HTML-теги: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href="..."&gt;ссылка&lt;/a&gt;</p>
-            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={ctrlEnter} rows={8} className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-            <div className="mt-3 mb-4">
-              <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-              <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(editContent)} />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditPost(null); }}>
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">{editPost.status === 'published' ? 'Просмотр поста' : 'Редактирование поста'}</h2>
+              <button onClick={() => setEditPost(null)} className="p-1.5 rounded-lg hover:bg-white/5"><X size={16} /></button>
             </div>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
-              <button onClick={() => { updateMut.mutate({ id: editPost.id, content: editContent }); setEditPost(null); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Сохранить</button>
+
+            <div className="flex gap-6 flex-col lg:flex-row">
+              {/* Left: Telegram Preview */}
+              <div className="lg:w-[340px] shrink-0">
+                <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Telegram превью:</div>
+                <TelegramPreview
+                  content={editPost.status === 'published' ? editPost.content : editContent}
+                  imageUrl={editPost.imageUrl}
+                  channelTitle={channelMap[editPost.channelId]?.channelTitle}
+                />
+              </div>
+
+              {/* Right: Editor (or read-only info for published) */}
+              <div className="flex-1 min-w-0">
+                {editPost.status === 'published' ? (
+                  <div>
+                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>HTML-код:</div>
+                    <pre className="w-full px-3 py-2 rounded-lg border text-xs font-mono whitespace-pre-wrap break-all" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>{editPost.content}</pre>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Редактор (HTML):</div>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      onKeyDown={ctrlEnter}
+                      rows={12}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono"
+                      style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+                    />
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                      {'<b>жирный</b>  <i>курсив</i>  <a href="...">ссылка</a>  Ctrl+Enter — сохранить'}
+                    </p>
+                    <div className="flex gap-3 justify-end mt-4">
+                      <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+                      <button
+                        onClick={() => { updateMut.mutate({ id: editPost.id, content: editContent }); setEditPost(null); }}
+                        disabled={editContent === editPost.content}
+                        className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                        style={{ background: editContent === editPost.content ? 'var(--text-muted)' : 'var(--primary)' }}
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
