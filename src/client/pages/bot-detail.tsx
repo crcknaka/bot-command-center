@@ -1292,12 +1292,20 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
 };
 
 const rssPresets = [
+  { cat: '🛞 Моноколёса / EUC', items: [
+    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Главный Reddit про EUC: обзоры, вопросы, видео поездок' },
+    { name: 'EUC World Blog', url: 'https://euc.world/blog/feed', type: 'rss', desc: 'Блог EUC World — приложение для моноколёс. Обзоры, обновления' },
+    { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Google News: все новости про electric unicycle на английском' },
+    { name: 'GN: Моноколесо', url: 'https://news.google.com/rss/search?q=%D0%BC%D0%BE%D0%BD%D0%BE%D0%BA%D0%BE%D0%BB%D0%B5%D1%81%D0%BE&hl=ru', type: 'rss', desc: 'Google News: моноколесо на русском языке' },
+    { name: 'GN: EUC review', url: 'https://news.google.com/rss/search?q=EUC+review+electric+unicycle&hl=en', type: 'rss', desc: 'Google News: обзоры EUC на английском' },
+    { name: 'GN: Begode Inmotion', url: 'https://news.google.com/rss/search?q=begode+OR+inmotion+OR+leaperkim+OR+kingsong+unicycle&hl=en', type: 'rss', desc: 'Google News: бренды моноколёс — Begode, Inmotion, Leaperkim, KingSong' },
+    { name: 'r/onewheel', url: 'onewheel', type: 'reddit', desc: 'Onewheel: трюки, маршруты, модификации' },
+  ]},
   { cat: '⚡ Электротранспорт / EV', items: [
     { name: 'Electrek', url: 'https://electrek.co/feed/', type: 'rss', desc: 'Главный сайт про EV, e-bikes, электроскутеры. Ежедневные новости индустрии' },
     { name: 'InsideEVs', url: 'https://insideevs.com/feed/', type: 'rss', desc: 'Обзоры, тесты и новости электромобилей и электротранспорта' },
     { name: 'Electric Bike Report', url: 'https://electricbikereport.com/feed', type: 'rss', desc: 'Обзоры электровелосипедов, сравнения, гайды для покупателей' },
     { name: 'CleanTechnica', url: 'https://cleantechnica.com/feed/', type: 'rss', desc: 'Чистая энергия, EV, солнечные панели, экологичные технологии' },
-    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Сообщество моноколёсщиков: обзоры, вопросы, видео поездок' },
     { name: 'r/ebikes', url: 'ebikes', type: 'reddit', desc: 'Электровелосипеды: обсуждения, фото, советы по выбору' },
     { name: 'r/ElectricScooters', url: 'ElectricScooters', type: 'reddit', desc: 'Электросамокаты: обзоры, сравнения, ремонт' },
     { name: 'r/electricvehicles', url: 'electricvehicles', type: 'reddit', desc: 'Электромобили: Tesla, BYD, новинки, зарядные станции' },
@@ -1394,7 +1402,22 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
 }) {
   const [showPresets, setShowPresets] = useState(false);
   const [presetSearch, setPresetSearch] = useState('');
+  const [selectedPresets, setSelectedPresets] = useState<Set<string>>(new Set());
   const info = sourceTypeInfo[form.type] ?? sourceTypeInfo.rss;
+  const qc = useQueryClient();
+
+  const togglePreset = (url: string) => {
+    setSelectedPresets((prev) => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
+  };
+
+  const bulkAddMut = useMutation({
+    mutationFn: async (items: Array<{ name: string; type: string; url: string }>) => {
+      for (const item of items) {
+        await apiFetch(`/tasks/${taskId}/sources`, { method: 'POST', body: JSON.stringify(item) });
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sources', taskId] }); setSelectedPresets(new Set()); onClose(); },
+  });
 
   const applyPreset = (preset: { name: string; url: string; type: string }) => {
     setForm({ name: preset.name, type: preset.type, url: preset.url });
@@ -1446,27 +1469,54 @@ function AddSourceModal({ taskId, form, setForm, onSubmit, onClose, isPending }:
           </div>
 
           <div className="max-h-72 overflow-y-auto space-y-4">
-          {filteredPresets.map((cat: any) => (
+          {filteredPresets.map((cat: any) => {
+            const catUrls = cat.items.map((i: any) => i.url);
+            const allSelected = catUrls.every((u: string) => selectedPresets.has(u));
+            return (
             <div key={cat.cat}>
-              <div className="text-xs font-semibold mb-1">{cat.cat}</div>
+              <div className="flex items-center gap-2 mb-1">
+                <button type="button" onClick={() => {
+                  setSelectedPresets((prev) => {
+                    const n = new Set(prev);
+                    if (allSelected) { catUrls.forEach((u: string) => n.delete(u)); } else { catUrls.forEach((u: string) => n.add(u)); }
+                    return n;
+                  });
+                }} className="text-[10px] text-blue-400 hover:text-blue-300">{allSelected ? '☑' : '☐'}</button>
+                <div className="text-xs font-semibold">{cat.cat}</div>
+              </div>
               {cat.desc && <div className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>{cat.desc}</div>}
               <div className="space-y-1">
                 {cat.items.map((item: any) => (
-                  <button key={item.url} onClick={() => applyPreset(item)} className="w-full px-3 py-2 rounded-lg text-left hover:bg-white/5 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">{item.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 shrink-0" style={{ color: 'var(--text-muted)' }}>{item.type}</span>
+                  <button key={item.url} onClick={() => togglePreset(item.url)} className={cn('w-full px-3 py-2 rounded-lg text-left transition-colors', selectedPresets.has(item.url) ? 'bg-blue-500/10 border border-blue-500/30' : 'hover:bg-white/5')}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px]">{selectedPresets.has(item.url) ? '☑' : '☐'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">{item.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 shrink-0" style={{ color: 'var(--text-muted)' }}>{item.type}</span>
+                        </div>
+                        {item.desc && <div className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{item.desc}</div>}
+                      </div>
                     </div>
-                    {item.desc && <div className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{item.desc}</div>}
                   </button>
                 ))}
               </div>
             </div>
-          ))}
+          );})}
           </div>
-          <div className="rounded-lg p-2 mt-3 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
-            💡 Нажмите на фид чтобы заполнить форму, затем нажмите «Добавить».
-          </div>
+          {selectedPresets.size > 0 ? (
+            <button type="button" disabled={bulkAddMut.isPending} onClick={() => {
+              const allItems = rssPresets.flatMap((c: any) => c.items);
+              const items = allItems.filter((i: any) => selectedPresets.has(i.url));
+              bulkAddMut.mutate(items);
+            }} className="w-full mt-3 py-2.5 rounded-lg text-xs font-medium text-white" style={{ background: 'var(--primary)' }}>
+              {bulkAddMut.isPending ? 'Добавляю...' : `Добавить ${selectedPresets.size} источников`}
+            </button>
+          ) : (
+            <div className="rounded-lg p-2 mt-3 text-[11px]" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+              💡 Отметьте нужные фиды и нажмите кнопку. Или кликните один для ручного добавления.
+            </div>
+          )}
         </div>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
