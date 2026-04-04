@@ -31,8 +31,8 @@ export function useConfirm() {
   }, [state, close]);
 
   const dialog = state.open ? (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onMouseDown={close}>
-      <div className="w-full max-w-sm p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+      <div className="w-full max-w-sm p-5 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <div className="flex items-start gap-3 mb-4">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${state.variant === 'warning' ? 'bg-yellow-500/15' : 'bg-red-500/15'}`}>
             {state.variant === 'warning'
