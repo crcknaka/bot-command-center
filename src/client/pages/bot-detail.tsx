@@ -1231,23 +1231,29 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onAddSource, onFetc
             </span>
           )}
         </div>
-        <div className="flex gap-1.5">
-          <button onClick={() => onToggle(task.id, !task.enabled)}
-            className={cn('px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer', task.enabled ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' : 'bg-zinc-700/50 text-zinc-500 hover:bg-zinc-700')}
-            title={task.enabled ? 'Нажмите чтобы выключить' : 'Нажмите чтобы включить'}>
-            {task.enabled ? '✓ Вкл' : '✗ Выкл'}
-          </button>
-          <button onClick={onEdit} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors" title="Редактировать настройки задачи">
-            <Pencil size={12} />
-          </button>
-          {task.type === 'news_feed' && (
-            <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
-              <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить сейчас'}
+        <div className="flex items-center gap-3">
+          {/* Left: toggle + run */}
+          <div className="flex gap-1.5">
+            <button onClick={() => onToggle(task.id, !task.enabled)}
+              className={cn('px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer', task.enabled ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' : 'bg-zinc-700/50 text-zinc-500 hover:bg-zinc-700')}
+              title={task.enabled ? 'Выключить задачу' : 'Включить задачу'}>
+              {task.enabled ? '✓ Вкл' : '✗ Выкл'}
             </button>
-          )}
-          <button onClick={onDelete} className="p-1.5 rounded hover:bg-white/5" title="Удалить задачу">
-            <Trash2 size={12} className="text-red-400/60 hover:text-red-400" />
-          </button>
+            {task.type === 'news_feed' && (
+              <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить один раз для теста">
+                <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить'}
+              </button>
+            )}
+          </div>
+          {/* Right: edit + delete */}
+          <div className="flex gap-1">
+            <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Редактировать">
+              <Pencil size={12} className="text-zinc-500 hover:text-zinc-300" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Удалить задачу">
+              <Trash2 size={12} className="text-red-400/60 hover:text-red-400" />
+            </button>
+          </div>
         </div>
       </div>
 
