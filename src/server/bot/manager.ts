@@ -125,6 +125,31 @@ class BotManager {
       return next();
     });
 
+    // ── Reaction stats middleware ───────────────────────────────────────
+    bot.on('message_reaction', (ctx) => {
+      try {
+        const reaction = ctx.messageReaction;
+        if (!reaction) return;
+        const from = reaction.user;
+        if (!from || from.is_bot) return;
+
+        const newReactions = reaction.new_reaction ?? [];
+        for (const r of newReactions) {
+          const emoji = (r as any).emoji ?? (r as any).custom_emoji_id ?? '?';
+          db.insert(messageStats).values({
+            chatId: String(reaction.chat.id),
+            userId: from.id,
+            userName: from.first_name,
+            username: from.username ?? null,
+            messageType: 'reaction',
+            threadId: null,
+            textLength: 0,
+            textPreview: emoji,
+          }).run();
+        }
+      } catch {}
+    });
+
     // ── Load channels → tasks → register cron + onInit ──────────────────
     const cronJobIds: string[] = [];
     const botChannels = db.select().from(channels).where(eq(channels.botId, botId)).all();
@@ -191,7 +216,7 @@ class BotManager {
 
     // Start polling (include chat_member for welcome/farewell)
     bot.start({
-      allowed_updates: ['message', 'chat_member', 'channel_post', 'callback_query', 'inline_query'],
+      allowed_updates: ['message', 'chat_member', 'channel_post', 'callback_query', 'inline_query', 'message_reaction'],
       onStart: () => console.log(`🟢 Bot @${me.username} started polling`),
     });
 

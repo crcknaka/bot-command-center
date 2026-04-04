@@ -9,13 +9,13 @@ import { UserProfileModal } from '../components/user-profile.js';
 const typeLabels: Record<string, string> = {
   text: 'Текст', photo: 'Фото', video: 'Видео', sticker: 'Стикер',
   voice: 'Голосовое', video_note: 'Кружок', animation: 'GIF',
-  forward: 'Пересылка', document: 'Файл', audio: 'Аудио', other: 'Другое',
+  forward: 'Пересылка', document: 'Файл', audio: 'Аудио', reaction: 'Реакция', other: 'Другое',
 };
 
 const typeColors: Record<string, string> = {
   text: 'bg-blue-500', photo: 'bg-green-500', video: 'bg-purple-500', sticker: 'bg-yellow-500',
   voice: 'bg-orange-500', video_note: 'bg-pink-500', animation: 'bg-cyan-500',
-  forward: 'bg-zinc-500', document: 'bg-indigo-500', audio: 'bg-red-500', other: 'bg-zinc-600',
+  forward: 'bg-zinc-500', document: 'bg-indigo-500', audio: 'bg-red-500', reaction: 'bg-rose-500', other: 'bg-zinc-600',
 };
 
 export function AnalyticsPage() {

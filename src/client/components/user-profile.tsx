@@ -7,7 +7,7 @@ import { cn, timeAgo } from '../lib/utils.js';
 const typeLabels: Record<string, string> = {
   text: 'Текст', photo: 'Фото', video: 'Видео', sticker: 'Стикер',
   voice: 'Голосовое', video_note: 'Кружок', animation: 'GIF',
-  forward: 'Пересылка', document: 'Файл', audio: 'Аудио', other: 'Другое',
+  forward: 'Пересылка', document: 'Файл', audio: 'Аудио', reaction: 'Реакция', other: 'Другое',
 };
 
 const violationLabels: Record<string, string> = {
