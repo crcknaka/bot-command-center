@@ -210,6 +210,12 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
 
     if (existing) continue;
 
+    // Try to fetch og:image if no image from RSS
+    let imageUrl = article.imageUrl;
+    if (!imageUrl && article.url) {
+      imageUrl = await fetchOgImage(article.url);
+    }
+
     db.insert(articles).values({
       sourceId,
       externalId: article.externalId,
@@ -217,7 +223,7 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
       summary: article.summary,
       content: article.content,
       url: article.url,
-      imageUrl: article.imageUrl,
+      imageUrl,
       author: article.author,
       publishedAt: article.publishedAt,
     }).run();
@@ -238,4 +244,22 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
 function extractImageFromContent(html: string): string | undefined {
   const match = html.match(/<img[^>]+src="([^"]+)"/);
   return match?.[1];
+}
+
+/** Fetch og:image from article URL */
+async function fetchOgImage(url: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; bot)' },
+      signal: AbortSignal.timeout(5000),
+      redirect: 'follow',
+    });
+    if (!res.ok) return undefined;
+    const html = await res.text();
+    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    return match?.[1] || undefined;
+  } catch {
+    return undefined;
+  }
 }
