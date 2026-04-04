@@ -107,15 +107,15 @@ class BotManager {
           textLength,
         }).run();
 
-        // Update channel title mapping if we have it
+        // Ensure numeric chatId exists in channels for analytics
         const chatTitle = 'title' in ctx.chat ? (ctx.chat as any).title : null;
         if (chatTitle) {
-          const existing = db.select().from(channels).all().find(ch => ch.chatId === String(ctx.chat.id) || ch.chatId === `@${(ctx.chat as any).username}`);
-          if (!existing) {
-            // Store numeric chatId → title mapping for analytics
+          const numericId = String(ctx.chat.id);
+          const existsByNumeric = db.select().from(channels).all().find(ch => ch.chatId === numericId);
+          if (!existsByNumeric) {
             try {
-              db.insert(channels).values({ botId: botId, chatId: String(ctx.chat.id), title: chatTitle, type: ctx.chat.type as any, isLinked: true }).run();
-            } catch {} // ignore duplicate
+              db.insert(channels).values({ botId: botId, chatId: numericId, title: chatTitle, type: ctx.chat.type as any, isLinked: true }).run();
+            } catch {}
           }
         }
       } catch (e) {
