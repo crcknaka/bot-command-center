@@ -855,12 +855,13 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
 
       {/* ═══ SECTION 2: Content filters ═══ */}
       <SectionHeader title="Фильтры контента" icon="🛡" />
+      <p className="text-[10px] -mt-1 mb-2" style={{ color: 'var(--text-muted)' }}>Какие типы сообщений запрещены в чате. Нарушения обрабатываются по правилам из раздела «Наказания» ниже.</p>
 
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={config.blockLinks ?? false} onChange={(e) => set({ blockLinks: e.target.checked })} />
           Запретить ссылки
-          <InfoTip text="http, t.me, @упоминания каналов" position="right" />
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>(http, t.me, @каналы)</span>
         </label>
         {config.blockLinks && <WarnConfig label="ссылки" warnKey="links" value={config.linksWarn} onChange={(v) => set({ linksWarn: v })} />}
 
@@ -892,11 +893,11 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
       </div>
 
       {/* ═══ SECTION 3: Anti-flood ═══ */}
-      <SectionHeader title="Анти-флуд" icon="🌊" />
+      <SectionHeader title="Защита от спама" icon="🌊" />
+      <p className="text-[10px] -mt-1 mb-2" style={{ color: 'var(--text-muted)' }}>Ограничение частоты сообщений — если пользователь пишет слишком много сообщений подряд.</p>
       <label className="flex items-center gap-2 text-xs cursor-pointer">
         <input type="checkbox" checked={config.antiFlood ?? false} onChange={(e) => set({ antiFlood: e.target.checked })} />
-        Включить анти-флуд
-        <InfoTip text="Удаляет сообщения если юзер пишет слишком часто." position="right" />
+        Включить защиту от спама
       </label>
       {config.antiFlood && (
         <div className="ml-5 space-y-1.5">
@@ -906,27 +907,34 @@ function ModerationConfigUI({ config, onChange }: { config: any; onChange: (patc
               className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
             <span style={{ color: 'var(--text-muted)' }}>сообщений в минуту от одного юзера</span>
           </div>
-          <WarnConfig label="флуд" warnKey="flood" value={config.floodWarn} onChange={(v) => set({ floodWarn: v })} />
+          <WarnConfig label="спам" warnKey="flood" value={config.floodWarn} onChange={(v) => set({ floodWarn: v })} />
         </div>
       )}
 
       {/* ═══ SECTION 4: Punishments ═══ */}
-      <SectionHeader title="Наказания" icon="⚖️" />
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-xs cursor-pointer">
-          <input type="radio" name="punishment" checked={!config.strikesEnabled && !config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: false })} />
-          <span>Только предупреждение</span>
-          <InfoTip text="Удалить сообщение (или оставить) + написать предупреждение. Без мута." position="right" />
+      <SectionHeader title="Наказания за нарушения" icon="⚖️" />
+      <p className="text-[10px] -mt-1 mb-2" style={{ color: 'var(--text-muted)' }}>Что делать с пользователем при нарушении любого правила выше (запрещённые слова, фильтры, спам).</p>
+      <div className="space-y-2.5">
+        <label className="flex items-start gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" className="mt-0.5" checked={!config.strikesEnabled && !config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: false })} />
+          <div>
+            <div className="font-medium">Только предупреждение</div>
+            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Бот отправит предупреждение в чат. Пользователь не будет замучен.</div>
+          </div>
         </label>
-        <label className="flex items-center gap-2 text-xs cursor-pointer">
-          <input type="radio" name="punishment" checked={config.strikesEnabled ?? false} onChange={() => set({ strikesEnabled: true, muteOnViolation: false })} />
-          <span>Система страйков</span>
-          <InfoTip text="N предупреждений → автоматический мут. Счётчик сбрасывается через время." position="right" />
+        <label className="flex items-start gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" className="mt-0.5" checked={config.strikesEnabled ?? false} onChange={() => set({ strikesEnabled: true, muteOnViolation: false })} />
+          <div>
+            <div className="font-medium">Система страйков</div>
+            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>После N предупреждений — автоматический мут. Счётчик сбрасывается через время.</div>
+          </div>
         </label>
-        <label className="flex items-center gap-2 text-xs cursor-pointer">
-          <input type="radio" name="punishment" checked={!config.strikesEnabled && config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: true })} />
-          <span>Мут сразу</span>
-          <InfoTip text="Мут при первом же нарушении без предупреждений." position="right" />
+        <label className="flex items-start gap-2 text-xs cursor-pointer">
+          <input type="radio" name="punishment" className="mt-0.5" checked={!config.strikesEnabled && config.muteOnViolation} onChange={() => set({ strikesEnabled: false, muteOnViolation: true })} />
+          <div>
+            <div className="font-medium">Мут сразу</div>
+            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Мут при первом же нарушении, без предупреждений.</div>
+          </div>
         </label>
       </div>
 
