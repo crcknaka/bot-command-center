@@ -1,7 +1,8 @@
 import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users } from 'lucide-react';
+import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users, GripVertical } from 'lucide-react';
+import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { Spinner } from '../components/ui/spinner.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
@@ -99,6 +100,29 @@ export function BotDetailPage() {
       apiFetch(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); qc.invalidateQueries({ queryKey: ['bot', botId] }); setEditingTask(null); },
   });
+
+  const moveTaskToChannelMut = useMutation({
+    mutationFn: ({ taskId, channelId }: { taskId: number; channelId: number }) =>
+      apiFetch(`/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ channelId }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleTaskDragEnd = (event: DragEndEvent) => {
+    if (!event.over) return;
+    const taskId = Number(String(event.active.id).replace('task-', ''));
+    const targetChannelId = Number(String(event.over.id).replace('channel-', ''));
+    if (!taskId || !targetChannelId) return;
+    // Find task's current channel
+    const task = bot?.channels?.flatMap((ch: any) => {
+      const chTasks = qc.getQueryData<any[]>(['tasks', ch.id]);
+      return (chTasks ?? []).map((t: any) => ({ ...t, _channelId: ch.id }));
+    }).find((t: any) => t.id === taskId);
+    if (task && task._channelId !== targetChannelId) {
+      moveTaskToChannelMut.mutate({ taskId, channelId: targetChannelId });
+    }
+  };
 
   const addSourceMut = useMutation({
     mutationFn: ({ taskId, ...data }: { taskId: number; name: string; type: string; url: string }) =>
@@ -232,6 +256,7 @@ export function BotDetailPage() {
             <button onClick={() => setShowAddChannel(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">Добавить канал</button>
           </div>
         ) : (
+          <DndContext sensors={dndSensors} onDragEnd={handleTaskDragEnd}>
           <div className="space-y-4">
             {(() => {
               // Group channels: parent channels (no threadId) first, topics nested under them
@@ -286,6 +311,7 @@ export function BotDetailPage() {
               );
             })()}
           </div>
+          </DndContext>
         )}
       </div>
 
@@ -1931,6 +1957,7 @@ function BotApiKeys({ bot, botId }: { bot: any; botId: number }) {
 // ── Channel Card (inline sub-component) ─────────────────────────────────────
 
 function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDeleteChannel, onEditTask, onToggleTask, onRunTask, onDeleteTask, onAddSource, onFetchSource, onDeleteSource, runningTaskId, fetchingSourceId, taskRunResults, fetchResults }: any) {
+  const { setNodeRef, isOver } = useDroppable({ id: `channel-${channel.id}` });
   const qc = useQueryClient();
   const { data: tasks } = useQuery({
     queryKey: ['tasks', channel.id],
@@ -1951,14 +1978,6 @@ function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDelete
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', channel.id] }); },
   });
 
-  const moveTaskMut = useMutation({
-    mutationFn: ({ taskId, channelId }: { taskId: number; channelId: number }) =>
-      apiFetch(`/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ channelId }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); qc.invalidateQueries({ queryKey: ['tasks'] }); },
-  });
-
-  const otherChannels = (allChannels ?? []).filter((ch: any) => ch.id !== channel.id);
-
   const [showSend, setShowSend] = useState(false);
   const [sendText, setSendText] = useState('');
   const [sendImage, setSendImage] = useState('');
@@ -1970,7 +1989,7 @@ function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDelete
 
 
   return (
-    <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+    <div ref={setNodeRef} className={`rounded-xl border overflow-hidden transition-colors ${isOver ? 'ring-2 ring-blue-500/50' : ''}`} style={{ background: isOver ? 'rgba(59,130,246,0.05)' : 'var(--bg-card)', borderColor: isOver ? 'var(--primary)' : 'var(--border)' }}>
       {/* Channel header */}
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 flex-wrap">
@@ -2041,8 +2060,6 @@ function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDelete
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
                 onDuplicate={() => duplicateTaskMut.mutate(task.id)}
-                onMove={otherChannels.length > 0 ? (chId: number) => moveTaskMut.mutate({ taskId: task.id, channelId: chId }) : undefined}
-                otherChannels={otherChannels}
                 onAddSource={() => onAddSource(task.id)}
                 onFetchSource={onFetchSource}
                 onDeleteSource={onDeleteSource}
@@ -2128,8 +2145,8 @@ function cronToHuman(cron: string | null): string {
   return presets[cron] ?? cron;
 }
 
-function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove, otherChannels, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
-  const [showMove, setShowMove] = useState(false);
+function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `task-${task.id}` });
   const [preview, setPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [testAi, setTestAi] = useState<any>(null);
@@ -2140,10 +2157,12 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
   });
 
   return (
-    <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+    <div ref={setNodeRef} className={`rounded-lg border p-3 transition-opacity ${isDragging ? 'opacity-30' : ''}`} style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Settings2 size={14} className="text-purple-400" />
+          <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400" title="Перетащите в другой канал">
+            <GripVertical size={14} />
+          </div>
           <span className="text-sm font-medium">
             {task.name || { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] || task.type}
           </span>
@@ -2186,26 +2205,6 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
             <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Редактировать">
               <Pencil size={12} className="text-zinc-500 hover:text-zinc-300" />
             </button>
-            {onMove && otherChannels?.length > 0 && (
-              <div className="relative">
-                <button onClick={() => setShowMove(!showMove)} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Переместить в другой канал">
-                  <ArrowRightLeft size={12} className="text-zinc-500 hover:text-zinc-300" />
-                </button>
-                {showMove && (
-                  <div className="absolute right-0 top-8 z-50 rounded-lg border p-1 min-w-48 shadow-xl" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                    <div className="text-[10px] px-2 py-1 font-medium" style={{ color: 'var(--text-muted)' }}>Переместить в:</div>
-                    {otherChannels.map((ch: any) => (
-                      <button key={ch.id} onClick={() => { onMove(ch.id); setShowMove(false); }}
-                        className="w-full text-left px-2 py-1.5 rounded text-[11px] hover:bg-white/5 transition-colors flex items-center gap-2">
-                        <span>{ch.type === 'channel' ? '📢' : '👥'}</span>
-                        <span className="truncate">{ch.title}</span>
-                        {ch.threadId && <span className="text-[9px] text-cyan-400">#{ch.threadTitle || ch.threadId}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             <button onClick={onDuplicate} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Дублировать задачу">
               <Copy size={12} className="text-zinc-500 hover:text-zinc-300" />
             </button>
