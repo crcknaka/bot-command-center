@@ -166,12 +166,43 @@ tasksApi.post('/tasks/:id/run', async (c) => {
   }
 });
 
-// POST /api/tasks/:id/preview — show what articles will be processed (without generating)
+// POST /api/tasks/:id/preview — show what will be processed (without generating)
 tasksApi.post('/tasks/:id/preview', async (c) => {
   const id = Number(c.req.param('id'));
   const task = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
   if (!task) return c.json({ error: 'Not found' }, 404);
 
+  // Web search preview — do a live search and show results
+  if (task.type === 'web_search') {
+    const config = task.config as any;
+    const queries: string[] = config?.queries?.filter((q: string) => q.trim()) ?? [];
+    if (queries.length === 0) return c.json({ total: 0, filtered: 0, available: 0, limit: 0, articles: [] });
+
+    const { searchWeb } = await import('../services/search.js');
+    const channel = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
+    const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
+    const maxPerDay = bot?.maxPostsPerDay ?? 5;
+
+    const allResults: Array<{ title: string; summary: string; url: string; imageUrl?: string }> = [];
+    for (const query of queries) {
+      try {
+        const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id });
+        for (const r of results) {
+          allResults.push({ title: r.title, summary: (r.content ?? '').slice(0, 300), url: r.url, imageUrl: r.imageUrl });
+        }
+      } catch {}
+    }
+
+    return c.json({
+      total: allResults.length,
+      filtered: allResults.length,
+      available: allResults.length,
+      limit: maxPerDay,
+      articles: allResults.slice(0, maxPerDay).map((a, i) => ({ id: i, title: a.title, summary: a.summary, url: a.url, imageUrl: a.imageUrl })),
+    });
+  }
+
+  // News feed preview — check sources/articles
   const config = task.config as any;
   const maxAgeDays = config?.maxAgeDays ?? 7;
 
