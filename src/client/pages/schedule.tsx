@@ -26,7 +26,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function SchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
-  const { data: posts } = useQuery({ queryKey: ['posts'], queryFn: () => apiFetch('/posts') });
+  const { data: posts, isLoading: postsLoading } = useQuery({ queryKey: ['posts'], queryFn: () => apiFetch('/posts') });
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const updateMut = useUpdatePost();
   const qc = useQueryClient();
@@ -77,6 +77,10 @@ export function SchedulePage() {
 
   // Unscheduled posts (drafts without scheduledFor)
   const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'queued'));
+
+  if (postsLoading) {
+    return <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Загрузка расписания...</div>;
+  }
 
   return (
     <div>

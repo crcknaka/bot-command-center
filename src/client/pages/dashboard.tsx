@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Bot as BotIcon, FileText, Clock, Zap } from 'lucide-react';
 import { useBots, useCreateBot } from '../hooks/use-bots.js';
+import { useToast } from '../components/ui/toast.js';
 import { BotCard } from '../components/bot-card.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { Stepper } from '../components/ui/stepper.js';
@@ -14,6 +15,7 @@ export function DashboardPage() {
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => apiFetch('/stats/overview') });
   const { data: providers } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
   const createBot = useCreateBot();
+  const toast = useToast();
   const [showAddBot, setShowAddBot] = useState(false);
   const [token, setToken] = useState('');
   const [botSearch, setBotSearch] = useState('');
@@ -24,8 +26,9 @@ export function DashboardPage() {
       await createBot.mutateAsync(token);
       setToken('');
       setShowAddBot(false);
+      toast.success('Бот успешно добавлен!');
     } catch (err) {
-      alert((err as Error).message);
+      toast.error((err as Error).message);
     }
   };
 

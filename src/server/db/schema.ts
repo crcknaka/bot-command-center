@@ -167,6 +167,7 @@ export const posts = sqliteTable('posts', {
   aiProviderId: integer('ai_provider_id'),
   aiModel: text('ai_model'),
   inlineButtons: text('inline_buttons', { mode: 'json' }), // [{text, url}] for inline keyboard
+  deleteAt: text('delete_at'), // Auto-delete: when to remove from Telegram
   errorMessage: text('error_message'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),

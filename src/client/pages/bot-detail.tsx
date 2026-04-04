@@ -230,7 +230,7 @@ export function BotDetailPage() {
             Введите юзернейм канала (например, <code>@euc_official</code>) или числовой ID.<br />
             <b>Важно:</b> бот должен быть администратором этого канала, чтобы публиковать пост��.
           </p>
-          <form onSubmit={(e) => { e.preventDefault(); addChannelMut.mutate({ chatId: channelInput, isTest: isTestChannel, threadId: threadId ? Number(threadId) : undefined }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (!channelInput.trim()) return; addChannelMut.mutate({ chatId: channelInput.trim(), isTest: isTestChannel, threadId: threadId ? Number(threadId) : undefined }); }}>
             <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
               ID канала
               <InfoTip text="Для публичных каналов: @имя_канала. Для приватных: числовой ID (можно узнать, переслав сообщение боту @userinfobot)." position="right" />

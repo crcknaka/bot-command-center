@@ -27,7 +27,7 @@ export class WelcomeTask implements TaskModule {
         setTimeout(async () => {
           try {
             await msgCtx.api.deleteMessage(msg.chat.id, msg.message_id);
-          } catch { /* message may already be deleted */ }
+          } catch (e) { console.error('[welcome] delete message error:', e); }
         }, config.deleteAfterSeconds * 1000);
       }
     });

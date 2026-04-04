@@ -13,6 +13,7 @@ import { DocsPage } from './pages/docs.js';
 import { BotDetailPage } from './pages/bot-detail.js';
 import { ActivityPage } from './pages/activity.js';
 import { UsersPage } from './pages/users.js';
+import { ToastProvider } from './components/ui/toast.js';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient({
@@ -68,7 +69,9 @@ export default function App() {
       <I18nProvider>
         <BrowserRouter>
           <AuthProvider>
-            <AppRoutes />
+            <ToastProvider>
+              <AppRoutes />
+            </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
       </I18nProvider>

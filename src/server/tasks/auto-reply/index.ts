@@ -46,7 +46,7 @@ export class AutoReplyTask implements TaskModule {
           }
 
           if (rule.replyInDm && userId) {
-            try { await msgCtx.api.sendMessage(userId, rule.response, { parse_mode: 'HTML' }); } catch {}
+            try { await msgCtx.api.sendMessage(userId, rule.response, { parse_mode: 'HTML' }); } catch (e) { console.error('[auto-reply] DM send error:', e); }
           } else {
             await msgCtx.reply(rule.response, { parse_mode: 'HTML' });
           }

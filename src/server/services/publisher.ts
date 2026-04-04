@@ -1,35 +1,56 @@
 import { db } from '../db/client.js';
 import { posts, channels, bots } from '../db/schema.js';
-import { eq, and, lte, desc } from 'drizzle-orm';
+import { eq, and, lte, or, isNull, desc } from 'drizzle-orm';
 import { botManager } from '../bot/manager.js';
 import { scheduler } from './scheduler.js';
+
+/**
+ * Delete posts whose deleteAt has passed.
+ */
+async function processAutoDeletes() {
+  const now = new Date().toISOString();
+  const expired = db.select().from(posts)
+    .where(and(eq(posts.status, 'published'), lte(posts.deleteAt, now)))
+    .all();
+
+  for (const post of expired) {
+    const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
+    if (!channel || !post.telegramMessageId) {
+      db.update(posts).set({ deleteAt: null }).where(eq(posts.id, post.id)).run();
+      continue;
+    }
+    const botInstance = botManager.getBotInstance(channel.botId);
+    if (!botInstance) continue; // retry next cycle
+    try {
+      await botInstance.api.deleteMessage(channel.chatId, post.telegramMessageId);
+    } catch (e) {
+      console.error(`[publisher] Failed to auto-delete post #${post.id}:`, e);
+    }
+    db.update(posts).set({ deleteAt: null }).where(eq(posts.id, post.id)).run();
+  }
+}
 
 /**
  * Publish all queued posts whose scheduledFor <= now.
  * Called by a cron job every minute.
  */
 async function publishPendingPosts() {
+  // Process pending auto-deletes first
+  await processAutoDeletes();
+
   const now = new Date().toISOString();
 
-  // Get all queued posts that are ready to publish
-  const pendingPosts = db.select().from(posts)
+  // Atomically claim queued posts by setting status to 'publishing'
+  const ready = db.update(posts)
+    .set({ status: 'publishing' })
     .where(and(
       eq(posts.status, 'queued'),
-      lte(posts.scheduledFor, now),
+      or(lte(posts.scheduledFor, now), isNull(posts.scheduledFor)),
     ))
+    .returning()
     .all();
 
-  // Also get queued posts with no scheduled time (publish immediately)
-  const immediatesPosts = db.select().from(posts)
-    .where(eq(posts.status, 'queued'))
-    .all()
-    .filter((p) => !p.scheduledFor);
-
-  const allReady = [...pendingPosts, ...immediatesPosts];
-  // Deduplicate by id
-  const unique = [...new Map(allReady.map((p) => [p.id, p])).values()];
-
-  for (const post of unique) {
+  for (const post of ready) {
     const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
     if (!channel) {
       db.update(posts).set({ status: 'failed', errorMessage: 'Channel not found' }).where(eq(posts.id, post.id)).run();
@@ -38,6 +59,7 @@ async function publishPendingPosts() {
 
     const botInstance = botManager.getBotInstance(channel.botId);
     if (!botInstance) {
+      db.update(posts).set({ status: 'failed', errorMessage: 'Bot not running', updatedAt: new Date().toISOString() }).where(eq(posts.id, post.id)).run();
       continue;
     }
 
@@ -50,11 +72,12 @@ async function publishPendingPosts() {
 
     if (lastPublished?.publishedAt) {
       const elapsed = (Date.now() - new Date(lastPublished.publishedAt).getTime()) / 60000;
-      if (elapsed < minInterval) continue; // Too soon, wait
+      if (elapsed < minInterval) {
+        // Too soon — reset to queued so it's retried next cycle
+        db.update(posts).set({ status: 'queued' }).where(eq(posts.id, post.id)).run();
+        continue;
+      }
     }
-
-    // Mark as publishing
-    db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, post.id)).run();
 
     try {
       // Build content with signature
@@ -90,23 +113,25 @@ async function publishPendingPosts() {
         messageId = msg.message_id;
       }
 
+      // Calculate deleteAt if auto-delete is configured
+      let deleteAt: string | null = null;
+      if (bot?.autoDeleteHours && bot.autoDeleteHours > 0) {
+        deleteAt = new Date(Date.now() + bot.autoDeleteHours * 3600 * 1000).toISOString();
+      }
+
       db.update(posts).set({
         status: 'published',
         publishedAt: new Date().toISOString(),
         telegramMessageId: messageId,
+        deleteAt,
         updatedAt: new Date().toISOString(),
       }).where(eq(posts.id, post.id)).run();
 
       // Auto-pin
       if (bot?.autoPin) {
-        try { await botInstance.api.pinChatMessage(channel.chatId, messageId); } catch {}
-      }
-
-      // Auto-delete after N hours
-      if (bot?.autoDeleteHours && bot.autoDeleteHours > 0) {
-        setTimeout(async () => {
-          try { await botInstance.api.deleteMessage(channel.chatId, messageId); } catch {}
-        }, bot.autoDeleteHours * 3600 * 1000);
+        try { await botInstance.api.pinChatMessage(channel.chatId, messageId); } catch (e) {
+          console.error(`[publisher] Failed to pin post #${post.id}:`, e);
+        }
       }
 
       console.log(`📨 Published post #${post.id} to channel ${channel.title}`);

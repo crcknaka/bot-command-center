@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { aiProviders } from '../db/schema.js';
 import { eq, and, or, isNull } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { checkOwnership } from './helpers.js';
 import { generatePost, generatePostFromSearch } from '../services/ai/generate.js';
 import { searchWeb } from '../services/search.js';
 import { resolveModel } from '../services/ai/provider.js';
@@ -57,7 +58,12 @@ aiProvidersApi.post('/', async (c) => {
 
 // DELETE /api/ai-providers/:id
 aiProvidersApi.delete('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const resource = db.select().from(aiProviders).where(eq(aiProviders.id, id)).limit(1).get();
+  const err = checkOwnership(user, resource);
+  if (err === 'not_found') return c.json({ error: 'Не найден' }, 404);
+  if (err === 'forbidden') return c.json({ error: 'Нет доступа' }, 403);
   db.delete(aiProviders).where(eq(aiProviders.id, id)).run();
   return c.json({ ok: true });
 });

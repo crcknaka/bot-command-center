@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { postTemplates } from '../db/schema.js';
 import { eq, or, isNull } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { checkOwnership } from './helpers.js';
 
 const templatesApi = new Hono();
 templatesApi.use('*', requireAuth);
@@ -29,16 +30,25 @@ templatesApi.post('/', async (c) => {
 
 // PATCH /api/templates/:id
 templatesApi.patch('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const resource = db.select().from(postTemplates).where(eq(postTemplates.id, id)).limit(1).get();
+  const err = checkOwnership(user, resource);
+  if (err === 'not_found') return c.json({ error: 'Не найден' }, 404);
+  if (err === 'forbidden') return c.json({ error: 'Нет доступа' }, 403);
   const body = await c.req.json<{ name?: string; description?: string; content?: string; systemPrompt?: string; category?: string }>();
   const updated = db.update(postTemplates).set(body).where(eq(postTemplates.id, id)).returning().get();
-  if (!updated) return c.json({ error: 'Не найден' }, 404);
   return c.json(updated);
 });
 
 // DELETE /api/templates/:id
 templatesApi.delete('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const resource = db.select().from(postTemplates).where(eq(postTemplates.id, id)).limit(1).get();
+  const err = checkOwnership(user, resource);
+  if (err === 'not_found') return c.json({ error: 'Не найден' }, 404);
+  if (err === 'forbidden') return c.json({ error: 'Нет доступа' }, 403);
   db.delete(postTemplates).where(eq(postTemplates.id, id)).run();
   return c.json({ ok: true });
 });

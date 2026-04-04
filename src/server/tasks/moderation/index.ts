@@ -8,6 +8,7 @@ interface ModerationConfig {
   // Anti-flood
   antiFlood?: boolean;
   maxMessagesPerMinute?: number; // Max messages from one user per minute
+  floodWarnText?: string; // Custom warning text ({user} = username)
   // Content filters
   blockForwards?: boolean; // Delete forwarded messages
   blockStickers?: boolean; // Delete stickers/GIF
@@ -41,18 +42,20 @@ export class ModerationTask implements TaskModule {
         if (recent.length > config.maxMessagesPerMinute) {
           try {
             await msgCtx.deleteMessage();
-            if (config.warnText) {
-              const warn = await msgCtx.reply(`🚫 ${msgCtx.from?.first_name ?? 'Пользователь'}, слишком много сообщений! Подождите минуту.`);
+            {
+              const floodMsg = (config.floodWarnText ?? '🚫 {user}, слишком много сообщений! Подождите минуту.')
+                .replace('{user}', msgCtx.from?.first_name ?? 'Пользователь');
+              const warn = await msgCtx.reply(floodMsg, { parse_mode: 'HTML' });
               setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, 10000);
             }
-          } catch {}
+          } catch (e) { console.error('[moderation] flood handler error:', e); }
           return;
         }
       }
 
       // Min message length
       if (config.minMessageLength && config.minMessageLength > 0 && text.length < config.minMessageLength) {
-        try { await msgCtx.deleteMessage(); } catch {}
+        try { await msgCtx.deleteMessage(); } catch (e) { console.error('[moderation] delete short message error:', e); }
         return;
       }
 
@@ -70,7 +73,7 @@ export class ModerationTask implements TaskModule {
               );
               setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, 10000);
             }
-          } catch {}
+          } catch (e) { console.error('[moderation] banned word handler error:', e); }
           return;
         }
       }
@@ -85,7 +88,7 @@ export class ModerationTask implements TaskModule {
               const warn = await msgCtx.reply('🔗 Слишком много ссылок в сообщении.');
               setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, 10000);
             }
-          } catch {}
+          } catch (e) { console.error('[moderation] links limit handler error:', e); }
         }
       }
     });
@@ -93,17 +96,17 @@ export class ModerationTask implements TaskModule {
     // Block forwards
     if (config.blockForwards) {
       ctx.bot.on('message:forward_origin', async (msgCtx) => {
-        try { await msgCtx.deleteMessage(); } catch {}
+        try { await msgCtx.deleteMessage(); } catch (e) { console.error('[moderation] delete forward error:', e); }
       });
     }
 
     // Block stickers
     if (config.blockStickers) {
       ctx.bot.on('message:sticker', async (msgCtx) => {
-        try { await msgCtx.deleteMessage(); } catch {}
+        try { await msgCtx.deleteMessage(); } catch (e) { console.error('[moderation] delete sticker error:', e); }
       });
       ctx.bot.on('message:animation', async (msgCtx) => {
-        try { await msgCtx.deleteMessage(); } catch {}
+        try { await msgCtx.deleteMessage(); } catch (e) { console.error('[moderation] delete animation error:', e); }
       });
     }
   }
@@ -121,6 +124,7 @@ export class ModerationTask implements TaskModule {
         warnText: { type: 'string' },
         antiFlood: { type: 'boolean' },
         maxMessagesPerMinute: { type: 'number' },
+        floodWarnText: { type: 'string' },
         blockForwards: { type: 'boolean' },
         blockStickers: { type: 'boolean' },
         minMessageLength: { type: 'number' },

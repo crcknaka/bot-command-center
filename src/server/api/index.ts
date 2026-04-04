@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
+import { env } from '../env.js';
 import { auth } from './auth.js';
 import { botsApi } from './bots.js';
 import { channelsApi } from './channels.js';
@@ -20,7 +21,7 @@ import { templatesApi } from './templates.js';
 export const api = new Hono();
 
 // Middleware
-api.use('*', cors({ origin: '*', credentials: true }));
+api.use('*', cors({ origin: env.CORS_ORIGIN, credentials: true }));
 api.use('*', logger());
 
 // Health check

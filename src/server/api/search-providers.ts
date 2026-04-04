@@ -4,6 +4,7 @@ import { searchProviders } from '../db/schema.js';
 import { eq, or, isNull } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { searchWeb } from '../services/search.js';
+import { checkOwnership } from './helpers.js';
 
 const searchProvidersApi = new Hono();
 searchProvidersApi.use('*', requireAuth);
@@ -40,7 +41,12 @@ searchProvidersApi.post('/', async (c) => {
 
 // DELETE /api/search-providers/:id
 searchProvidersApi.delete('/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const resource = db.select().from(searchProviders).where(eq(searchProviders.id, id)).limit(1).get();
+  const err = checkOwnership(user, resource);
+  if (err === 'not_found') return c.json({ error: 'Не найден' }, 404);
+  if (err === 'forbidden') return c.json({ error: 'Нет доступа' }, 403);
   db.delete(searchProviders).where(eq(searchProviders.id, id)).run();
   return c.json({ ok: true });
 });

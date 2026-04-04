@@ -5,6 +5,10 @@ import { botManager } from './bot/manager.js';
 import { startPublisher } from './services/publisher.js';
 import { api } from './api/index.js';
 import { serve } from '@hono/node-server';
+import { scheduler } from './services/scheduler.js';
+import { db } from './db/client.js';
+import { sessions } from './db/schema.js';
+import { lt } from 'drizzle-orm';
 
 async function main() {
   console.log('🚀 Bot Command Center starting...');
@@ -22,7 +26,14 @@ async function main() {
   // 4. Start publisher (checks queued posts every minute)
   startPublisher();
 
-  // 5. Start HTTP server
+  // 5. Session cleanup (every hour)
+  scheduler.register('session-cleanup', '0 * * * *', async () => {
+    const now = new Date().toISOString();
+    const deleted = db.delete(sessions).where(lt(sessions.expiresAt, now)).run();
+    if (deleted.changes > 0) console.log(`🧹 Cleaned ${deleted.changes} expired session(s)`);
+  });
+
+  // 6. Start HTTP server
   const server = serve({
     fetch: api.fetch,
     port: env.PORT,

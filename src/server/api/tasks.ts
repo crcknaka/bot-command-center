@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { tasks, sources, channels } from '../db/schema.js';
+import { tasks, sources, channels, bots } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
 import { fetchAndStore } from '../tasks/news-feed/fetcher.js';
+import cron from 'node-cron';
 
 const tasksApi = new Hono();
 tasksApi.use('*', requireAuth);
@@ -34,6 +35,10 @@ tasksApi.post('/channels/:channelId/tasks', async (c) => {
 
   getTaskModule(body.type);
 
+  if (body.schedule && !cron.validate(body.schedule)) {
+    return c.json({ error: `Неверное cron-выражение: ${body.schedule}` }, 400);
+  }
+
   const created = db.insert(tasks).values({
     channelId,
     name: body.name ?? null,
@@ -55,6 +60,10 @@ tasksApi.patch('/tasks/:id', async (c) => {
     enabled?: boolean;
   }>();
 
+  if (body.schedule && !cron.validate(body.schedule)) {
+    return c.json({ error: `Неверное cron-выражение: ${body.schedule}` }, 400);
+  }
+
   const updated = db.update(tasks).set(body as any).where(eq(tasks.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
@@ -63,7 +72,15 @@ tasksApi.patch('/tasks/:id', async (c) => {
 
 // DELETE /api/tasks/:id
 tasksApi.delete('/tasks/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const task = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
+  if (!task) return c.json({ error: 'Не найден' }, 404);
+  if (user.role !== 'superadmin') {
+    const ch = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
+    const bot = ch ? db.select().from(bots).where(eq(bots.id, ch.botId)).limit(1).get() : null;
+    if (!bot || bot.ownerId !== user.id) return c.json({ error: 'Нет доступа' }, 403);
+  }
   db.delete(tasks).where(eq(tasks.id, id)).run();
   return c.json({ ok: true });
 });
@@ -124,7 +141,16 @@ tasksApi.post('/tasks/:taskId/sources', async (c) => {
 
 // DELETE /api/sources/:id
 tasksApi.delete('/sources/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
+  const source = db.select().from(sources).where(eq(sources.id, id)).limit(1).get();
+  if (!source) return c.json({ error: 'Не найден' }, 404);
+  if (user.role !== 'superadmin') {
+    const task = db.select().from(tasks).where(eq(tasks.id, source.taskId)).limit(1).get();
+    const ch = task ? db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get() : null;
+    const bot = ch ? db.select().from(bots).where(eq(bots.id, ch.botId)).limit(1).get() : null;
+    if (!bot || bot.ownerId !== user.id) return c.json({ error: 'Нет доступа' }, 403);
+  }
   db.delete(sources).where(eq(sources.id, id)).run();
   return c.json({ ok: true });
 });

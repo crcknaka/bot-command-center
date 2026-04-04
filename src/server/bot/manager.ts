@@ -16,6 +16,7 @@ interface RunningBot {
 
 class BotManager {
   private running = new Map<number, RunningBot>();
+  private starting = new Set<number>();
 
   async startAll() {
     const activeBots = db.select().from(bots).where(eq(bots.status, 'active')).all();
@@ -29,11 +30,20 @@ class BotManager {
   }
 
   async startBot(botId: number) {
-    if (this.running.has(botId)) {
-      console.log(`⚠️  Bot ${botId} is already running`);
+    if (this.running.has(botId) || this.starting.has(botId)) {
+      console.log(`⚠️  Bot ${botId} is already running or starting`);
       return;
     }
 
+    this.starting.add(botId);
+    try {
+      await this._startBotInternal(botId);
+    } finally {
+      this.starting.delete(botId);
+    }
+  }
+
+  private async _startBotInternal(botId: number) {
     const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
     if (!botRecord) throw new Error(`Bot ${botId} not found`);
 
