@@ -19,7 +19,8 @@ interface WebSearchConfig {
   maxResults?: number; // Max search results per query
   timeRange?: 'day' | 'week' | 'month' | 'year';
   searchLang?: string; // 'ru', 'en', etc.
-  searchCountry?: string; // 'ru', 'us', etc.
+  searchCountry?: string; // legacy single country
+  searchCountries?: string[]; // ['ru', 'us'] — multiple countries
   includeDomains?: string[]; // only search these domains
 }
 
@@ -94,6 +95,7 @@ export class WebSearchTask implements TaskModule {
           language: lang,
           searchLang: config.searchLang,
           searchCountry: config.searchCountry,
+          searchCountries: config.searchCountries,
           includeDomains: config.includeDomains,
         });
 

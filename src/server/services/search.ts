@@ -20,14 +20,15 @@ export interface SearchOptions {
   botId?: number;
   language?: string; // 'Russian', 'English', etc. (legacy)
   searchLang?: string; // 'ru', 'en', 'uk', 'de' — language code
-  searchCountry?: string; // 'ru', 'us', 'ua', 'de' — country code
+  searchCountry?: string; // 'ru', 'us', 'ua', 'de' — country code (legacy single)
+  searchCountries?: string[]; // ['ru', 'us'] — multiple countries
 }
 
 /** Resolve locale codes from options */
 function getLocale(opts: SearchOptions): { gl: string; hl: string } {
-  // Direct codes take priority
-  if (opts.searchLang || opts.searchCountry) {
-    return { hl: opts.searchLang ?? 'ru', gl: opts.searchCountry ?? 'ru' };
+  const gl = opts.searchCountries?.[0] ?? opts.searchCountry;
+  if (opts.searchLang || gl) {
+    return { hl: opts.searchLang ?? 'ru', gl: gl ?? 'ru' };
   }
   // Legacy: map language name
   switch (opts.language?.toLowerCase()) {
@@ -270,7 +271,30 @@ async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: st
  */
 export async function searchWeb(opts: SearchOptions): Promise<SearchResult[]> {
   const provider = resolveSearchProvider(opts.botId);
+  const countries = opts.searchCountries;
 
+  // If multiple countries, search each and merge (deduplicate by URL)
+  if (countries && countries.length > 1) {
+    const perCountry = Math.max(1, Math.ceil((opts.maxResults ?? 5) / countries.length));
+    const allResults: SearchResult[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const country of countries) {
+      const countryOpts = { ...opts, searchCountries: [country], maxResults: perCountry };
+      try {
+        const results = await searchWebSingle(provider, countryOpts);
+        for (const r of results) {
+          if (!seenUrls.has(r.url)) { seenUrls.add(r.url); allResults.push(r); }
+        }
+      } catch {}
+    }
+    return allResults.slice(0, opts.maxResults ?? 5);
+  }
+
+  return searchWebSingle(provider, opts);
+}
+
+async function searchWebSingle(provider: ResolvedProvider, opts: SearchOptions): Promise<SearchResult[]> {
   switch (provider.type) {
     case 'tavily': return searchTavily(provider.apiKey, opts);
     case 'serper': return searchSerper(provider.apiKey, opts);

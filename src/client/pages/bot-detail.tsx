@@ -378,7 +378,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountry: taskConfig.searchCountry, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountries: taskConfig.searchCountries, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -842,36 +842,21 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
       </div>
 
       {/* Search settings */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center gap-2 text-xs flex-wrap">
-          <span style={{ color: 'var(--text-muted)' }}>Язык:</span>
+          <span style={{ color: 'var(--text-muted)' }}>Язык результатов:</span>
           <select value={config.searchLang ?? 'ru'} onChange={(e) => onChange({ searchLang: e.target.value })}
             className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
             <option value="ru">Русский</option>
             <option value="en">English</option>
             <option value="uk">Українська</option>
+            <option value="lv">Latviešu</option>
             <option value="de">Deutsch</option>
             <option value="fr">Français</option>
             <option value="es">Español</option>
             <option value="zh">中文</option>
             <option value="ja">日本語</option>
             <option value="ko">한국어</option>
-          </select>
-          <span style={{ color: 'var(--text-muted)' }}>Страна:</span>
-          <select value={config.searchCountry ?? 'ru'} onChange={(e) => onChange({ searchCountry: e.target.value })}
-            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-            <option value="ru">🇷🇺 Россия</option>
-            <option value="us">🇺🇸 США</option>
-            <option value="ua">🇺🇦 Украина</option>
-            <option value="de">🇩🇪 Германия</option>
-            <option value="gb">🇬🇧 Великобритания</option>
-            <option value="fr">🇫🇷 Франция</option>
-            <option value="kz">🇰🇿 Казахстан</option>
-            <option value="by">🇧🇾 Беларусь</option>
-            <option value="il">🇮🇱 Израиль</option>
-            <option value="cn">🇨🇳 Китай</option>
-            <option value="jp">🇯🇵 Япония</option>
-            <option value="kr">🇰🇷 Корея</option>
           </select>
           <span style={{ color: 'var(--text-muted)' }}>Период:</span>
           <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
@@ -880,9 +865,57 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
             <option value="week">Неделя</option>
             <option value="month">Месяц</option>
           </select>
-          <span style={{ color: 'var(--text-muted)' }}>Макс.:</span>
+          <span style={{ color: 'var(--text-muted)' }}>Результатов на запрос:</span>
           <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
             className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
+
+        {/* Countries — multi-select as tags */}
+        <div>
+          <label className="block text-xs font-medium mb-1">Страны поиска</label>
+          <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>Из каких стран приоритизировать результаты. Можно выбрать несколько.</p>
+          {(() => {
+            const countries: string[] = config.searchCountries ?? (config.searchCountry ? [config.searchCountry] : ['ru']);
+            const allCountries: Array<{ code: string; flag: string; name: string }> = [
+              { code: 'ru', flag: '🇷🇺', name: 'Россия' },
+              { code: 'us', flag: '🇺🇸', name: 'США' },
+              { code: 'ua', flag: '🇺🇦', name: 'Украина' },
+              { code: 'lv', flag: '🇱🇻', name: 'Латвия' },
+              { code: 'de', flag: '🇩🇪', name: 'Германия' },
+              { code: 'gb', flag: '🇬🇧', name: 'Великобритания' },
+              { code: 'fr', flag: '🇫🇷', name: 'Франция' },
+              { code: 'es', flag: '🇪🇸', name: 'Испания' },
+              { code: 'kz', flag: '🇰🇿', name: 'Казахстан' },
+              { code: 'by', flag: '🇧🇾', name: 'Беларусь' },
+              { code: 'il', flag: '🇮🇱', name: 'Израиль' },
+              { code: 'cn', flag: '🇨🇳', name: 'Китай' },
+              { code: 'jp', flag: '🇯🇵', name: 'Япония' },
+              { code: 'kr', flag: '🇰🇷', name: 'Корея' },
+            ];
+            const available = allCountries.filter(c => !countries.includes(c.code));
+            return (
+              <>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {countries.map((code: string) => {
+                    const c = allCountries.find(x => x.code === code);
+                    return (
+                      <span key={code} className="px-2 py-0.5 rounded-full text-[10px] bg-green-500/10 text-green-400 flex items-center gap-1">
+                        {c?.flag} {c?.name ?? code}
+                        <button type="button" onClick={() => { const next = countries.filter((x: string) => x !== code); onChange({ searchCountries: next.length ? next : ['ru'] }); }} className="hover:text-green-300">×</button>
+                      </span>
+                    );
+                  })}
+                </div>
+                {available.length > 0 && (
+                  <select value="" onChange={(e) => { if (e.target.value) onChange({ searchCountries: [...countries, e.target.value] }); e.target.value = ''; }}
+                    className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                    <option value="">+ Добавить страну</option>
+                    {available.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                  </select>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
