@@ -1792,13 +1792,6 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
     onSuccess: () => { setShowSend(false); setSendText(''); setSendImage(''); },
   });
 
-  const [showEditChannel, setShowEditChannel] = useState(false);
-  const [editChatId, setEditChatId] = useState(channel.chatId);
-  const [editThreadTitle, setEditThreadTitle] = useState(channel.threadTitle ?? '');
-  const editChannelMut = useMutation({
-    mutationFn: (data: any) => apiFetch(`/channels/${channel.id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowEditChannel(false); },
-  });
 
   return (
     <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
@@ -1828,9 +1821,6 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
           </button>
           <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
-          </button>
-          <button onClick={() => setShowEditChannel(true)} className="p-1.5 rounded-lg hover:bg-white/5" title="Редактировать канал">
-            <Pencil size={14} className="text-zinc-400/60 hover:text-zinc-300" />
           </button>
           <button onClick={() => setShowDuplicate(true)} className="p-1.5 rounded-lg hover:bg-white/5" title="Дублировать канал со всеми задачами">
             <Copy size={14} className="text-zinc-400/60 hover:text-zinc-300" />
@@ -1932,46 +1922,6 @@ function ChannelCard({ channel, botId, allChannels, onAddTask, onDeleteChannel, 
         </Modal>
       )}
 
-      {/* Edit Channel Modal */}
-      {showEditChannel && (
-        <Modal title="Редактировать канал" onClose={() => setShowEditChannel(false)}>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const raw = editChatId.trim();
-            if (!raw) return;
-            const tmeMatch = raw.match(/(?:https?:\/\/)?t\.me\/([^\/\s]+)(?:\/(\d+))?/);
-            let chatId = raw;
-            let threadId: number | null = channel.threadId;
-            if (tmeMatch) {
-              chatId = `@${tmeMatch[1]}`;
-              if (tmeMatch[2]) threadId = Number(tmeMatch[2]);
-            } else if (!raw.startsWith('@') && !raw.startsWith('-') && !/^\d+$/.test(raw)) {
-              chatId = `@${raw}`;
-            }
-            editChannelMut.mutate({ chatId, threadId, threadTitle: editThreadTitle.trim() || null });
-          }}>
-            <label className="block text-sm font-medium mb-1">Канал или группа</label>
-            <input value={editChatId} onChange={(e) => setEditChatId(e.target.value)}
-              placeholder="https://t.me/channel/123 или @channel"
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
-            {channel.threadId && (
-              <div className="mb-3">
-                <label className="block text-xs font-medium mb-1">Название топика</label>
-                <input value={editThreadTitle} onChange={(e) => setEditThreadTitle(e.target.value)}
-                  placeholder="Например: Обсуждение"
-                  className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-              </div>
-            )}
-            <div className="flex gap-3 justify-end">
-              <button type="button" onClick={() => setShowEditChannel(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
-              <button type="submit" disabled={editChannelMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-                {editChannelMut.isPending ? 'Сохраняю...' : 'Сохранить'}
-              </button>
-            </div>
-          </form>
-          {editChannelMut.isError && <p className="text-xs text-red-400 mt-2">{(editChannelMut.error as Error).message}</p>}
-        </Modal>
-      )}
     </div>
   );
 }
@@ -2029,17 +1979,15 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
               {task.enabled ? '✓ Вкл' : '✗ Выкл'}
             </button>
             {(task.type === 'news_feed' || task.type === 'web_search') && (<>
-              {task.type === 'news_feed' && (task.config as any)?.useAi !== false && (
-                <button onClick={async () => {
-                  setPreviewLoading(true);
-                  try {
-                    const data = await apiFetch(`/tasks/${task.id}/preview`, { method: 'POST' });
-                    setPreview(data);
-                  } catch {} finally { setPreviewLoading(false); }
-                }} disabled={previewLoading} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 flex items-center gap-1 transition-colors" title="Показать что получит AI">
-                  <Eye size={12} /> {previewLoading ? '...' : 'Превью'}
-                </button>
-              )}
+              <button onClick={async () => {
+                setPreviewLoading(true);
+                try {
+                  const data = await apiFetch(`/tasks/${task.id}/preview`, { method: 'POST' });
+                  setPreview(data);
+                } catch {} finally { setPreviewLoading(false); }
+              }} disabled={previewLoading} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 flex items-center gap-1 transition-colors" title="Показать какие статьи будут обработаны">
+                <Eye size={12} /> {previewLoading ? '...' : 'Превью'}
+              </button>
               <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить — создать посты">
                 <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить'}
               </button>
@@ -2129,9 +2077,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
           </div>
         ) : (
           <div className="space-y-1">
-            {sources.map((source: any) => {
-              const fr = fetchResults?.[source.id];
-              return (
+            {sources.map((source: any) => (
                 <div key={source.id} className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-2 min-w-0">
@@ -2141,14 +2087,10 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {source.lastFetchedAt && (
-                        <span className="text-[10px] hidden sm:inline" style={{ color: 'var(--text-muted)' }} title={source.lastFetchedAt}>
+                        <span className="text-[10px] hidden sm:inline" style={{ color: 'var(--text-muted)' }}>
                           {source.lastError ? '❌' : '✅'} {source.lastFetchCount != null ? `${source.lastFetchCount} новых` : ''} · {timeAgo(source.lastFetchedAt)}
                         </span>
                       )}
-                      <button onClick={() => onFetchSource(source.id)} disabled={fetchingSourceId === source.id} className="px-2 py-0.5 rounded text-blue-400 hover:bg-blue-500/15 flex items-center gap-1">
-                        <RefreshCw size={10} className={fetchingSourceId === source.id ? 'animate-spin' : ''} />
-                        {fetchingSourceId === source.id ? '...' : 'Проверить'}
-                      </button>
                       <button onClick={() => onDeleteSource(source.id)} className="p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10" title="Удалить источник">
                         <Trash2 size={10} />
                       </button>
@@ -2159,14 +2101,8 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onMove
                       Ошибка: {source.lastError}
                     </div>
                   )}
-                  {fr && (
-                    <div className={`text-[10px] px-2 py-1 rounded ${fr.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                      {fr.ok ? `✅ ${fr.msg}` : `❌ ${fr.msg}`}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+              ))}
           </div>
         )}
       </div>}
