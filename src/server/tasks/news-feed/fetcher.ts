@@ -234,19 +234,34 @@ export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): P
 
     if (existing) continue;
 
-    // Try to enrich from article page if missing image or summary
+    // Try to enrich from article page
     let imageUrl = article.imageUrl;
     let summary = article.summary;
-    const skipEnrich = article.url?.includes('news.google.com/') || article.url?.includes('youtube.com/') || article.url?.includes('youtu.be/');
-    if (!skipEnrich && (!imageUrl || !summary || summary === article.title) && article.url) {
+    const isYouTube = article.url?.includes('youtube.com/') || article.url?.includes('youtu.be/');
+    const isGoogleNews = article.url?.includes('news.google.com/');
+
+    if (isYouTube) {
+      // YouTube: get description and thumbnail
+      const videoId = article.url.match(/[?&]v=([^&]+)/)?.[1] ?? article.url.match(/shorts\/([^?&]+)/)?.[1];
+      if (videoId) {
+        if (!imageUrl) imageUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        if (!summary || summary === article.title) {
+          try {
+            const res = await fetch(article.url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, signal: AbortSignal.timeout(6000) });
+            const html = await res.text();
+            const descIdx = html.indexOf('"shortDescription":"');
+            if (descIdx > 0) {
+              const raw = html.slice(descIdx + 20, descIdx + 1000);
+              const endIdx = raw.indexOf('","');
+              if (endIdx > 0) summary = raw.slice(0, endIdx).replace(/\\n/g, '\n').replace(/\\"/g, '"').slice(0, 500);
+            }
+          } catch {}
+        }
+      }
+    } else if (!isGoogleNews && (!imageUrl || !summary || summary === article.title) && article.url) {
       const og = await fetchOgMeta(article.url);
       if (!imageUrl && og?.image) imageUrl = og.image;
       if ((!summary || summary === article.title) && og?.description) summary = og.description;
-    }
-    // For YouTube — get thumbnail as image
-    if (!imageUrl && article.url?.includes('youtube.com/')) {
-      const videoId = article.url.match(/[?&]v=([^&]+)/)?.[1] ?? article.url.match(/shorts\/([^?&]+)/)?.[1];
-      if (videoId) imageUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
     }
 
     db.insert(articles).values({

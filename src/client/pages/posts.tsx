@@ -106,13 +106,15 @@ export function PostsPage() {
   // Build lookups
   const channelMap: Record<number, { botName: string; channelTitle: string; botId: number }> = {};
   const botList: Array<{ id: number; name: string }> = [];
-  const channelList: Array<{ id: number; title: string; botId: number; botName: string }> = [];
+  const channelList: Array<{ id: number; title: string; displayTitle: string; botId: number; botName: string }> = [];
 
   bots?.forEach((bot: any) => {
     botList.push({ id: bot.id, name: bot.name });
     bot.channels?.forEach?.((ch: any) => {
-      channelMap[ch.id] = { botName: bot.name, channelTitle: ch.title, botId: bot.id };
-      channelList.push({ id: ch.id, title: ch.title, botId: bot.id, botName: bot.name });
+      const threadLabel = ch.threadId ? ` # ${ch.threadTitle || ch.threadId}` : '';
+      const displayTitle = ch.title + threadLabel;
+      channelMap[ch.id] = { botName: bot.name, channelTitle: displayTitle, botId: bot.id };
+      channelList.push({ id: ch.id, title: ch.title, displayTitle, botId: bot.id, botName: bot.name });
     });
   });
 
@@ -211,7 +213,7 @@ export function PostsPage() {
             <option value="all">Все каналы</option>
             {filteredChannels.map((ch) => (
               <option key={ch.id} value={ch.id}>
-                {botFilter === 'all' ? `${ch.botName} → ` : ''}{ch.title}
+                {botFilter === 'all' ? `${ch.botName} → ` : ''}{ch.displayTitle}
               </option>
             ))}
           </select>
@@ -433,7 +435,7 @@ export function PostsPage() {
       {/* Create Modal */}
       {showCreate && (
         <CreatePostModal
-          channels={channelList.map((ch) => ({ id: ch.id, title: ch.title, botName: ch.botName }))}
+          channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: ch.botName }))}
           onClose={() => setShowCreate(false)}
           onCreate={(data) => { createMut.mutate(data); setShowCreate(false); }}
           isPending={createMut.isPending}
@@ -442,7 +444,7 @@ export function PostsPage() {
 
       {showAiGen && (
         <AiGenerateModal
-          channels={channelList.map((ch) => ({ id: ch.id, title: ch.title, botName: ch.botName }))}
+          channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: ch.botName }))}
           onClose={() => setShowAiGen(false)}
           onSave={(channelId, content) => { createMut.mutate({ channelId, content, status: 'draft' }); setShowAiGen(false); }}
         />
