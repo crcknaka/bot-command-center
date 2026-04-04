@@ -145,7 +145,7 @@ export function BotDetailPage() {
         </div>
         <div className="flex gap-2">
           {bot.status === 'active' && (
-            <button onClick={() => botAction.mutate({ id: botId, action: 'stop' })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25">
+            <button onClick={() => { if (confirm('Остановить бота? Все задачи перестанут работать до следующего запуска.')) botAction.mutate({ id: botId, action: 'stop' }); }} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25">
               <Square size={16} /> {botAction.isPending ? '...' : 'Остановить'}
             </button>
           )}

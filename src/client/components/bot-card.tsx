@@ -63,9 +63,9 @@ export function BotCard({ bot }: BotCardProps) {
         {bot.status === 'active' && (
           <>
             <button
-              onClick={() => action.mutate({ id: bot.id, action: 'stop' })}
+              onClick={() => { if (confirm('Остановить бота? Все задачи перестанут работать до следующего запуска.')) action.mutate({ id: bot.id, action: 'stop' }); }}
               disabled={action.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
             >
               <Square size={14} /> {action.isPending ? '...' : 'Остановить'}
             </button>
