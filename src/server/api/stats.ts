@@ -378,6 +378,91 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   return c.json({ trend, tiers, newUsers, returning, goneUsers: goneUsers.length, goneUsersList: goneUsers, avgMessageLength: avgLength });
 });
 
+// GET /api/stats/chat/:chatId/user/:userId — user profile with messages
+statsApi.get('/chat/:chatId/user/:userId', async (c) => {
+  const chatId = c.req.param('chatId');
+  const userId = Number(c.req.param('userId'));
+  const search = c.req.query('search') ?? '';
+  const limit = Number(c.req.query('limit') ?? 50);
+  const offset = Number(c.req.query('offset') ?? 0);
+
+  let msgs = db.select().from(messageStats)
+    .where(and(eq(messageStats.chatId, chatId), eq(messageStats.userId, userId)))
+    .all()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const total = msgs.length;
+  const userName = msgs[0]?.userName ?? 'Unknown';
+  const username = msgs[0]?.username ?? null;
+  const firstSeen = msgs.length > 0 ? msgs[msgs.length - 1].createdAt : null;
+  const lastSeen = msgs.length > 0 ? msgs[0].createdAt : null;
+
+  // Types breakdown
+  const types: Record<string, number> = {};
+  for (const m of msgs) types[m.messageType] = (types[m.messageType] ?? 0) + 1;
+
+  // Activity by day (last 30 days)
+  const activity: Record<string, number> = {};
+  const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  for (const m of msgs) {
+    if (m.createdAt >= thirtyDaysAgo.toISOString()) {
+      const day = m.createdAt.slice(0, 10);
+      activity[day] = (activity[day] ?? 0) + 1;
+    }
+  }
+
+  // Violations from activity log
+  const violations = db.select().from(activityLog).all()
+    .filter(l => l.action.startsWith('mod.') && (l.details as any)?.userId === userId && (l.details as any)?.chatId === Number(chatId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 20)
+    .map(l => ({ action: l.action, reason: (l.details as any)?.reason, createdAt: l.createdAt }));
+
+  // Filter by search
+  if (search) {
+    msgs = msgs.filter(m => m.textPreview?.toLowerCase().includes(search.toLowerCase()));
+  }
+
+  // Paginate messages
+  const messages = msgs.slice(offset, offset + limit).map(m => ({
+    id: m.id,
+    type: m.messageType,
+    text: m.textPreview,
+    threadId: m.threadId,
+    createdAt: m.createdAt,
+  }));
+
+  return c.json({
+    userId, userName, username, total, firstSeen, lastSeen,
+    types, activity, violations,
+    messages, hasMore: offset + limit < (search ? msgs.length : total),
+    searchTotal: search ? msgs.length : undefined,
+  });
+});
+
+// GET /api/stats/chat/:chatId/search — search messages across all users
+statsApi.get('/chat/:chatId/search', async (c) => {
+  const chatId = c.req.param('chatId');
+  const query = c.req.query('q') ?? '';
+  const limit = Number(c.req.query('limit') ?? 50);
+  if (!query || query.length < 2) return c.json({ results: [], total: 0 });
+
+  const msgs = db.select().from(messageStats)
+    .where(eq(messageStats.chatId, chatId))
+    .all()
+    .filter(m => m.textPreview?.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+
+  return c.json({
+    results: msgs.map(m => ({
+      userId: m.userId, userName: m.userName, username: m.username,
+      text: m.textPreview, type: m.messageType, threadId: m.threadId, createdAt: m.createdAt,
+    })),
+    total: msgs.length,
+  });
+});
+
 // PATCH /api/stats/chat/:chatId/threads/:threadId — rename a thread
 statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
   const chatId = c.req.param('chatId');

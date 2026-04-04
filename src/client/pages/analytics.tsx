@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, Pencil } from 'lucide-react';
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, Pencil, Search } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
+import { UserProfileModal } from '../components/user-profile.js';
 
 const typeLabels: Record<string, string> = {
   text: 'Текст', photo: 'Фото', video: 'Видео', sticker: 'Стикер',
@@ -23,6 +24,14 @@ export function AnalyticsPage() {
   const [period, setPeriod] = useState<string>('week');
   const [selectedThread, setSelectedThread] = useState<string>('all');
   const [editThread, setEditThread] = useState<{ id: string; title: string } | null>(null);
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
+  const [msgSearch, setMsgSearch] = useState('');
+
+  const { data: searchResults } = useQuery({
+    queryKey: ['stats-search', selectedChat, msgSearch],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/search?q=${encodeURIComponent(msgSearch)}`),
+    enabled: !!selectedChat && msgSearch.length >= 2,
+  });
 
   const threadParam = selectedThread !== 'all' ? `&threadId=${selectedThread}` : '';
   const tz = new Date().getTimezoneOffset(); // minutes offset from UTC
@@ -366,7 +375,7 @@ export function AnalyticsPage() {
                   const pct = topUsers.total > 0 ? Math.round((u.count / topUsers.total) * 100) : 0;
                   const mainType = Object.entries(u.types as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
                   return (
-                    <div key={u.userId} className="flex items-center text-xs py-0.5">
+                    <div key={u.userId} className="flex items-center text-xs py-0.5 cursor-pointer hover:bg-white/[0.03] rounded px-1 -mx-1" onClick={() => setProfileUserId(u.userId)}>
                       <span className="w-8 font-bold" style={{ color: i < 3 ? undefined : 'var(--text-muted)' }}>
                         {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
                       </span>
@@ -389,6 +398,40 @@ export function AnalyticsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Message search */}
+      {selectedChat && (
+        <div className="mt-6">
+          <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+              <Search size={14} /> Поиск по сообщениям
+              <InfoTip text="Ищет по тексту сообщений. Минимум 2 символа." position="top" />
+            </h3>
+            <input value={msgSearch} onChange={(e) => setMsgSearch(e.target.value)}
+              placeholder="Введите текст для поиска..."
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none mb-2" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            {searchResults?.results?.length > 0 && (
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {searchResults.results.map((m: any, i: number) => (
+                  <div key={i} className="flex gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-white/[0.03] cursor-pointer" onClick={() => setProfileUserId(m.userId)}>
+                    <span className="font-medium shrink-0 text-blue-400">{m.userName}</span>
+                    <span className="flex-1 min-w-0 truncate">{m.text}</span>
+                    <span className="text-[9px] shrink-0" style={{ color: 'var(--text-muted)' }}>{new Date(m.createdAt + 'Z').toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {msgSearch.length >= 2 && searchResults?.results?.length === 0 && (
+              <p className="text-xs text-center py-3" style={{ color: 'var(--text-muted)' }}>Ничего не найдено</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* User profile modal */}
+      {profileUserId && selectedChat && (
+        <UserProfileModal chatId={selectedChat} userId={profileUserId} onClose={() => setProfileUserId(null)} />
       )}
 
       {/* Edit thread name modal */}

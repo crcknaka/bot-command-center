@@ -105,6 +105,7 @@ class BotManager {
           messageType,
           threadId: (msg as any).message_thread_id ?? null,
           textLength,
+          textPreview: (msg.text ?? msg.caption ?? '').slice(0, 200) || null,
         }).run();
 
         // Ensure numeric chatId exists in channels for analytics

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Ban, Unlock, Search, Image, Link2, MessageSquare } from 'lucide-react';
+import { Users, Shield, Ban, Unlock, Search, Image, Link2, MessageSquare, Eye } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { useToast } from '../components/ui/toast.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn, timeAgo } from '../lib/utils.js';
+import { UserProfileModal } from '../components/user-profile.js';
 
 const statusLabels: Record<string, { label: string; color: string; bg: string }> = {
   member: { label: 'Участник', color: 'text-green-400', bg: 'bg-green-500/10' },
@@ -32,6 +33,7 @@ export function MembersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [actionUser, setActionUser] = useState<any>(null);
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -58,10 +60,14 @@ export function MembersPage() {
   const moderateMut = useMutation({
     mutationFn: (data: { chatId: string; userId: number; action: string; duration?: number }) =>
       apiFetch(`/bots/${selectedBotId}/moderate`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       const labels: Record<string, string> = { ban: 'Забанен', unban: 'Разбанен', mute: 'Замучен', unmute: 'Размучен', restrict_media: 'Медиа запрещено', restrict_links: 'Ссылки запрещены' };
       toast.success(labels[vars.action] ?? 'Готово');
-      qc.invalidateQueries({ queryKey: ['members'] });
+      // Update status in cache immediately (Telegram API may lag)
+      qc.setQueryData(['members', selectedBotId, selectedChat], (old: any) => {
+        if (!old) return old;
+        return old.map((u: any) => u.userId === vars.userId ? { ...u, status: data.newStatus ?? u.status } : u);
+      });
       setActionUser(null);
     },
     onError: (err) => toast.error((err as Error).message),
@@ -177,6 +183,9 @@ export function MembersPage() {
                         <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', st.color, st.bg)}>{st.label}</span>
                       </span>
                       <div className="w-28 flex gap-1 justify-end">
+                        <button onClick={() => setProfileUserId(u.userId)} className="px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Профиль и сообщения">
+                          <Eye size={11} />
+                        </button>
                         <button onClick={() => setActionUser(u)} className="px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Действия">
                           <Shield size={11} />
                         </button>
@@ -281,6 +290,10 @@ export function MembersPage() {
                 <button onClick={() => setActionUser(null)} className="w-full mt-4 py-2 rounded-lg text-xs hover:bg-white/5" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
               </div>
             </div>
+          )}
+          {/* User profile modal */}
+          {profileUserId && selectedChat && (
+            <UserProfileModal chatId={selectedChat} userId={profileUserId} onClose={() => setProfileUserId(null)} />
           )}
         </>
       )}

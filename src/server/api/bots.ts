@@ -439,7 +439,9 @@ botsApi.post('/:id/moderate', async (c) => {
     }
 
     logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, duration } });
-    return c.json({ ok: true });
+    // Return expected new status so client can update immediately
+    const newStatus = action === 'ban' ? 'kicked' : action === 'unban' || action === 'unmute' ? 'member' : action === 'mute' ? 'restricted' : 'restricted';
+    return c.json({ ok: true, newStatus });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
   }
