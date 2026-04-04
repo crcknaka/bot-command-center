@@ -396,17 +396,26 @@ botsApi.post('/:id/moderate', async (c) => {
         await botInstance.api.restrictChatMember(numChatId, userId, { permissions: muted, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
       case 'unmute': {
-        // Get default chat permissions and restore them
-        try {
-          const chat = await botInstance.api.getChat(numChatId) as any;
-          const defaultPerms = chat.permissions ?? unmuted;
-          await botInstance.api.restrictChatMember(numChatId, userId, { permissions: defaultPerms } as any);
-        } catch {
-          // Fallback: set all permissions
-          await botInstance.api.restrictChatMember(numChatId, userId, {
-            permissions: { can_send_messages: true, can_send_other_messages: true, can_add_web_page_previews: true, can_send_polls: true, can_send_audios: true, can_send_documents: true, can_send_photos: true, can_send_videos: true, can_send_video_notes: true, can_send_voice_notes: true, can_invite_users: true, can_pin_messages: true, can_manage_topics: true },
-          } as any);
-        }
+        // Restore all permissions by calling raw API
+        await botInstance.api.raw.restrictChatMember({
+          chat_id: numChatId,
+          user_id: userId,
+          permissions: {
+            can_send_messages: true,
+            can_send_audios: true,
+            can_send_documents: true,
+            can_send_photos: true,
+            can_send_videos: true,
+            can_send_video_notes: true,
+            can_send_voice_notes: true,
+            can_send_polls: true,
+            can_send_other_messages: true,
+            can_add_web_page_previews: true,
+            can_invite_users: true,
+            can_pin_messages: true,
+            can_manage_topics: true,
+          },
+        });
         break;
       }
       case 'ban':
