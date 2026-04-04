@@ -149,6 +149,7 @@ export const articles = sqliteTable('articles', {
   imageUrl: text('image_url'),
   author: text('author'),
   publishedAt: text('published_at'),
+  processedAt: text('processed_at'), // set when post is generated — prevents re-processing after post deletion
   fetchedAt: text('fetched_at').notNull().default(sql`(datetime('now'))`),
 }, (table) => [
   unique('uniq_source_external').on(table.sourceId, table.externalId),

@@ -1306,11 +1306,11 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
 const rssPresets = [
   { cat: '🛞 Моноколёса / EUC', items: [
     { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Главный Reddit про EUC: обзоры, вопросы, видео поездок. Картинки есть.' },
-    { name: 'Wrong Way (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCyYm5mArC0TdKaAjBtuD0hg', type: 'youtube', desc: 'Wrong Way — крупнейший EUC канал. Обзоры, тесты скорости, сравнения.' },
-    { name: 'Kuji Rolls (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCMI6lvqdZR_HxunctRNMa_w', type: 'youtube', desc: 'Kuji Rolls — обзоры моноколёс, групповые поездки.' },
-    { name: 'EUC GUY (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCOSxj4YbE3EkfTO0QugOg0w', type: 'youtube', desc: 'EUC GUY — детальные обзоры и сравнения моноколёс.' },
-    { name: 'Alien Rides (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCfsmUHp1lI4s_8qpMJwF6ng', type: 'youtube', desc: 'Alien Rides — обзоры EUC, групповые поездки, тюнинг.' },
-    { name: 'ChoochTech (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCDEOB38c2U8XYsFBq5Oo1mg', type: 'youtube', desc: 'ChoochTech — обзоры электротранспорта, EUC, e-bikes.' },
+    { name: 'Wrong Way (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC2RaB95OJ2j3-o-JJubz0qw', type: 'youtube', desc: 'Wrong Way — крупнейший EUC канал. Обзоры, тесты, поездки.' },
+    { name: 'Chooch Tech (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCFeDZyrD6D5AjG1KSO9NLVQ', type: 'youtube', desc: 'Chooch Tech — обзоры самых быстрых EUC, тесты.' },
+    { name: 'Alien Rides (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCfsmUHp1lI4s_8qpMJwF6ng', type: 'youtube', desc: 'Alien Rides — обзоры EUC, групповые поездки.' },
+    { name: 'Johnny Go Vroom (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCDj4iyBli4Y4EwLxktpE58A', type: 'youtube', desc: 'Johnny Go Vroom — обзоры EUC, защита, экипировка.' },
+    { name: 'Esk8 NYC (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC0KLwxSbtWArsKvDgtnSe0g', type: 'youtube', desc: 'Esk8 NYC — EUC, esk8, электротранспорт в городе.' },
     { name: 'EUC World Blog', url: 'https://euc.world/blog/feed', type: 'rss', desc: 'Блог EUC World — приложение для моноколёс.' },
     { name: 'r/onewheel', url: 'onewheel', type: 'reddit', desc: 'Onewheel: трюки, маршруты, модификации' },
     { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Google News: electric unicycle (EN). Без картинок.' },
