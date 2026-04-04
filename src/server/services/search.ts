@@ -18,6 +18,18 @@ export interface SearchOptions {
   includeDomains?: string[];
   excludeDomains?: string[];
   botId?: number;
+  language?: string; // 'Russian', 'English', 'Ukrainian' etc.
+}
+
+/** Map language name to search API locale codes */
+function getLocale(lang?: string): { gl: string; hl: string } {
+  switch (lang?.toLowerCase()) {
+    case 'russian': return { gl: 'ru', hl: 'ru' };
+    case 'ukrainian': return { gl: 'ua', hl: 'uk' };
+    case 'english': return { gl: 'us', hl: 'en' };
+    case 'german': return { gl: 'de', hl: 'de' };
+    default: return { gl: 'ru', hl: 'ru' }; // default to Russian
+  }
 }
 
 // ─── Provider Resolution ────────────────────────────────────────────────────
@@ -108,9 +120,12 @@ async function searchTavily(apiKey: string, opts: SearchOptions): Promise<Search
 }
 
 async function searchSerper(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
+  const locale = getLocale(opts.language);
   const params: any = {
     q: opts.query,
     num: opts.maxResults ?? 5,
+    gl: locale.gl,
+    hl: locale.hl,
   };
   if (opts.timeRange) {
     const tbs: Record<string, string> = { day: 'qdr:d', week: 'qdr:w', month: 'qdr:m', year: 'qdr:y' };
@@ -134,11 +149,14 @@ async function searchSerper(apiKey: string, opts: SearchOptions): Promise<Search
 }
 
 async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
+  const locale = getLocale(opts.language);
   const params = new URLSearchParams({
     q: opts.query,
     api_key: apiKey,
     engine: 'google',
     num: String(opts.maxResults ?? 5),
+    gl: locale.gl,
+    hl: locale.hl,
   });
 
   const res = await fetch(`https://serpapi.com/search?${params}`);
@@ -154,9 +172,12 @@ async function searchSerpApi(apiKey: string, opts: SearchOptions): Promise<Searc
 }
 
 async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
+  const locale = getLocale(opts.language);
   const params = new URLSearchParams({
     q: opts.query,
     count: String(opts.maxResults ?? 5),
+    search_lang: locale.hl,
+    country: locale.gl,
   });
   if (opts.timeRange) params.set('freshness', opts.timeRange === 'day' ? 'pd' : opts.timeRange === 'week' ? 'pw' : opts.timeRange === 'month' ? 'pm' : 'py');
 
@@ -175,13 +196,15 @@ async function searchBrave(apiKey: string, opts: SearchOptions): Promise<SearchR
 }
 
 async function searchGoogleCSE(apiKey: string, opts: SearchOptions, baseUrl?: string | null): Promise<SearchResult[]> {
-  // baseUrl should contain the CSE ID: "cx=YOUR_CSE_ID"
+  const locale = getLocale(opts.language);
   const cseId = baseUrl ?? '';
   const params = new URLSearchParams({
     q: opts.query,
     key: apiKey,
     cx: cseId,
     num: String(Math.min(opts.maxResults ?? 5, 10)),
+    gl: locale.gl,
+    hl: locale.hl,
   });
 
   const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);

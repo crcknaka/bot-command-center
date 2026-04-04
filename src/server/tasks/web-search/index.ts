@@ -88,6 +88,7 @@ export class WebSearchTask implements TaskModule {
           maxResults: config.maxResults ?? 3,
           timeRange: config.timeRange ?? 'day',
           botId,
+          language: lang,
         });
 
         if (results.length === 0) {

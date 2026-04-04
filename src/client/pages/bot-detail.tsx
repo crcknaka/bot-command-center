@@ -369,7 +369,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -802,8 +802,16 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
         </div>
       </div>
 
-      {/* Time range */}
-      <div className="flex items-center gap-2 text-xs">
+      {/* Time range + language + max results */}
+      <div className="flex items-center gap-2 text-xs flex-wrap">
+        <span style={{ color: 'var(--text-muted)' }}>Язык поиска:</span>
+        <select value={config.postLanguage ?? 'Russian'} onChange={(e) => onChange({ postLanguage: e.target.value })}
+          className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+          <option value="Russian">Русский</option>
+          <option value="English">English</option>
+          <option value="Ukrainian">Українська</option>
+          <option value="German">Deutsch</option>
+        </select>
         <span style={{ color: 'var(--text-muted)' }}>Искать за:</span>
         <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
           className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
@@ -811,7 +819,7 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
           <option value="week">Неделю</option>
           <option value="month">Месяц</option>
         </select>
-        <span style={{ color: 'var(--text-muted)' }}>Макс. результатов:</span>
+        <span style={{ color: 'var(--text-muted)' }}>Макс.:</span>
         <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
           className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
       </div>

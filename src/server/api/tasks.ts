@@ -186,7 +186,8 @@ tasksApi.post('/tasks/:id/preview', async (c) => {
     const allResults: Array<{ title: string; summary: string; url: string; imageUrl?: string }> = [];
     for (const query of queries) {
       try {
-        const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id });
+        const lang = config?.postLanguage ?? bot?.postLanguage ?? 'Russian';
+        const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang });
         for (const r of results) {
           allResults.push({ title: r.title, summary: (r.content ?? '').slice(0, 300), url: r.url, imageUrl: r.imageUrl });
         }
