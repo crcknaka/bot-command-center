@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { bots, channels, tasks, sources, messageStats, activityLog } from '../db/schema.js';
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { getSession } from '../auth/index.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
 import { logActivity } from '../services/activity.js';
