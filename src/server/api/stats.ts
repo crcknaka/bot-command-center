@@ -302,6 +302,78 @@ statsApi.get('/chat/:chatId/weekdays', async (c) => {
   return c.json(days);
 });
 
+// GET /api/stats/chat/:chatId/engagement — user engagement tiers + trends
+statsApi.get('/chat/:chatId/engagement', async (c) => {
+  const chatId = c.req.param('chatId');
+  const period = c.req.query('period') ?? 'week';
+  const threadId = c.req.query('threadId');
+
+  const periodDays: Record<string, number> = { week: 7, '2weeks': 14, month: 30, '3months': 90 };
+  const days = periodDays[period] ?? 7;
+
+  const currentMsgs = getChatMessages(chatId, period, threadId);
+  // Previous period for comparison
+  const prevStart = new Date();
+  prevStart.setDate(prevStart.getDate() - days * 2);
+  const prevEnd = new Date();
+  prevEnd.setDate(prevEnd.getDate() - days);
+  const allMsgs = db.select().from(messageStats).where(eq(messageStats.chatId, chatId)).all();
+  let prevMsgs = allMsgs.filter(m => m.createdAt >= prevStart.toISOString() && m.createdAt < prevEnd.toISOString());
+  if (threadId && threadId !== 'all') {
+    if (threadId === 'general') {
+      prevMsgs = prevMsgs.filter(m => m.threadId === null || m.threadId === undefined);
+    } else {
+      prevMsgs = prevMsgs.filter(m => String(m.threadId) === threadId);
+    }
+  }
+
+  // Trend: current vs previous period
+  const trend = {
+    currentMessages: currentMsgs.length,
+    prevMessages: prevMsgs.length,
+    change: prevMsgs.length > 0 ? Math.round(((currentMsgs.length - prevMsgs.length) / prevMsgs.length) * 100) : (currentMsgs.length > 0 ? 100 : 0),
+    currentUsers: new Set(currentMsgs.map(m => m.userId)).size,
+    prevUsers: new Set(prevMsgs.map(m => m.userId)).size,
+  };
+
+  // Engagement tiers
+  const userMsgCount: Record<number, number> = {};
+  for (const m of currentMsgs) userMsgCount[m.userId] = (userMsgCount[m.userId] ?? 0) + 1;
+
+  const dailyThreshold = days;
+  const tiers = {
+    power: 0,    // 10+ messages per day average
+    active: 0,   // 1-10 per day
+    casual: 0,   // less than 1 per day but at least 1
+    total: Object.keys(userMsgCount).length,
+  };
+  for (const count of Object.values(userMsgCount)) {
+    const perDay = count / days;
+    if (perDay >= 10) tiers.power++;
+    else if (perDay >= 1) tiers.active++;
+    else tiers.casual++;
+  }
+
+  // New vs returning
+  const prevUserIds = new Set(prevMsgs.map(m => m.userId));
+  const currentUserIds = new Set(currentMsgs.map(m => m.userId));
+  const newUsers = [...currentUserIds].filter(id => !prevUserIds.has(id)).length;
+  const returning = [...currentUserIds].filter(id => prevUserIds.has(id)).length;
+
+  // Gone users (active in prev, silent in current)
+  const goneUserIds = [...prevUserIds].filter(id => !currentUserIds.has(id));
+  const goneUsers = goneUserIds.slice(0, 10).map(id => {
+    const lastMsg = prevMsgs.filter(m => m.userId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return { userId: id, userName: lastMsg?.userName ?? 'Unknown', username: lastMsg?.username, lastSeen: lastMsg?.createdAt };
+  });
+
+  // Average message length
+  const textMsgs = currentMsgs.filter(m => m.messageType === 'text' && m.textLength && m.textLength > 0);
+  const avgLength = textMsgs.length > 0 ? Math.round(textMsgs.reduce((s, m) => s + (m.textLength ?? 0), 0) / textMsgs.length) : 0;
+
+  return c.json({ trend, tiers, newUsers, returning, goneUsers: goneUsers.length, goneUsersList: goneUsers, avgMessageLength: avgLength });
+});
+
 // PATCH /api/stats/chat/:chatId/threads/:threadId — rename a thread
 statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
   const chatId = c.req.param('chatId');

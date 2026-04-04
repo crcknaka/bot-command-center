@@ -62,6 +62,11 @@ export function AnalyticsPage() {
     queryFn: () => apiFetch(`/stats/chat/${selectedChat}/weekdays?period=${period}${threadParam}`),
     enabled: !!selectedChat,
   });
+  const { data: engagement } = useQuery({
+    queryKey: ['stats-engagement', selectedChat, period, selectedThread],
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/engagement?period=${period}${threadParam}`),
+    enabled: !!selectedChat,
+  });
 
   return (
     <div>
@@ -149,6 +154,96 @@ export function AnalyticsPage() {
               );
             })}
           </div>
+
+          {/* Trend + Engagement */}
+          {engagement && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* Trend */}
+              <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                  Тренд
+                  <InfoTip text="Сравнение текущего периода с предыдущим таким же (например эта неделя vs прошлая)." position="top" />
+                </h3>
+                <div className="text-center">
+                  <div className={cn('text-3xl font-bold', engagement.trend.change > 0 ? 'text-green-400' : engagement.trend.change < 0 ? 'text-red-400' : 'text-zinc-400')}>
+                    {engagement.trend.change > 0 ? '+' : ''}{engagement.trend.change}%
+                  </div>
+                  <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {engagement.trend.currentMessages} vs {engagement.trend.prevMessages} сообщ.
+                  </div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    {engagement.trend.currentUsers} vs {engagement.trend.prevUsers} юзеров
+                  </div>
+                </div>
+              </div>
+
+              {/* Engagement tiers */}
+              <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                  Вовлечённость
+                  <InfoTip text="Power = 10+ сообщ/день. Активные = 1-10/день. Редкие = менее 1/день." position="top" />
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    { label: '🔥 Power users', count: engagement.tiers.power, color: 'bg-red-500' },
+                    { label: '💬 Активные', count: engagement.tiers.active, color: 'bg-blue-500' },
+                    { label: '👀 Редкие', count: engagement.tiers.casual, color: 'bg-zinc-500' },
+                  ].map((t) => {
+                    const pct = engagement.tiers.total > 0 ? Math.round((t.count / engagement.tiers.total) * 100) : 0;
+                    return (
+                      <div key={t.label} className="flex items-center gap-2 text-xs">
+                        <span className="w-28">{t.label}</span>
+                        <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
+                          <div className={cn('h-full rounded-full', t.color)} style={{ width: `${pct}%`, opacity: 0.7 }} />
+                        </div>
+                        <span className="w-14 text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>{t.count} ({pct}%)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* New vs Returning + Gone */}
+              <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                  Аудитория
+                  <InfoTip text="Новые — писали впервые в этом периоде. Вернувшиеся — писали и раньше. Ушли — писали раньше, но молчат." position="top" />
+                </h3>
+                <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                  <div>
+                    <div className="text-xl font-bold text-green-400">{engagement.newUsers}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Новые</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-bold text-blue-400">{engagement.returning}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Вернулись</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-bold text-red-400">{engagement.goneUsers}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Ушли</div>
+                  </div>
+                </div>
+                {engagement.avgMessageLength > 0 && (
+                  <div className="text-[10px] pt-2 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                    <span>Средняя длина сообщения</span>
+                    <span className="font-mono">{engagement.avgMessageLength} симв.</span>
+                  </div>
+                )}
+                {engagement.goneUsersList?.length > 0 && (
+                  <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                    <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Кто замолчал:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {engagement.goneUsersList.map((u: any) => (
+                        <span key={u.userId} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                          {u.userName}{u.username ? ` @${u.username}` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Row 1: Activity + Hourly heatmap */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
