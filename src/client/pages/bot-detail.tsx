@@ -1491,6 +1491,11 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowDuplicate(false); setDupChatId(''); setDupThreadId(''); },
   });
 
+  const duplicateTaskMut = useMutation({
+    mutationFn: (taskId: number) => apiFetch(`/tasks/${taskId}/duplicate`, { method: 'POST' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', channel.id] }); },
+  });
+
   const [showSend, setShowSend] = useState(false);
   const [sendText, setSendText] = useState('');
   const [sendImage, setSendImage] = useState('');
@@ -1556,6 +1561,7 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
                 onToggle={(taskId: number, enabled: boolean) => onToggleTask(taskId, enabled)}
                 onRun={() => onRunTask(task.id)}
                 onDelete={() => onDeleteTask(task.id)}
+                onDuplicate={() => duplicateTaskMut.mutate(task.id)}
                 onAddSource={() => onAddSource(task.id)}
                 onFetchSource={onFetchSource}
                 onDeleteSource={onDeleteSource}
@@ -1640,7 +1646,7 @@ function cronToHuman(cron: string | null): string {
   return presets[cron] ?? cron;
 }
 
-function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
+function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddSource, onFetchSource, onDeleteSource, fetchResults, isRunning, fetchingSourceId, runResult }: any) {
   const { data: sources } = useQuery({
     queryKey: ['sources', task.id],
     queryFn: () => apiFetch(`/tasks/${task.id}/sources`),
@@ -1679,10 +1685,13 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onAddSource, onFetc
               </button>
             )}
           </div>
-          {/* Right: edit + delete */}
+          {/* Right: edit + duplicate + delete */}
           <div className="flex gap-1">
             <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Редактировать">
               <Pencil size={12} className="text-zinc-500 hover:text-zinc-300" />
+            </button>
+            <button onClick={onDuplicate} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Дублировать задачу">
+              <Copy size={12} className="text-zinc-500 hover:text-zinc-300" />
             </button>
             <button onClick={onDelete} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Удалить задачу">
               <Trash2 size={12} className="text-red-400/60 hover:text-red-400" />

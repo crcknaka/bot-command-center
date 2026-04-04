@@ -1,8 +1,9 @@
-import { Play, Square, RotateCw, Trash2, Settings2 } from 'lucide-react';
+import { Play, Square, RotateCw, Trash2, Settings2, Hash, Layers } from 'lucide-react';
 import { useBotAction, useDeleteBot } from '../hooks/use-bots.js';
 import { useConfirm } from './ui/confirm-dialog.js';
 import { cn } from '../lib/utils.js';
 import { Link } from 'react-router-dom';
+import { timeAgo } from '../lib/utils.js';
 
 interface BotCardProps {
   bot: any;
@@ -47,6 +48,18 @@ export function BotCard({ bot }: BotCardProps) {
       {bot.errorMessage && (
         <div className="text-xs text-red-400 bg-red-500/10 rounded-lg p-2 mb-3">
           {bot.errorMessage}
+        </div>
+      )}
+
+      {/* Quick stats */}
+      {(bot.channels?.length > 0 || bot.updatedAt) && (
+        <div className="flex gap-3 text-[11px] mb-1 flex-wrap" style={{ color: 'var(--text-muted)' }}>
+          {bot.channels?.length > 0 && (
+            <span className="flex items-center gap-1"><Hash size={11} /> {bot.channels.length} {bot.channels.length === 1 ? 'канал' : bot.channels.length < 5 ? 'канала' : 'каналов'}</span>
+          )}
+          {bot.channels?.some((ch: any) => ch.type === 'supergroup' || ch.type === 'group') && (
+            <span className="flex items-center gap-1"><Layers size={11} /> {bot.channels.filter((ch: any) => ch.type === 'supergroup' || ch.type === 'group').length} групп</span>
+          )}
         </div>
       )}
 

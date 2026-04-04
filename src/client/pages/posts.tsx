@@ -50,6 +50,25 @@ export function PostsPage() {
   const updateMut = useUpdatePost();
   const createMut = useCreatePost();
 
+  const [regenId, setRegenId] = useState<number | null>(null);
+  const regenMut = useMutation({
+    mutationFn: async (post: any) => {
+      const res = await apiFetch('/ai-providers/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          providerId: post.aiProviderId,
+          modelId: post.aiModel || '__default__',
+          topic: `Перепиши этот пост другими словами, сохрани смысл и HTML-форматирование:\n\n${post.content}`,
+          language: 'Russian',
+          maxLength: 2000,
+        }),
+      });
+      await apiFetch(`/posts/${post.id}`, { method: 'PATCH', body: JSON.stringify({ content: res.content }) });
+      return res;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); setRegenId(null); },
+  });
+
   const [bulkError, setBulkError] = useState('');
   const bulkMut = useMutation({
     mutationFn: (data: { ids: number[]; action: string }) =>
@@ -327,6 +346,12 @@ export function PostsPage() {
                   {post.status !== 'published' && (
                     <button onClick={() => { setEditPost(post); setEditContent(post.content); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                       <Pencil size={12} /> Редактировать
+                    </button>
+                  )}
+                  {post.aiProviderId && post.status !== 'published' && (
+                    <button onClick={() => { setRegenId(post.id); regenMut.mutate(post); }} disabled={regenMut.isPending && regenId === post.id}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-purple-400/70 hover:text-purple-400 hover:bg-purple-500/10 flex items-center gap-1 transition-colors">
+                      <Sparkles size={12} /> {regenMut.isPending && regenId === post.id ? 'Генерирую...' : 'Перегенерировать'}
                     </button>
                   )}
                   {post.status === 'draft' && (

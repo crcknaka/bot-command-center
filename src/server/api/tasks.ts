@@ -70,6 +70,37 @@ tasksApi.patch('/tasks/:id', async (c) => {
   return c.json(updated);
 });
 
+// POST /api/tasks/:id/duplicate — duplicate task with all sources
+tasksApi.post('/tasks/:id/duplicate', async (c) => {
+  const id = Number(c.req.param('id'));
+  const task = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
+  if (!task) return c.json({ error: 'Не найден' }, 404);
+
+  const newTask = db.insert(tasks).values({
+    channelId: task.channelId,
+    name: task.name ? `${task.name} (копия)` : null,
+    type: task.type as any,
+    config: task.config,
+    enabled: false, // start disabled
+    schedule: task.schedule,
+  }).returning().get();
+
+  // Duplicate sources
+  const taskSources = db.select().from(sources).where(eq(sources.taskId, task.id)).all();
+  for (const src of taskSources) {
+    db.insert(sources).values({
+      taskId: newTask.id,
+      type: src.type as any,
+      url: src.url,
+      name: src.name,
+      enabled: src.enabled,
+      fetchIntervalMinutes: src.fetchIntervalMinutes,
+    }).run();
+  }
+
+  return c.json(newTask, 201);
+});
+
 // DELETE /api/tasks/:id
 tasksApi.delete('/tasks/:id', async (c) => {
   const user = (c as any).get('user');
