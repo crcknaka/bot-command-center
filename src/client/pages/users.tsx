@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Users as UsersIcon, Mail, Shield, UserCheck, UserX, Trash2, Bot } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
+import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { timeAgo } from '../lib/utils.js';
 import { cn } from '../lib/utils.js';
@@ -11,6 +12,7 @@ export function UsersPage() {
   const { data: usersList, isLoading } = useQuery({ queryKey: ['users'], queryFn: () => apiFetch('/users') });
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [inviteResult, setInviteResult] = useState<string | null>(null);
 
   const inviteMut = useMutation({
@@ -34,6 +36,7 @@ export function UsersPage() {
 
   return (
     <div>
+      {confirmDialog}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Пользователи</h1>
@@ -78,7 +81,7 @@ export function UsersPage() {
                       {u.isActive ? 'Деактивировать' : 'Активировать'}
                     </button>
                     <button
-                      onClick={() => { if (confirm(`Удалить пользователя ${u.name}? Все его боты будут удалены.`)) deleteMut.mutate(u.id); }}
+                      onClick={() => confirm({ title: 'Удалить пользователя?', message: `${u.name} и все его боты будут удалены безвозвратно.`, onConfirm: () => deleteMut.mutate(u.id) })}
                       className="p-1.5 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10"
                     >
                       <Trash2 size={14} />

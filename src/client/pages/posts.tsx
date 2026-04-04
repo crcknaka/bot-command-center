@@ -8,6 +8,7 @@ import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
 import { timeAgo } from '../lib/utils.js';
 import { apiFetch } from '../lib/api.js';
+import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { Link } from 'react-router-dom';
 
@@ -38,6 +39,7 @@ export function PostsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [exportPostId, setExportPostId] = useState<number | null>(null);
 
   const qc = useQueryClient();
@@ -116,6 +118,13 @@ export function PostsPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Посты</h1>
           <InfoTip text="Все посты со всех ботов. Используйте фильтры чтобы найти нужные. Черновик → одобрите → автопубликация." position="bottom" />
+        </div>
+      </div>
+
+      {confirmDialog}
+
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors" title="Ввести тему — AI сгенерирует пост">
@@ -213,21 +222,21 @@ export function PostsPage() {
           <span className="text-xs font-medium">Выбрано: {selected.size}</span>
           <div className="flex gap-2 ml-auto">
             <button
-              onClick={() => { if (confirm(`Одобрить ${selected.size} постов?`)) bulkMut.mutate({ ids: [...selected], action: 'approve' }); }}
+              onClick={() => confirm({ title: 'Одобрить посты?', message: `${selected.size} постов будут поставлены в очередь.`, confirmLabel: 'Одобрить', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'approve' }) })}
               disabled={bulkMut.isPending}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
             >
               Одобрить все
             </button>
             <button
-              onClick={() => { if (confirm(`Опубликовать ${selected.size} постов?`)) bulkMut.mutate({ ids: [...selected], action: 'publish' }); }}
+              onClick={() => confirm({ title: 'Опубликовать посты?', message: `${selected.size} постов будут отправлены в Telegram.`, confirmLabel: 'Опубликовать', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'publish' }) })}
               disabled={bulkMut.isPending}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors"
             >
               <Send size={10} /> Опубликовать все
             </button>
             <button
-              onClick={() => { if (confirm(`Удалить ${selected.size} постов? Это действие нельзя отменить.`)) bulkMut.mutate({ ids: [...selected], action: 'delete' }); }}
+              onClick={() => confirm({ title: 'Удалить посты?', message: `${selected.size} постов будут удалены безвозвратно.`, onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'delete' }) })}
               disabled={bulkMut.isPending}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors"
             >
@@ -331,7 +340,7 @@ export function PostsPage() {
                     </button>
                   )}
                   {post.status !== 'published' && (
-                    <button onClick={() => { if (confirm('Удалить этот пост?')) deleteMut.mutate(post.id); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors ml-auto">
+                    <button onClick={() => confirm({ title: 'Удалить пост?', message: 'Пост будет удалён безвозвратно.', onConfirm: () => deleteMut.mutate(post.id) })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors ml-auto">
                       <Trash2 size={12} /> Удалить
                     </button>
                   )}

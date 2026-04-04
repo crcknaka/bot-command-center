@@ -1,5 +1,6 @@
 import { Play, Square, RotateCw, Trash2, Settings2 } from 'lucide-react';
 import { useBotAction, useDeleteBot } from '../hooks/use-bots.js';
+import { useConfirm } from './ui/confirm-dialog.js';
 import { cn } from '../lib/utils.js';
 import { Link } from 'react-router-dom';
 
@@ -10,6 +11,7 @@ interface BotCardProps {
 export function BotCard({ bot }: BotCardProps) {
   const action = useBotAction();
   const deleteMut = useDeleteBot();
+  const { confirm, dialog } = useConfirm();
 
   const statusInfo = {
     active: { color: 'bg-green-500', label: 'Работает', badge: 'bg-green-500/15 text-green-400' },
@@ -17,7 +19,8 @@ export function BotCard({ bot }: BotCardProps) {
     error: { color: 'bg-red-500', label: 'Ошибка', badge: 'bg-red-500/15 text-red-400' },
   }[bot.status as string] ?? { color: 'bg-zinc-500', label: bot.status, badge: 'bg-zinc-500/15 text-zinc-400' };
 
-  return (
+  return (<>
+    {dialog}
     <div className="rounded-xl p-4 border transition-colors hover:border-zinc-600"
       style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       <div className="flex items-start justify-between mb-3">
@@ -63,7 +66,7 @@ export function BotCard({ bot }: BotCardProps) {
         {bot.status === 'active' && (
           <>
             <button
-              onClick={() => { if (confirm('Остановить бота? Все задачи перестанут работать до следующего запуска.')) action.mutate({ id: bot.id, action: 'stop' }); }}
+              onClick={() => confirm({ title: 'Остановить бота?', message: 'Все задачи перестанут работать до следующего запуска.', confirmLabel: 'Остановить', variant: 'warning', onConfirm: () => action.mutate({ id: bot.id, action: 'stop' }) })}
               disabled={action.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
             >
@@ -79,12 +82,12 @@ export function BotCard({ bot }: BotCardProps) {
           </>
         )}
         <button
-          onClick={() => { if (confirm('Удалить этого бота? Все каналы и задачи будут удалены.')) deleteMut.mutate(bot.id); }}
+          onClick={() => confirm({ title: 'Удалить бота?', message: 'Все каналы, задачи и посты этого бота будут удалены безвозвратно.', onConfirm: () => deleteMut.mutate(bot.id) })}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400/60 hover:text-red-400 hover:bg-red-500/15 transition-colors ml-auto"
         >
           <Trash2 size={14} /> Удалить
         </button>
       </div>
     </div>
-  );
+  </>);
 }

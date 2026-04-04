@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, Check, Plus, Trash2, Zap, X, Settings2, Cpu, Search, FileText, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { InfoTip } from '../components/ui/tooltip.js';
+import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { cn } from '../lib/utils.js';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
@@ -210,6 +211,7 @@ const providerTypes = [
 function AIModelsTab() {
   const qc = useQueryClient();
   const { data: providers, isLoading } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
+  const { confirm, dialog: confirmDlg } = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false });
   const [testResult, setTestResult] = useState<Record<number, { ok: boolean; msg: string }>>({});
@@ -232,6 +234,7 @@ function AIModelsTab() {
 
   return (
     <div>
+      {confirmDlg}
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Глобальные AI-провайдеры — доступны всем ботам. Для отдельного бота можно переназначить на его странице.
@@ -265,7 +268,7 @@ function AIModelsTab() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => testMut.mutate({ id: p.id, modelId: typeInfo?.models[0] ?? 'gpt-4o' })} disabled={testMut.isPending} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25">Проверить</button>
-                    <button onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(p.id); }} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={16} /></button>
+                    <button onClick={() => confirm({ title: 'Удалить?', message: 'Провайдер будет удалён.', onConfirm: () => deleteMut.mutate(p.id) })} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={16} /></button>
                   </div>
                 </div>
                 {test && (
@@ -378,6 +381,7 @@ const searchTypes = [
 
 function SearchTab() {
   const qc = useQueryClient();
+  const { confirm, dialog: confirmDlg } = useConfirm();
   const { data: providers, isLoading } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'tavily', apiKey: '', isDefault: false });
@@ -401,6 +405,7 @@ function SearchTab() {
 
   return (
     <div>
+      {confirmDlg}
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Поисковые провайдеры ищут новости в интернете для генерации постов. Для каждого бота можно переназначить отдельно.
@@ -436,7 +441,7 @@ function SearchTab() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => testMut.mutate(p.id)} disabled={testMut.isPending} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25">Проверить</button>
-                    <button onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(p.id); }} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={16} /></button>
+                    <button onClick={() => confirm({ title: 'Удалить?', message: 'Провайдер будет удалён.', onConfirm: () => deleteMut.mutate(p.id) })} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={16} /></button>
                   </div>
                 </div>
                 {test && (
@@ -497,6 +502,7 @@ const defaultTemplates = [
 function TemplatesTab() {
   const qc = useQueryClient();
   const { data: templates, isLoading } = useQuery({ queryKey: ['templates'], queryFn: () => apiFetch('/templates') });
+  const { confirm, dialog: confirmDlg } = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', content: '', systemPrompt: '', category: '' });
   const [editId, setEditId] = useState<number | null>(null);
@@ -524,6 +530,7 @@ function TemplatesTab() {
 
   return (
     <div>
+      {confirmDlg}
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Шаблоны используются при создании постов вручную и через AI. Определяют структуру и стиль поста.
@@ -553,7 +560,7 @@ function TemplatesTab() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => { setForm(t); setEditId(t.id); setShowAdd(true); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/5"><Pencil size={14} /></button>
-                  <button onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(t.id); }} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={14} /></button>
+                  <button onClick={() => confirm({ title: 'Удалить шаблон?', message: 'Шаблон будет удалён.', onConfirm: () => deleteMut.mutate(t.id) })} className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/15"><Trash2 size={14} /></button>
                 </div>
               </div>
               {t.content && (

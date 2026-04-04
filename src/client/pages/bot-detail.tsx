@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil } from 'lucide-react';
+import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { Stepper } from '../components/ui/stepper.js';
@@ -15,6 +16,7 @@ export function BotDetailPage() {
   const qc = useQueryClient();
   const { data: bot, isLoading } = useQuery({ queryKey: ['bot', botId], queryFn: () => apiFetch(`/bots/${botId}`) });
   const botAction = useBotAction();
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Add channel state
   const [showAddChannel, setShowAddChannel] = useState(false);
@@ -115,6 +117,8 @@ export function BotDetailPage() {
 
   return (
     <div>
+      {confirmDialog}
+
       {/* Status banner */}
       {bot.status !== 'active' && (
         <div className={cn('rounded-xl px-4 py-3 mb-4 flex items-center justify-between', bot.status === 'error' ? 'bg-red-500/10 border border-red-500/20' : 'bg-yellow-500/8 border border-yellow-500/20')}>
@@ -145,7 +149,7 @@ export function BotDetailPage() {
         </div>
         <div className="flex gap-2">
           {bot.status === 'active' && (
-            <button onClick={() => { if (confirm('Остановить бота? Все задачи перестанут работать до следующего запуска.')) botAction.mutate({ id: botId, action: 'stop' }); }} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25">
+            <button onClick={() => confirm({ title: 'Остановить бота?', message: 'Все задачи перестанут работать до следующего запуска.', confirmLabel: 'Остановить', variant: 'warning', onConfirm: () => botAction.mutate({ id: botId, action: 'stop' }) })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25">
               <Square size={16} /> {botAction.isPending ? '...' : 'Остановить'}
             </button>
           )}
@@ -201,14 +205,14 @@ export function BotDetailPage() {
                 channel={channel}
                 botId={botId}
                 onAddTask={(type?: string) => setShowAddTask({ channelId: channel.id, channelType: type || channel.type })}
-                onDeleteChannel={() => { if (confirm(`Удалить канал "${channel.title}"?`)) deleteChannelMut.mutate(channel.id); }}
+                onDeleteChannel={() => confirm({ title: 'Удалить канал?', message: `Канал "${channel.title}" и все его задачи будут удалены.`, onConfirm: () => deleteChannelMut.mutate(channel.id) })}
                 onRunTask={(taskId: number) => { setTaskRunResult((prev) => { const next = { ...prev }; delete next[taskId]; return next; }); runTaskMut.mutate(taskId); }}
                 onEditTask={(task: any) => setEditingTask(task)}
                 onToggleTask={(taskId: number, enabled: boolean) => editTaskMut.mutate({ id: taskId, enabled })}
-                onDeleteTask={(taskId: number) => { if (confirm('Удалить эту задачу?')) deleteTaskMut.mutate(taskId); }}
+                onDeleteTask={(taskId: number) => confirm({ title: 'Удалить задачу?', message: 'Задача и все её источники будут удалены.', onConfirm: () => deleteTaskMut.mutate(taskId) })}
                 onAddSource={(taskId: number) => setShowAddSource(taskId)}
                 onFetchSource={(sourceId: number) => fetchSourceMut.mutate(sourceId)}
-                onDeleteSource={(sourceId: number) => { if (confirm('Удалить этот источник?')) deleteSourceMut.mutate(sourceId); }}
+                onDeleteSource={(sourceId: number) => confirm({ title: 'Удалить источник?', message: 'Источник контента будет удалён.', onConfirm: () => deleteSourceMut.mutate(sourceId) })}
                 runningTaskId={runTaskMut.isPending ? (runTaskMut.variables as number) : null}
                 fetchingSourceId={fetchSourceMut.isPending ? (fetchSourceMut.variables as number) : null}
                 fetchResults={fetchResult}
