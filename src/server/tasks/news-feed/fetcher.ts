@@ -160,7 +160,7 @@ export async function fetchOnly(sourceId: number): Promise<FetchedArticle[]> {
  * Fetch and store new articles from a source.
  * Returns count of new articles inserted.
  */
-export async function fetchAndStore(sourceId: number): Promise<number> {
+export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): Promise<number> {
   const source = db.select().from(sources).where(eq(sources.id, sourceId)).limit(1).get();
   if (!source || !source.enabled) return 0;
 
@@ -200,8 +200,15 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
   }
 
   let newCount = 0;
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
   for (const article of fetched) {
+    // Skip old articles
+    if (article.publishedAt) {
+      const pubDate = new Date(article.publishedAt).getTime();
+      if (pubDate < cutoff) continue;
+    }
+
     const existing = db.select({ id: articles.id })
       .from(articles)
       .where(eq(articles.externalId, article.externalId))

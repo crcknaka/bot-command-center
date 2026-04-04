@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils.js';
 
 const navItems = [
   { path: '/', labelKey: 'nav.home', icon: LayoutDashboard },
+  { path: '/bots', labelKey: 'nav.bots', icon: Bot },
   { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },
@@ -41,7 +42,7 @@ export function Sidebar() {
           .filter((item) => !item.superadminOnly || user?.role === 'superadmin')
           .map((item) => {
             const Icon = item.icon;
-            const active = location.pathname === item.path;
+            const active = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
             return (
               <Link
                 key={item.path}

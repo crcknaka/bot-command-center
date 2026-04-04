@@ -5,6 +5,7 @@ import { I18nProvider } from './lib/i18n.js';
 import { Sidebar } from './components/layout/sidebar.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard.js';
+import { BotsPage } from './pages/bots.js';
 import { PostsPage } from './pages/posts.js';
 import { SettingsPage } from './pages/settings.js';
 import { SchedulePage } from './pages/schedule.js';
@@ -49,6 +50,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/bots" element={<ProtectedRoute><AppLayout><BotsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><AppLayout><PostsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/schedule" element={<ProtectedRoute><AppLayout><SchedulePage /></AppLayout></ProtectedRoute>} />

@@ -1064,6 +1064,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
   const [filterKeywords, setFilterKeywords] = useState<string[]>(config.filterKeywords ?? []);
   const [newFilterKw, setNewFilterKw] = useState('');
+  const [maxAgeDays, setMaxAgeDays] = useState(config.maxAgeDays ?? 7);
   // Auto-reply
   const [rules, setRules] = useState<Array<{ pattern: string; response: string; isRegex?: boolean; replyInDm?: boolean }>>(config.rules ?? [{ pattern: '', response: '' }]);
   const [cooldownSec, setCooldownSec] = useState(config.cooldownSeconds ?? 0);
@@ -1245,10 +1246,21 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
                 ))}
               </div>
             )}
+            <div className="flex items-center gap-2 text-xs mt-2">
+              <span style={{ color: 'var(--text-muted)' }}>Свежесть статей:</span>
+              <select value={maxAgeDays} onChange={(e) => setMaxAgeDays(Number(e.target.value))}
+                className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+                <option value={1}>За последний день</option>
+                <option value={3}>За 3 дня</option>
+                <option value={7}>За неделю</option>
+                <option value={14}>За 2 недели</option>
+                <option value={30}>За месяц</option>
+              </select>
+              <InfoTip text="Статьи старше этого срока не будут загружаться. Защита от старых новостей." position="top" />
+            </div>
           </div>
         )}
 
-        {/* Search queries */}
         {/* Auto-approve */}
         {task.type === 'news_feed' && (
           <label className="flex items-center gap-2 text-xs">
@@ -1262,7 +1274,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };

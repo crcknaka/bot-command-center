@@ -10,6 +10,7 @@ interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
   rawTemplate?: string; // Template for non-AI mode: {title}, {summary}, {url}, {author}
   filterKeywords?: string[]; // Only process articles containing these keywords
+  maxAgeDays?: number; // Skip articles older than N days (default 7)
   aiProviderId?: number;
   aiModel?: string;
   systemPrompt?: string;
@@ -84,7 +85,7 @@ export class NewsFeedTask implements TaskModule {
         continue;
       }
       try {
-        const count = await fetchAndStore(source.id);
+        const count = await fetchAndStore(source.id, config.maxAgeDays ?? 7);
         steps.push({
           action: `Источник: ${source.name}`,
           status: 'ok',
