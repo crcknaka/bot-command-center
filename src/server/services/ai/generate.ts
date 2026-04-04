@@ -26,7 +26,7 @@ export async function generatePost(options: GeneratePostOptions): Promise<Genera
       model,
       system: options.systemPrompt,
       prompt: options.userPrompt,
-      maxOutputTokens: options.maxTokens ?? 1000,
+      maxOutputTokens: options.maxTokens ?? 2000,
       maxRetries: 1, // Don't retry on quota errors
     });
 
