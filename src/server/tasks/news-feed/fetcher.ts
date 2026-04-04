@@ -31,16 +31,30 @@ export interface FetchedArticle {
 export async function fetchRSS(url: string): Promise<FetchedArticle[]> {
   const feed = await rssParser.parseURL(url);
 
-  return (feed.items ?? []).map((item) => ({
-    externalId: item.guid ?? item.id ?? item.link ?? item.title ?? '',
-    title: item.title ?? 'Untitled',
-    summary: item.contentSnippet ?? '',
-    content: item.content ?? item.contentSnippet ?? '',
-    url: item.link ?? '',
-    imageUrl: item.enclosure?.url ?? extractImageFromContent(item.content ?? ''),
-    author: item.creator ?? item.author,
-    publishedAt: item.isoDate ?? item.pubDate,
-  }));
+  const isGoogleNews = url.includes('news.google.com');
+
+  return (feed.items ?? []).map((item) => {
+    let title = item.title ?? 'Untitled';
+    let author = item.creator ?? item.author;
+
+    // Google News: title is "Заголовок - Источник", extract source name
+    if (isGoogleNews && title.includes(' - ')) {
+      const lastDash = title.lastIndexOf(' - ');
+      author = title.slice(lastDash + 3).trim();
+      title = title.slice(0, lastDash).trim();
+    }
+
+    return {
+      externalId: item.guid ?? item.id ?? item.link ?? title,
+      title,
+      summary: item.contentSnippet ?? '',
+      content: item.content ?? item.contentSnippet ?? '',
+      url: item.link ?? '',
+      imageUrl: item.enclosure?.url ?? extractImageFromContent(item.content ?? ''),
+      author,
+      publishedAt: item.isoDate ?? item.pubDate,
+    };
+  });
 }
 
 /**
@@ -203,10 +217,13 @@ export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): P
   const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
   for (const article of fetched) {
-    // Skip old articles
+    // Skip old articles (if no date — skip to be safe)
     if (article.publishedAt) {
       const pubDate = new Date(article.publishedAt).getTime();
-      if (pubDate < cutoff) continue;
+      if (isNaN(pubDate) || pubDate < cutoff) continue;
+    } else {
+      // No date — skip unless it's a type that never has dates (like web scraping)
+      if (source.type !== 'web') continue;
     }
 
     const existing = db.select({ id: articles.id })
@@ -220,7 +237,8 @@ export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): P
     // Try to enrich from article page if missing image or summary
     let imageUrl = article.imageUrl;
     let summary = article.summary;
-    const needsEnrich = (!imageUrl || !summary || summary === article.title) && article.url;
+    const isGoogleNews = article.url?.includes('news.google.com/');
+    const needsEnrich = (!imageUrl || !summary || summary === article.title) && article.url && !isGoogleNews;
     if (needsEnrich) {
       const og = await fetchOgMeta(article.url);
       if (!imageUrl && og?.image) imageUrl = og.image;

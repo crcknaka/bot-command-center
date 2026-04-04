@@ -21,7 +21,7 @@ interface NewsFeedConfig {
 
 const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
 
-const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>`;
+const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a> · {author}`;
 
 /** Format article without AI — just fill template */
 function formatRaw(article: { title: string; summary?: string | null; content?: string | null; url: string; author?: string | null }, template: string, maxLen: number): string {
