@@ -22,7 +22,28 @@ interface WebSearchConfig {
 
 const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
 
-const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Источник</a>`;
+const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n🔗 <a href="{url}">Читать полностью</a>`;
+
+/** Clean search snippet: remove duplicate titles, URLs, boilerplate */
+function cleanSnippet(text: string, title: string): string {
+  let clean = text;
+  // Remove the title if it's repeated at the start
+  if (clean.startsWith(title)) clean = clean.slice(title.length).replace(/^[\s.#\-–—|:]+/, '');
+  // Remove URLs
+  clean = clean.replace(/https?:\/\/\S+/g, '');
+  // Remove common boilerplate patterns
+  clean = clean.replace(/\b(Image \d+:|Going UP:|For non-personal use|please contact|Reprints at)\b.*$/gm, '');
+  // Collapse whitespace
+  clean = clean.replace(/\s{2,}/g, ' ').trim();
+  // Take first 2-3 sentences (up to ~500 chars)
+  const sentences = clean.match(/[^.!?]+[.!?]+/g) ?? [clean];
+  let result = '';
+  for (const s of sentences) {
+    if (result.length + s.length > 500) break;
+    result += s;
+  }
+  return result.trim() || clean.slice(0, 500);
+}
 
 export class WebSearchTask implements TaskModule {
   readonly type = 'web_search';
@@ -101,10 +122,12 @@ export class WebSearchTask implements TaskModule {
           steps.push({ action: `✍️ "${query}"`, status: 'ok', detail: `AI-пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.` });
         } else {
           for (const sr of results) {
+            const summary = cleanSnippet(sr.content ?? '', sr.title);
+            if (!summary) continue; // skip empty results
             const content = rawTemplate
               .replace(/\{title\}/g, sr.title)
-              .replace(/\{summary\}/g, sr.content?.slice(0, maxLen) ?? '')
-              .replace(/\{content\}/g, sr.content?.slice(0, maxLen) ?? '')
+              .replace(/\{summary\}/g, summary)
+              .replace(/\{content\}/g, summary)
               .replace(/\{url\}/g, sr.url)
               .replace(/\{author\}/g, '');
 
