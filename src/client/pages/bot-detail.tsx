@@ -531,7 +531,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
 }) {
   const config = task.config ?? {};
-  const [name, setName] = useState(task.name ?? '');
+  const defaultName = { news_feed: '📰 Новостная лента', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type;
+  const [name, setName] = useState(task.name || defaultName);
   const [schedule, setSchedule] = useState(task.schedule ?? '');
   const [enabled, setEnabled] = useState(task.enabled ?? true);
   const [useAi, setUseAi] = useState(config.useAi !== false);
