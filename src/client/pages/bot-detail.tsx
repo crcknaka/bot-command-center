@@ -720,6 +720,9 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [taskPrompt, setTaskPrompt] = useState(config.systemPrompt ?? '');
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
+  const [searchQueries, setSearchQueries] = useState<string[]>(config.searchQueries ?? []);
+  const [newQuery, setNewQuery] = useState('');
+  const { data: searchProvidersList } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
   // Auto-reply
   const [rules, setRules] = useState<Array<{ pattern: string; response: string }>>(config.rules ?? [{ pattern: '', response: '' }]);
   // Welcome
@@ -888,6 +891,41 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           </div>
         )}
 
+        {/* Search queries */}
+        {task.type === 'news_feed' && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Поисковые запросы</label>
+            <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
+              Бот будет искать новости по этим запросам и генерировать посты из результатов.
+              {searchProvidersList?.length ? (
+                <span className="text-green-400"> Поисковый провайдер подключён.</span>
+              ) : (
+                <span className="text-yellow-400"> Для работы нужен поисковый провайдер (Tavily, Serper и др.) — добавьте в Настройки → Поиск.</span>
+              )}
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input value={newQuery} onChange={(e) => setNewQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newQuery.trim()) { setSearchQueries([...searchQueries, newQuery.trim()]); setNewQuery(''); } } }}
+                placeholder="Например: electric unicycle news"
+                className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <button type="button" onClick={() => { if (newQuery.trim()) { setSearchQueries([...searchQueries, newQuery.trim()]); setNewQuery(''); } }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
+                Добавить
+              </button>
+            </div>
+            {searchQueries.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {searchQueries.map((q, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
+                    🔍 {q}
+                    <button type="button" onClick={() => setSearchQueries(searchQueries.filter((_, j) => j !== i))} className="hover:text-blue-300">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Auto-approve */}
         {task.type === 'news_feed' && (
           <label className="flex items-center gap-2 text-xs">
@@ -901,7 +939,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, searchQueries: searchQueries.length ? searchQueries : undefined };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec };
               if (task.type === 'moderation') cfg = { bannedWords, maxLinksPerMessage: maxLinks, warnText, antiFlood, maxMessagesPerMinute: maxMsgPerMin, blockForwards, blockStickers, minMessageLength: minMsgLen };
@@ -926,7 +964,7 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
   twitter: { icon: '𝕏', label: 'Twitter / X', desc: 'Твиты аккаунта через RSS-мосты. Может не работать если мосты лежат.', placeholder: '@username', hint: 'Имя аккаунта с @ или без. Например: @OpenAI, @TechCrunch' },
   telegram: { icon: '📺', label: 'Telegram-канал', desc: 'Посты из другого TG-канала в реальном времени. Бот должен быть участником.', placeholder: '@channel_name', hint: 'Юзернейм канала. Бот должен быть добавлен в канал-источник.' },
   youtube: { icon: '▶️', label: 'YouTube', desc: 'Новые видео с канала через RSS. Нужен channel_id из URL канала.', placeholder: 'https://www.youtube.com/feeds/videos.xml?channel_id=...', hint: 'Откройте канал → исходный код → найдите channel_id → вставьте в URL выше' },
-  web: { icon: '🌐', label: 'Веб-страница', desc: 'Парсинг HTML-страницы. Для продвинутых — требует настройки селекторов.', placeholder: 'https://example.com/news', hint: 'URL страницы для парсинга. Результаты зависят от структуры сайта.' },
+  web: { icon: '🌐', label: 'Веб-страница', desc: 'Автоматический парсинг ссылок и заголовков с новостной страницы.', placeholder: 'https://example.com/news', hint: 'Укажите URL страницы со списком статей. Бот найдёт ссылки с заголовками автоматически. Лучше работает на страницах-каталогах (архив, раздел новостей).' },
 };
 
 const rssPresets = [

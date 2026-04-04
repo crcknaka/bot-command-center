@@ -1,4 +1,5 @@
 import Parser from 'rss-parser';
+import * as cheerio from 'cheerio';
 import { db } from '../../db/client.js';
 import { sources, articles } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -57,6 +58,83 @@ export async function fetchRedditRSS(input: string): Promise<FetchedArticle[]> {
 }
 
 /**
+ * Fetch articles from a web page by extracting links with headings.
+ * Looks for <a> tags inside <article>, <h1>-<h4>, or common news selectors.
+ */
+export async function fetchWeb(url: string): Promise<FetchedArticle[]> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const baseUrl = new URL(url);
+  const results: FetchedArticle[] = [];
+  const seen = new Set<string>();
+
+  // Strategy: find links inside article-like containers or headings
+  const selectors = [
+    'article a[href]',
+    'h1 a[href], h2 a[href], h3 a[href], h4 a[href]',
+    '.post a[href], .entry a[href], .story a[href], .card a[href]',
+    '[class*="article"] a[href], [class*="news"] a[href], [class*="post"] a[href]',
+  ];
+
+  for (const selector of selectors) {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const title = $el.text().trim();
+      if (!title || title.length < 10 || title.length > 300) return;
+
+      let href = $el.attr('href') ?? '';
+      if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+      // Resolve relative URLs
+      try {
+        href = new URL(href, baseUrl).href;
+      } catch { return; }
+
+      // Skip same-page anchors, images, non-article URLs
+      if (href.includes('#') && href.split('#')[0] === url) return;
+      if (/\.(jpg|png|gif|svg|css|js)$/i.test(href)) return;
+
+      if (seen.has(href)) return;
+      seen.add(href);
+
+      // Try to find summary from sibling/parent text
+      const parent = $el.closest('article, .post, .entry, .story, .card, [class*="article"]');
+      const summary = parent.find('p, .summary, .excerpt, .description').first().text().trim().slice(0, 500);
+
+      // Try to find image
+      const img = parent.find('img').first().attr('src') ?? parent.find('img').first().attr('data-src');
+      let imageUrl: string | undefined;
+      if (img) {
+        try { imageUrl = new URL(img, baseUrl).href; } catch {}
+      }
+
+      results.push({
+        externalId: href,
+        title,
+        summary: summary || title,
+        content: summary || title,
+        url: href,
+        imageUrl,
+        publishedAt: new Date().toISOString(),
+      });
+    });
+
+    if (results.length >= 20) break; // Enough articles
+  }
+
+  return results.slice(0, 30);
+}
+
+/**
  * Fetch and store new articles from a source.
  * Returns count of new articles inserted.
  */
@@ -77,6 +155,9 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
         break;
       case 'twitter':
         fetched = await fetchTwitter(source.url);
+        break;
+      case 'web':
+        fetched = await fetchWeb(source.url);
         break;
       case 'telegram':
         // Telegram sources are ingested in real-time via channel_post listener

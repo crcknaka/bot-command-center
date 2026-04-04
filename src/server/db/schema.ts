@@ -125,7 +125,7 @@ export const tasks = sqliteTable('tasks', {
 export const sources = sqliteTable('sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   taskId: integer('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
-  type: text('type', { enum: ['rss', 'reddit', 'youtube', 'twitter', 'telegram', 'web', 'tavily'] }).notNull(),
+  type: text('type', { enum: ['rss', 'reddit', 'youtube', 'twitter', 'telegram', 'web'] }).notNull(),
   url: text('url').notNull(),
   name: text('name').notNull(),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
