@@ -6,6 +6,21 @@ import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { logActivity } from '../services/activity.js';
 
+/** Sanitize HTML for Telegram — only allow supported tags, escape the rest */
+function sanitizeForTelegram(html: string): string {
+  // Strip all tags except Telegram-supported ones
+  let clean = html.replace(/<\/?(?!b|i|u|s|a|code|pre|\/b|\/i|\/u|\/s|\/a|\/code|\/pre)[^>]*>/gi, '');
+  // Fix unclosed tags by stripping them
+  const allowed = ['b', 'i', 'u', 's', 'code', 'pre'];
+  for (const tag of allowed) {
+    const opens = (clean.match(new RegExp(`<${tag}[^>]*>`, 'gi')) || []).length;
+    const closes = (clean.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
+    // Add missing closing tags
+    for (let i = 0; i < opens - closes; i++) clean += `</${tag}>`;
+  }
+  return clean;
+}
+
 const postsApi = new Hono();
 postsApi.use('*', requireAuth);
 
@@ -126,9 +141,9 @@ postsApi.post('/:id/publish', async (c) => {
   db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
 
   try {
-    // Build content with signature
+    // Build content with signature, sanitize for Telegram
     const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
-    let content = post.content;
+    let content = sanitizeForTelegram(post.content);
     if (bot?.postSignature) content += '\n\n' + bot.postSignature;
 
     // Inline keyboard

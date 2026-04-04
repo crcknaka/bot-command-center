@@ -961,6 +961,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [taskPrompt, setTaskPrompt] = useState(config.systemPrompt ?? '');
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
   const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
+  const [filterKeywords, setFilterKeywords] = useState<string[]>(config.filterKeywords ?? []);
+  const [newFilterKw, setNewFilterKw] = useState('');
   const [searchQueries, setSearchQueries] = useState<string[]>(config.searchQueries ?? []);
   const [newQuery, setNewQuery] = useState('');
   const { data: searchProvidersList } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
@@ -1103,6 +1105,36 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <ModerationConfigUI config={modConfig} onChange={(patch: any) => setModConfig((prev: any) => ({ ...prev, ...patch }))} />
         )}
 
+        {/* Filter keywords */}
+        {task.type === 'news_feed' && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Фильтр по ключевым словам</label>
+            <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
+              Из RSS-источников будут браться только статьи, содержащие хотя бы одно из этих слов в заголовке или тексте. Пусто = все статьи.
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input value={newFilterKw} onChange={(e) => setNewFilterKw(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newFilterKw.trim()) { setFilterKeywords([...filterKeywords, newFilterKw.trim()]); setNewFilterKw(''); } } }}
+                placeholder="Например: unicycle, EUC, моноколесо"
+                className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              <button type="button" onClick={() => { if (newFilterKw.trim()) { setFilterKeywords([...filterKeywords, newFilterKw.trim()]); setNewFilterKw(''); } }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
+                Добавить
+              </button>
+            </div>
+            {filterKeywords.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {filterKeywords.map((kw, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
+                    {kw}
+                    <button type="button" onClick={() => setFilterKeywords(filterKeywords.filter((_, j) => j !== i))} className="hover:text-blue-300">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Search queries */}
         {task.type === 'news_feed' && (
           <div>
@@ -1151,7 +1183,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, searchQueries: searchQueries.length ? searchQueries : undefined };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined, searchQueries: searchQueries.length ? searchQueries : undefined };
               if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };

@@ -13,6 +13,7 @@ const ctrlEnter = (e: React.KeyboardEvent) => {
 };
 import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
+import { useToast } from '../components/ui/toast.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TelegramPreview } from '../components/telegram-preview.js';
 import { InfoTip } from '../components/ui/tooltip.js';
@@ -54,6 +55,7 @@ export function PostsPage() {
   const [exportPostId, setExportPostId] = useState<number | null>(null);
 
   const qc = useQueryClient();
+  const toast = useToast();
   const { data: rawPosts, isLoading } = usePosts(statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const publishMut = usePublishPost();
@@ -376,7 +378,7 @@ export function PostsPage() {
                     </button>
                   )}
                   {(post.status === 'queued' || post.status === 'draft') && (
-                    <button onClick={() => publishMut.mutate(post.id)} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
+                    <button onClick={() => publishMut.mutate(post.id, { onError: (err) => toast.error(`Публикация: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
                       <Send size={12} /> Опубликовать
                     </button>
                   )}

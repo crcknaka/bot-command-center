@@ -1,4 +1,16 @@
 import { db } from '../db/client.js';
+
+/** Sanitize HTML for Telegram — only allow supported tags */
+function sanitizeForTelegram(html: string): string {
+  let clean = html.replace(/<\/?(?!b|i|u|s|a|code|pre|\/b|\/i|\/u|\/s|\/a|\/code|\/pre)[^>]*>/gi, '');
+  const allowed = ['b', 'i', 'u', 's', 'code', 'pre'];
+  for (const tag of allowed) {
+    const opens = (clean.match(new RegExp(`<${tag}[^>]*>`, 'gi')) || []).length;
+    const closes = (clean.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
+    for (let i = 0; i < opens - closes; i++) clean += `</${tag}>`;
+  }
+  return clean;
+}
 import { posts, channels, bots } from '../db/schema.js';
 import { eq, and, lte, or, isNull, desc } from 'drizzle-orm';
 import { botManager } from '../bot/manager.js';
@@ -80,8 +92,8 @@ async function publishPendingPosts() {
     }
 
     try {
-      // Build content with signature
-      let content = post.content;
+      // Build content with signature, sanitize for Telegram
+      let content = sanitizeForTelegram(post.content);
       if (bot?.postSignature) {
         content += '\n\n' + bot.postSignature;
       }

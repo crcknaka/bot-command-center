@@ -10,6 +10,7 @@ import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
   rawTemplate?: string; // Template for non-AI mode: {title}, {summary}, {url}, {author}
+  filterKeywords?: string[]; // Only process articles containing these keywords (in title or content)
   searchQueries?: string[];
   searchDepth?: 'basic' | 'advanced';
   maxResults?: number;
@@ -204,7 +205,20 @@ export class NewsFeedTask implements TaskModule {
         db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
       );
 
-      const unprocessed = allArticles.filter((article) => {
+      // Filter by keywords if configured
+      const keywords = config.filterKeywords?.filter(k => k.trim()) ?? [];
+      const filtered = keywords.length > 0
+        ? allArticles.filter((article) => {
+            const text = `${article.title} ${article.summary ?? ''} ${article.content ?? ''}`.toLowerCase();
+            return keywords.some(kw => text.includes(kw.toLowerCase()));
+          })
+        : allArticles;
+
+      if (keywords.length > 0 && filtered.length < allArticles.length) {
+        steps.push({ action: 'Фильтр по ключевым словам', status: 'ok', detail: `${filtered.length} из ${allArticles.length} статей прошли фильтр (${keywords.join(', ')})` });
+      }
+
+      const unprocessed = filtered.filter((article) => {
         const existingPost = db.select({ id: posts.id }).from(posts)
           .where(eq(posts.articleId, article.id)).limit(1).get();
         return !existingPost;
