@@ -72,32 +72,68 @@ function GeneralTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings'] }); setSaved(true); setTimeout(() => setSaved(false), 2000); },
   });
 
-  const fields = [
-    { key: 'default_timezone', label: 'Часовой пояс', type: 'text', description: 'Например: Europe/Moscow, Asia/Almaty, US/Eastern' },
-  ];
-
   if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Загрузка...</div>;
+
+  const timezones = [
+    { group: 'Европа', zones: [
+      { value: 'Europe/Moscow', label: 'Москва (UTC+3)' },
+      { value: 'Europe/Kiev', label: 'Киев (UTC+2)' },
+      { value: 'Europe/Minsk', label: 'Минск (UTC+3)' },
+      { value: 'Europe/Riga', label: 'Рига (UTC+2)' },
+      { value: 'Europe/Vilnius', label: 'Вильнюс (UTC+2)' },
+      { value: 'Europe/Tallinn', label: 'Таллин (UTC+2)' },
+      { value: 'Europe/Warsaw', label: 'Варшава (UTC+1)' },
+      { value: 'Europe/Berlin', label: 'Берлин (UTC+1)' },
+      { value: 'Europe/London', label: 'Лондон (UTC+0)' },
+      { value: 'Europe/Paris', label: 'Париж (UTC+1)' },
+      { value: 'Europe/Istanbul', label: 'Стамбул (UTC+3)' },
+    ]},
+    { group: 'Азия', zones: [
+      { value: 'Asia/Almaty', label: 'Алматы (UTC+6)' },
+      { value: 'Asia/Tashkent', label: 'Ташкент (UTC+5)' },
+      { value: 'Asia/Tbilisi', label: 'Тбилиси (UTC+4)' },
+      { value: 'Asia/Baku', label: 'Баку (UTC+4)' },
+      { value: 'Asia/Dubai', label: 'Дубай (UTC+4)' },
+      { value: 'Asia/Bangkok', label: 'Бангкок (UTC+7)' },
+      { value: 'Asia/Singapore', label: 'Сингапур (UTC+8)' },
+      { value: 'Asia/Tokyo', label: 'Токио (UTC+9)' },
+    ]},
+    { group: 'Америка', zones: [
+      { value: 'America/New_York', label: 'Нью-Йорк (UTC-5)' },
+      { value: 'America/Chicago', label: 'Чикаго (UTC-6)' },
+      { value: 'America/Denver', label: 'Денвер (UTC-7)' },
+      { value: 'America/Los_Angeles', label: 'Лос-Анджелес (UTC-8)' },
+      { value: 'America/Toronto', label: 'Торонто (UTC-5)' },
+      { value: 'America/Sao_Paulo', label: 'Сан-Паулу (UTC-3)' },
+    ]},
+    { group: 'Другие', zones: [
+      { value: 'UTC', label: 'UTC (UTC+0)' },
+      { value: 'Australia/Sydney', label: 'Сидней (UTC+11)' },
+      { value: 'Pacific/Auckland', label: 'Окленд (UTC+13)' },
+    ]},
+  ];
 
   return (
     <div className="max-w-xl space-y-5">
-      {fields.map((field) => (
-        <div key={field.key}>
-          <label className="block text-sm font-medium mb-1">{field.label}</label>
-          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>{field.description}</p>
-          {field.type === 'textarea' ? (
-            <textarea
-              value={form[field.key] ?? ''}
-              onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-              rows={4}
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none focus:border-blue-500"
-              style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
-              placeholder="Ты — редактор Telegram-канала. Создавай информативные посты с HTML-форматированием. Используй эмодзи умеренно."
-            />
-          ) : (
-            <input type={field.type} value={form[field.key] ?? ''} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-500" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-          )}
-        </div>
-      ))}
+      <div>
+        <label className="block text-sm font-medium mb-1">Часовой пояс</label>
+        <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Используется для расписания публикаций.</p>
+        <select
+          value={form['default_timezone'] ?? ''}
+          onChange={(e) => setForm({ ...form, default_timezone: e.target.value })}
+          className="w-full px-3 py-2 rounded-lg border text-sm"
+          style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+        >
+          <option value="">Не выбран</option>
+          {timezones.map((g) => (
+            <optgroup key={g.group} label={g.group}>
+              {g.zones.map((z) => (
+                <option key={z.value} value={z.value}>{z.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
       <button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors" style={{ background: saved ? 'var(--success)' : 'var(--primary)' }}>
         {saved ? <><Check size={16} /> Сохранено</> : <><Save size={16} /> {saveMut.isPending ? 'Сохраняю...' : 'Сохранить'}</>}
       </button>
