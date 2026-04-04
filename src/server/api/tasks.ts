@@ -269,7 +269,44 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   const channel = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
   const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
 
-  // Get first unprocessed article
+  // ── Web search: test AI by doing a live search + AI generation ──
+  if (task.type === 'web_search') {
+    const queries: string[] = config?.queries?.filter((q: string) => q.trim()) ?? [];
+    if (queries.length === 0) return c.json({ error: 'Нет поисковых запросов.' }, 400);
+
+    const { searchWeb } = await import('../services/search.js');
+    const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
+    const { generatePostFromSearch } = await import('../services/ai/generate.js');
+
+    const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
+    const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId: bot?.id, ownerId: bot?.ownerId });
+    if (!provider) return c.json({ error: 'AI-провайдер не настроен. Добавьте в Настройки → AI-модели.' }, 400);
+
+    const query = queries[0];
+    try {
+      const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang });
+      if (results.length === 0) return c.json({ error: `По запросу "${query}" ничего не найдено.` }, 400);
+
+      const modelId = resolveModel(config.aiModel, provider.id);
+      const systemPrompt = config.systemPrompt ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.';
+      const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
+
+      const generated = await generatePostFromSearch({ providerId: provider.id, modelId, systemPrompt, searchResults: results, topic: query, language: lang, maxLength: maxLen });
+
+      return c.json({
+        ok: true,
+        article: { title: query, summary: results.map(r => r.title).join(', '), url: results[0]?.url },
+        aiInput: `Поиск: "${query}" → ${results.length} результатов`,
+        post: generated.content,
+        model: modelId,
+        tokensUsed: generated.tokensUsed,
+      });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
+  }
+
+  // ── News feed: test AI from articles ──
   const { articles, posts: postsTable } = await import('../db/schema.js');
   const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
 
