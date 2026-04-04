@@ -101,6 +101,11 @@ postsApi.post('/', async (c) => {
   if (!body.content?.trim()) return c.json({ error: 'Текст поста не может быть пустым' }, 400);
   if (!getAllowedChannelIds(user).includes(body.channelId)) return c.json({ error: 'Forbidden' }, 403);
 
+  // Normalize scheduledFor timezone — ensure UTC 'Z' suffix
+  if (body.scheduledFor && !body.scheduledFor.endsWith('Z')) {
+    body.scheduledFor = body.scheduledFor + 'Z';
+  }
+
   const channel = db.select().from(channels).where(eq(channels.id, body.channelId)).limit(1).get();
   if (!channel) return c.json({ error: 'Канал не найден' }, 404);
 
@@ -131,6 +136,27 @@ postsApi.patch('/:id', async (c) => {
     scheduledFor?: string;
     inlineButtons?: Array<{ text: string; url: string }>;
   }>();
+
+  // Status transition validation
+  if (body.status && body.status !== existing.status) {
+    const allowedTransitions: Record<string, string[]> = {
+      draft: ['approved', 'queued', 'publishing'],
+      approved: ['queued', 'publishing', 'draft'],
+      queued: ['publishing', 'failed', 'approved'],
+      publishing: ['published', 'failed'],
+      published: [],
+      failed: ['queued', 'draft'],
+    };
+    const allowed = allowedTransitions[existing.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({ error: `Нельзя сменить статус с "${existing.status}" на "${body.status}"` }, 400);
+    }
+  }
+
+  // Normalize scheduledFor timezone — ensure UTC 'Z' suffix
+  if (body.scheduledFor && !body.scheduledFor.endsWith('Z')) {
+    body.scheduledFor = body.scheduledFor + 'Z';
+  }
 
   const updated = db.update(posts)
     .set({ ...body, updatedAt: new Date().toISOString() } as any)
