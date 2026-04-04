@@ -373,27 +373,30 @@ botsApi.get('/:id/avatar/:userId', async (c) => {
   const botId = Number(c.req.param('id'));
   const userId = Number(c.req.param('userId'));
 
+  const botRecord = db.select().from(bots).where(eq(bots.id, botId)).limit(1).get();
+  if (!botRecord) return c.body(null, 404);
+
   const botInstance = botManager.getBotInstance(botId);
-  if (!botInstance) return c.json({ error: 'Bot not running' }, 400);
+  if (!botInstance) return c.body(null, 404);
 
   try {
     const photos = await botInstance.api.getUserProfilePhotos(userId, { limit: 1 });
     if (!photos.total_count || !photos.photos[0]?.[0]) {
-      return c.redirect('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>');
+      return c.body(null, 404);
     }
-    // Get smallest photo (last in array = smallest, first = largest; [0] = array of sizes, pick small)
     const sizes = photos.photos[0];
-    const photo = sizes[0]; // smallest size
+    const photo = sizes[0];
     const file = await botInstance.api.getFile(photo.file_id);
-    const url = `https://api.telegram.org/file/bot${(await import('../db/schema.js').then(s => db.select().from(s.bots).where(eq(s.bots.id, botId)).limit(1).get()))?.token}/${file.file_path}`;
+    if (!file.file_path) return c.body(null, 404);
 
-    // Proxy the image with cache header
+    const url = `https://api.telegram.org/file/bot${botRecord.token}/${file.file_path}`;
     const imgRes = await fetch(url);
     if (!imgRes.ok) return c.body(null, 404);
 
+    const buffer = await imgRes.arrayBuffer();
     c.header('Content-Type', imgRes.headers.get('content-type') ?? 'image/jpeg');
-    c.header('Cache-Control', 'public, max-age=3600'); // cache 1 hour
-    return c.body(imgRes.body as any);
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(new Uint8Array(buffer));
   } catch {
     return c.body(null, 404);
   }
