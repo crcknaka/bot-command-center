@@ -227,10 +227,12 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
   const totalDays = firstMsg ? Math.max(1, Math.round((Date.now() - new Date(firstMsg.createdAt + 'Z').getTime()) / 86400000)) : 1;
   data['all'] = { messages: allMsgs.length, users: new Set(allMsgs.map(m => m.userId)).size, avgPerDay: Math.round(allMsgs.length / totalDays) };
 
-  // Peak hour from all messages
+  // Peak hour from all messages (adjusted to client timezone)
+  const tzOffset = Number(c.req.query('tz') ?? 0);
   const hourCounts: Record<number, number> = {};
   for (const m of allMsgs) {
-    const h = new Date(m.createdAt + 'Z').getHours();
+    const utcMs = new Date(m.createdAt + 'Z').getTime();
+    const h = new Date(utcMs - tzOffset * 60000).getUTCHours();
     hourCounts[h] = (hourCounts[h] ?? 0) + 1;
   }
   const peakHour = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
@@ -276,12 +278,14 @@ statsApi.get('/chat/:chatId/hourly', async (c) => {
   const chatId = c.req.param('chatId');
   const period = c.req.query('period') ?? 'week';
   const threadId = c.req.query('threadId');
+  const tzOffset = Number(c.req.query('tz') ?? 0); // minutes offset from UTC
 
   const msgs = getChatMessages(chatId, period, threadId);
   const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
   for (const m of msgs) {
-    const h = new Date(m.createdAt + 'Z').getHours();
-    hours[h].count++;
+    const utcMs = new Date(m.createdAt + 'Z').getTime();
+    const localH = new Date(utcMs - tzOffset * 60000).getUTCHours();
+    hours[localH].count++;
   }
   return c.json(hours);
 });

@@ -25,6 +25,7 @@ export function AnalyticsPage() {
   const [editThread, setEditThread] = useState<{ id: string; title: string } | null>(null);
 
   const threadParam = selectedThread !== 'all' ? `&threadId=${selectedThread}` : '';
+  const tz = new Date().getTimezoneOffset(); // minutes offset from UTC
 
   const { data: chats } = useQuery({ queryKey: ['stats-chats'], queryFn: () => apiFetch('/stats/chats') });
   const { data: threads } = useQuery({
@@ -34,7 +35,7 @@ export function AnalyticsPage() {
   });
   const { data: summary } = useQuery({
     queryKey: ['stats-summary', selectedChat, selectedThread],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/summary?${threadParam.slice(1)}`),
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/summary?tz=${tz}${threadParam}`),
     enabled: !!selectedChat,
   });
   const { data: topUsers } = useQuery({
@@ -54,7 +55,7 @@ export function AnalyticsPage() {
   });
   const { data: hourly } = useQuery({
     queryKey: ['stats-hourly', selectedChat, period, selectedThread],
-    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/hourly?period=${period}${threadParam}`),
+    queryFn: () => apiFetch(`/stats/chat/${selectedChat}/hourly?period=${period}&tz=${tz}${threadParam}`),
     enabled: !!selectedChat,
   });
   const { data: weekdays } = useQuery({
