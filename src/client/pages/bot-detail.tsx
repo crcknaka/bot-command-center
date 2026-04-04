@@ -8,7 +8,7 @@ import { safeHtml } from '../lib/sanitize.js';
 import { Stepper } from '../components/ui/stepper.js';
 import { useBotAction } from '../hooks/use-bots.js';
 import { apiFetch } from '../lib/api.js';
-import { cn } from '../lib/utils.js';
+import { cn, timeAgo } from '../lib/utils.js';
 
 export function BotDetailPage() {
   const { id } = useParams();
@@ -1786,20 +1786,30 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
                 <div key={source.id} className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="px-1.5 py-0.5 rounded bg-zinc-700/50 font-mono uppercase text-[10px] shrink-0">{source.type}</span>
+                      <span className={cn('px-1.5 py-0.5 rounded font-mono uppercase text-[10px] shrink-0', source.lastError ? 'bg-red-500/15 text-red-400' : source.lastFetchedAt ? 'bg-green-500/10 text-green-400' : 'bg-zinc-700/50')}>{source.type}</span>
                       <span className="shrink-0">{source.name}</span>
-                      <span className="font-mono truncate max-w-48" style={{ color: 'var(--text-muted)' }}>{source.url}</span>
+                      <span className="font-mono truncate max-w-48 hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{source.url}</span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      {source.lastFetchedAt && (
+                        <span className="text-[10px] hidden sm:inline" style={{ color: 'var(--text-muted)' }} title={source.lastFetchedAt}>
+                          {source.lastError ? '❌' : '✅'} {source.lastFetchCount != null ? `${source.lastFetchCount} новых` : ''} · {timeAgo(source.lastFetchedAt)}
+                        </span>
+                      )}
                       <button onClick={() => onFetchSource(source.id)} disabled={fetchingSourceId === source.id} className="px-2 py-0.5 rounded text-blue-400 hover:bg-blue-500/15 flex items-center gap-1">
                         <RefreshCw size={10} className={fetchingSourceId === source.id ? 'animate-spin' : ''} />
-                        {fetchingSourceId === source.id ? 'Загружаю...' : 'Загрузить'}
+                        {fetchingSourceId === source.id ? '...' : 'Загрузить'}
                       </button>
                       <button onClick={() => onDeleteSource(source.id)} className="p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10" title="Удалить источник">
                         <Trash2 size={10} />
                       </button>
                     </div>
                   </div>
+                  {source.lastError && (
+                    <div className="text-[10px] px-2 py-1 rounded bg-red-500/10 text-red-400 truncate" title={source.lastError}>
+                      Ошибка: {source.lastError}
+                    </div>
+                  )}
                   {fr && (
                     <div className={`text-[10px] px-2 py-1 rounded ${fr.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                       {fr.ok ? `✅ ${fr.msg}` : `❌ ${fr.msg}`}

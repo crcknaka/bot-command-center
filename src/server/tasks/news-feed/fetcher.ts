@@ -168,14 +168,18 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
         return 0;
     }
   } catch (err) {
-    console.error(`Failed to fetch source "${source.name}" (${source.url}):`, (err as Error).message);
+    const errMsg = (err as Error).message;
+    console.error(`Failed to fetch source "${source.name}" (${source.url}):`, errMsg);
+    db.update(sources)
+      .set({ lastFetchedAt: new Date().toISOString(), lastError: errMsg, lastFetchCount: 0 })
+      .where(eq(sources.id, sourceId))
+      .run();
     return 0;
   }
 
   let newCount = 0;
 
   for (const article of fetched) {
-    // Check for duplicate
     const existing = db.select({ id: articles.id })
       .from(articles)
       .where(eq(articles.externalId, article.externalId))
@@ -199,9 +203,9 @@ export async function fetchAndStore(sourceId: number): Promise<number> {
     newCount++;
   }
 
-  // Update last fetched time
+  // Update status: success
   db.update(sources)
-    .set({ lastFetchedAt: new Date().toISOString() })
+    .set({ lastFetchedAt: new Date().toISOString(), lastError: null, lastFetchCount: newCount })
     .where(eq(sources.id, sourceId))
     .run();
 

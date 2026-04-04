@@ -130,6 +130,8 @@ export const sources = sqliteTable('sources', {
   name: text('name').notNull(),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   lastFetchedAt: text('last_fetched_at'),
+  lastFetchCount: integer('last_fetch_count'), // articles found in last fetch
+  lastError: text('last_error'), // error message from last fetch (null = ok)
   fetchIntervalMinutes: integer('fetch_interval_minutes').notNull().default(60),
 });
 
