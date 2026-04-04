@@ -237,12 +237,16 @@ export async function fetchAndStore(sourceId: number, maxAgeDays: number = 7): P
     // Try to enrich from article page if missing image or summary
     let imageUrl = article.imageUrl;
     let summary = article.summary;
-    const isGoogleNews = article.url?.includes('news.google.com/');
-    const needsEnrich = (!imageUrl || !summary || summary === article.title) && article.url && !isGoogleNews;
-    if (needsEnrich) {
+    const skipEnrich = article.url?.includes('news.google.com/') || article.url?.includes('youtube.com/') || article.url?.includes('youtu.be/');
+    if (!skipEnrich && (!imageUrl || !summary || summary === article.title) && article.url) {
       const og = await fetchOgMeta(article.url);
       if (!imageUrl && og?.image) imageUrl = og.image;
       if ((!summary || summary === article.title) && og?.description) summary = og.description;
+    }
+    // For YouTube — get thumbnail as image
+    if (!imageUrl && article.url?.includes('youtube.com/')) {
+      const videoId = article.url.match(/[?&]v=([^&]+)/)?.[1] ?? article.url.match(/shorts\/([^?&]+)/)?.[1];
+      if (videoId) imageUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
     }
 
     db.insert(articles).values({
