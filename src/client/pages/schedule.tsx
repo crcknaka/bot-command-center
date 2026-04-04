@@ -30,13 +30,12 @@ export function SchedulePage() {
     });
   });
 
-  // Week days
+  // Week days — start from today
   const today = new Date();
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset * 7);
+  today.setHours(0, 0, 0, 0);
   const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate() + i);
+    const d = new Date(today);
+    d.setDate(today.getDate() + i + weekOffset * 7);
     return d;
   });
 
@@ -269,39 +268,36 @@ export function SchedulePage() {
 // ─── Draggable Post ──────────────────────────────────────────────────────────
 
 function DraggablePost({ post, channelMap, compact, onPostClick }: { post: any; channelMap: Record<number, any>; compact?: boolean; onPostClick?: (post: any) => void }) {
-  const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({ id: post.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: post.id });
   const ctx = channelMap[post.channelId];
   const time = post.scheduledFor ? new Date(post.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-  // Open post viewer on click, but only if not dragging
-  const handleClick = () => {
-    if (!transform && onPostClick) onPostClick(post);
-  };
-
   if (compact) {
     return (
-      <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick}
-        className={cn('rounded-lg p-2 border text-[10px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
-        style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-1 mb-0.5">
-          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', postStatusConfig[post.status]?.dot)} />
-          {time && <span className="font-mono">{time}</span>}
-          <span className="truncate" style={{ color: 'var(--text-muted)' }}>{ctx?.title ?? ''}</span>
+      <div ref={setNodeRef} className={cn('rounded-lg border text-[10px] transition-opacity flex', isDragging && 'opacity-30')} style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+        <div {...listeners} {...attributes} className="w-5 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400" title="Перетащить">⠿</div>
+        <div className="flex-1 p-2 cursor-pointer hover:bg-white/[0.02]" onClick={() => onPostClick?.(post)}>
+          <div className="flex items-center gap-1 mb-0.5">
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', postStatusConfig[post.status]?.dot)} />
+            {time && <span className="font-mono">{time}</span>}
+            <span className="truncate" style={{ color: 'var(--text-muted)' }}>{ctx?.title ?? ''}</span>
+          </div>
+          <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
         </div>
-        <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
       </div>
     );
   }
 
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick}
-      className={cn('rounded-lg p-2.5 border text-[11px] cursor-grab active:cursor-grabbing transition-opacity', isDragging && 'opacity-30')}
-      style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[post.status]?.dot)} />
-        <span className="font-medium truncate">{ctx?.botName ?? '?'}</span>
+    <div ref={setNodeRef} className={cn('rounded-lg border text-[11px] transition-opacity flex', isDragging && 'opacity-30')} style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+      <div {...listeners} {...attributes} className="w-5 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400" title="Перетащить">⠿</div>
+      <div className="flex-1 p-2.5 cursor-pointer hover:bg-white/[0.02]" onClick={() => onPostClick?.(post)}>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[post.status]?.dot)} />
+          <span className="font-medium truncate">{ctx?.botName ?? '?'}</span>
+        </div>
+        <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
       </div>
-      <div className="line-clamp-2" style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={safeHtml(post.content)} />
     </div>
   );
 }
