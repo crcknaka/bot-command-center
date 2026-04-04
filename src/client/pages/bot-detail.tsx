@@ -1305,13 +1305,18 @@ const sourceTypeInfo: Record<string, { icon: string; label: string; desc: string
 
 const rssPresets = [
   { cat: '🛞 Моноколёса / EUC', items: [
-    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Главный Reddit про EUC: обзоры, вопросы, видео поездок' },
-    { name: 'EUC World Blog', url: 'https://euc.world/blog/feed', type: 'rss', desc: 'Блог EUC World — приложение для моноколёс. Обзоры, обновления' },
-    { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Google News: все новости про electric unicycle на английском' },
-    { name: 'GN: Моноколесо', url: 'https://news.google.com/rss/search?q=%D0%BC%D0%BE%D0%BD%D0%BE%D0%BA%D0%BE%D0%BB%D0%B5%D1%81%D0%BE&hl=ru', type: 'rss', desc: 'Google News: моноколесо на русском языке' },
-    { name: 'GN: EUC review', url: 'https://news.google.com/rss/search?q=EUC+review+electric+unicycle&hl=en', type: 'rss', desc: 'Google News: обзоры EUC на английском' },
-    { name: 'GN: Begode Inmotion', url: 'https://news.google.com/rss/search?q=begode+OR+inmotion+OR+leaperkim+OR+kingsong+unicycle&hl=en', type: 'rss', desc: 'Google News: бренды моноколёс — Begode, Inmotion, Leaperkim, KingSong' },
+    { name: 'r/ElectricUnicycle', url: 'ElectricUnicycle', type: 'reddit', desc: 'Главный Reddit про EUC: обзоры, вопросы, видео поездок. Картинки есть.' },
+    { name: 'Wrong Way (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCnBqjyMBCuIjvOBJe3yY_gQ', type: 'youtube', desc: 'Wrong Way — крупнейший EUC канал. Обзоры, тесты скорости, сравнения.' },
+    { name: 'Kuji Rolls (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCxEkqfVGBmfJC5REsMU7HCw', type: 'youtube', desc: 'Kuji Rolls — обзоры моноколёс, групповые поездки, краш-тесты.' },
+    { name: 'EUC GUY (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCXsaAEYvFSFkMhR9G9gFR4A', type: 'youtube', desc: 'EUC GUY — детальные обзоры и сравнения моноколёс.' },
+    { name: 'HSN Electric (YouTube)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCAx4nmKRo8PE_pCTfeVomzQ', type: 'youtube', desc: 'HSN Electric — обзоры EUC, e-bikes, электротранспорт.' },
+    { name: 'Чаёк (YouTube RU)', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCJzsd4OQJb6BhCZOXBpBCOA', type: 'youtube', desc: 'Чаёк — русскоязычный канал про моноколёса, обзоры и покатушки.' },
+    { name: 'EUC World Blog', url: 'https://euc.world/blog/feed', type: 'rss', desc: 'Блог EUC World — приложение для моноколёс.' },
     { name: 'r/onewheel', url: 'onewheel', type: 'reddit', desc: 'Onewheel: трюки, маршруты, модификации' },
+    { name: 'GN: Electric Unicycle', url: 'https://news.google.com/rss/search?q=electric+unicycle&hl=en', type: 'rss', desc: 'Google News: electric unicycle (EN). Без картинок.' },
+    { name: 'GN: Моноколесо', url: 'https://news.google.com/rss/search?q=%D0%BC%D0%BE%D0%BD%D0%BE%D0%BA%D0%BE%D0%BB%D0%B5%D1%81%D0%BE&hl=ru', type: 'rss', desc: 'Google News: моноколесо (RU). Без картинок.' },
+    { name: 'GN: Begode Inmotion KingSong', url: 'https://news.google.com/rss/search?q=begode+OR+inmotion+OR+leaperkim+OR+kingsong+unicycle&hl=en', type: 'rss', desc: 'Google News: бренды EUC (EN). Без картинок.' },
+    { name: 'Electrek (+ фильтр)', url: 'https://electrek.co/feed/', type: 'rss', desc: 'Electrek: всё про EV. Используй фильтр "unicycle" чтобы получать только EUC.' },
   ]},
   { cat: '⚡ Электротранспорт / EV', items: [
     { name: 'Electrek', url: 'https://electrek.co/feed/', type: 'rss', desc: 'Главный сайт про EV, e-bikes, электроскутеры. Ежедневные новости индустрии' },
