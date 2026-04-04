@@ -210,28 +210,42 @@ tasksApi.delete('/sources/:id', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /api/sources/:id/fetch — test source (fetch without storing)
+// POST /api/sources/:id/fetch — test source (fetch without storing, respects date filter)
 tasksApi.post('/sources/:id/fetch', async (c) => {
   const id = Number(c.req.param('id'));
   try {
-    const articles = await fetchOnly(id);
+    let allArticles = await fetchOnly(id);
 
-    // Check filter keywords from parent task
+    // Get task config for filters
     const source = db.select().from(sources).where(eq(sources.id, id)).limit(1).get();
-    let filterInfo: { total: number; matched: number; keywords: string[] } | undefined;
-    if (source) {
-      const task = db.select().from(tasks).where(eq(tasks.id, source.taskId)).limit(1).get();
-      const keywords: string[] = (task?.config as any)?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
-      if (keywords.length > 0) {
-        const matched = articles.filter((a) => {
-          const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
-          return keywords.some((kw) => text.includes(kw.toLowerCase()));
-        });
-        filterInfo = { total: articles.length, matched: matched.length, keywords };
-      }
+    const task = source ? db.select().from(tasks).where(eq(tasks.id, source.taskId)).limit(1).get() : null;
+    const maxAgeDays = (task?.config as any)?.maxAgeDays ?? 7;
+
+    // Apply date filter (same as fetchAndStore)
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+    const totalBeforeDate = allArticles.length;
+    allArticles = allArticles.filter((a) => {
+      if (!a.publishedAt) return source?.type === 'web';
+      const pubDate = new Date(a.publishedAt).getTime();
+      return !isNaN(pubDate) && pubDate >= cutoff;
+    });
+
+    // Apply keyword filter
+    const keywords: string[] = (task?.config as any)?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
+    let filterInfo: { total: number; matched: number; keywords: string[]; skippedOld: number } | undefined;
+    const skippedOld = totalBeforeDate - allArticles.length;
+
+    if (keywords.length > 0) {
+      const matched = allArticles.filter((a) => {
+        const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
+        return keywords.some((kw) => text.includes(kw.toLowerCase()));
+      });
+      filterInfo = { total: allArticles.length, matched: matched.length, keywords, skippedOld };
+    } else if (skippedOld > 0) {
+      filterInfo = { total: allArticles.length, matched: allArticles.length, keywords: [], skippedOld };
     }
 
-    return c.json({ ok: true, totalArticles: articles.length, filterInfo });
+    return c.json({ ok: true, totalArticles: allArticles.length, filterInfo });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
   }
