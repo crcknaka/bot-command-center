@@ -68,3 +68,4 @@ server {
 - **Frontend**: React, Vite, Tailwind CSS
 - **AI**: Vercel AI SDK (OpenAI, Anthropic, Gemini, OpenRouter, Ollama, LM Studio)
 - **Поиск**: Tavily, Serper, Brave Search, SerpAPI, Google CSE
+# Auto-deploy test Sat Apr  4 10:27:30 TST 2026
