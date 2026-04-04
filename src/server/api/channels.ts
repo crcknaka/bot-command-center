@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { channels, bots } from '../db/schema.js';
+import { channels, bots, tasks, sources } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { Bot } from 'grammy';
@@ -92,6 +92,75 @@ channelsApi.post('/channels/:id/verify', async (c) => {
     db.update(channels).set({ isLinked: false }).where(eq(channels.id, id)).run();
     return c.json({ ok: false, isLinked: false, error: (err as Error).message });
   }
+});
+
+// POST /api/channels/:id/duplicate — duplicate channel config to a new chatId
+channelsApi.post('/channels/:id/duplicate', async (c) => {
+  const id = Number(c.req.param('id'));
+  const { chatId, threadId } = await c.req.json<{ chatId: string; threadId?: number }>();
+
+  const original = db.select().from(channels).where(eq(channels.id, id)).limit(1).get();
+  if (!original) return c.json({ error: 'Канал не найден' }, 404);
+
+  const botRecord = db.select().from(bots).where(eq(bots.id, original.botId)).limit(1).get();
+  if (!botRecord) return c.json({ error: 'Бот не найден' }, 404);
+
+  // Resolve new channel info from Telegram
+  let title = chatId;
+  let type: 'channel' | 'group' | 'supergroup' = original.type as any;
+  let isLinked = false;
+
+  try {
+    const tempBot = new Bot(botRecord.token);
+    const chat = await tempBot.api.getChat(chatId);
+    title = ('title' in chat ? chat.title : chat.first_name) ?? chatId;
+    if (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') {
+      type = chat.type;
+    }
+    isLinked = true;
+  } catch {
+    // Bot may not have access yet
+  }
+
+  // Create new channel
+  const newChannel = db.insert(channels).values({
+    botId: original.botId,
+    chatId,
+    title,
+    type,
+    isTest: false,
+    threadId: threadId ?? null,
+    isLinked,
+  }).returning().get();
+
+  // Duplicate all tasks
+  const originalTasks = db.select().from(tasks).where(eq(tasks.channelId, original.id)).all();
+
+  for (const task of originalTasks) {
+    const newTask = db.insert(tasks).values({
+      channelId: newChannel.id,
+      name: task.name,
+      type: task.type as any,
+      config: task.config,
+      enabled: task.enabled,
+      schedule: task.schedule,
+    }).returning().get();
+
+    // Duplicate sources for this task
+    const taskSources = db.select().from(sources).where(eq(sources.taskId, task.id)).all();
+    for (const src of taskSources) {
+      db.insert(sources).values({
+        taskId: newTask.id,
+        type: src.type as any,
+        url: src.url,
+        name: src.name,
+        enabled: src.enabled,
+        fetchIntervalMinutes: src.fetchIntervalMinutes,
+      }).run();
+    }
+  }
+
+  return c.json(newChannel, 201);
 });
 
 export { channelsApi };

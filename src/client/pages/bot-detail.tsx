@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy } from 'lucide-react';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { safeHtml } from '../lib/sanitize.js';
@@ -21,7 +21,6 @@ export function BotDetailPage() {
   // Add channel state
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [channelInput, setChannelInput] = useState('');
-  const [isTestChannel, setIsTestChannel] = useState(false);
   const [threadId, setThreadId] = useState('');
 
   // Add task state
@@ -46,7 +45,7 @@ export function BotDetailPage() {
   const [taskRunResult, setTaskRunResult] = useState<Record<number, any>>({});
 
   const addChannelMut = useMutation({
-    mutationFn: (data: { chatId: string; isTest: boolean }) =>
+    mutationFn: (data: { chatId: string; threadId?: number }) =>
       apiFetch(`/bots/${botId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowAddChannel(false); setChannelInput(''); },
   });
@@ -230,7 +229,7 @@ export function BotDetailPage() {
             Введите юзернейм канала (например, <code>@euc_official</code>) или числовой ID.<br />
             <b>Важно:</b> бот должен быть администратором этого канала, чтобы публиковать пост��.
           </p>
-          <form onSubmit={(e) => { e.preventDefault(); if (!channelInput.trim()) return; addChannelMut.mutate({ chatId: channelInput.trim(), isTest: isTestChannel, threadId: threadId ? Number(threadId) : undefined }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (!channelInput.trim()) return; addChannelMut.mutate({ chatId: channelInput.trim(), threadId: threadId ? Number(threadId) : undefined }); }}>
             <label className="block text-sm font-medium mb-1 flex items-center gap-1.5">
               ID канала
               <InfoTip text="Для публичных каналов: @имя_канала. Для приватных: числовой ID (можно узнать, переслав сообщение боту @userinfobot)." position="right" />
@@ -246,11 +245,6 @@ export function BotDetailPage() {
                 Как узнать ID топика: откройте топик → URL будет вида t.me/group/123 — число 123 и есть thread_id.
               </p>
             </div>
-            <label className="flex items-center gap-2 text-sm mb-4">
-              <input type="checkbox" checked={isTestChannel} onChange={(e) => setIsTestChannel(e.target.checked)} />
-              Тестовый канал
-              <InfoTip text="В тестовый канал отправляются посты во время отладки. Потом можно переключить на боевой режим." position="right" />
-            </label>
             <div className="flex gap-3 justify-end">
               <button type="button" onClick={() => setShowAddChannel(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
               <button type="submit" disabled={addChannelMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
@@ -1362,9 +1356,13 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
     queryFn: () => apiFetch(`/channels/${channel.id}/tasks`),
   });
 
-  const toggleTestMut = useMutation({
-    mutationFn: () => apiFetch(`/channels/${channel.id}`, { method: 'PATCH', body: JSON.stringify({ isTest: !channel.isTest }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bot', botId] }),
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [dupChatId, setDupChatId] = useState('');
+  const [dupThreadId, setDupThreadId] = useState('');
+  const duplicateMut = useMutation({
+    mutationFn: (data: { chatId: string; threadId?: number }) =>
+      apiFetch(`/channels/${channel.id}/duplicate`, { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bot', botId] }); setShowDuplicate(false); setDupChatId(''); setDupThreadId(''); },
   });
 
   return (
@@ -1378,13 +1376,6 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
           }
           <span className="font-medium text-sm truncate max-w-32 sm:max-w-none">{channel.title}</span>
           <span className="text-[11px] font-mono hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{channel.chatId}</span>
-          <button
-            onClick={() => toggleTestMut.mutate()}
-            className={cn('text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors', channel.isTest ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25' : 'bg-green-500/15 text-green-400 hover:bg-green-500/25')}
-            title={channel.isTest ? 'Нажмите чтобы перевести в боевой режим' : 'Нажмите чтобы перевести в тестовый режим'}
-          >
-            {channel.isTest ? '🧪 Тестовый' : '🟢 Боевой'}
-          </button>
           {channel.isLinked ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50" style={{ color: 'var(--text-muted)' }}>Подключён</span>
           ) : (
@@ -1394,6 +1385,9 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
         <div className="flex gap-2 shrink-0">
           <button onClick={() => onAddTask(channel.type)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
             <Plus size={12} /> Задача
+          </button>
+          <button onClick={() => setShowDuplicate(true)} className="p-1.5 rounded-lg hover:bg-white/5" title="Дублировать канал со всеми задачами">
+            <Copy size={14} className="text-zinc-400/60 hover:text-zinc-300" />
           </button>
           <button onClick={onDeleteChannel} className="p-1.5 rounded-lg hover:bg-white/5" title="Удалить канал">
             <Trash2 size={14} className="text-red-400/60 hover:text-red-400" />
@@ -1436,6 +1430,34 @@ function ChannelCard({ channel, botId, onAddTask, onDeleteChannel, onEditTask, o
           </div>
         )}
       </div>
+
+      {/* Duplicate Channel Modal */}
+      {showDuplicate && (
+        <Modal title="Дублировать канал" onClose={() => setShowDuplicate(false)}>
+          <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+            Все задачи, настройки и источники будут скопированы на новый канал/группу.
+          </p>
+          <form onSubmit={(e) => { e.preventDefault(); if (!dupChatId.trim()) return; duplicateMut.mutate({ chatId: dupChatId.trim(), threadId: dupThreadId ? Number(dupThreadId) : undefined }); }}>
+            <label className="block text-sm font-medium mb-1">Новый канал/группа</label>
+            <input value={dupChatId} onChange={(e) => setDupChatId(e.target.value)}
+              placeholder="@new_channel" required autoFocus
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-3" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <label className="block text-xs font-medium mb-1">Топик (thread_id)</label>
+            <input value={dupThreadId} onChange={(e) => setDupThreadId(e.target.value)}
+              placeholder="Пусто = General"
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono mb-4" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => setShowDuplicate(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+              <button type="submit" disabled={duplicateMut.isPending} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                {duplicateMut.isPending ? 'Дублирую...' : 'Дублировать'}
+              </button>
+            </div>
+          </form>
+          {duplicateMut.isError && (
+            <p className="text-xs text-red-400 mt-2">{(duplicateMut.error as Error).message}</p>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1603,7 +1625,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onAddSource, onFetc
 
 // ── Modal wrapper ────────────────────────────────────────────────────────────
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="w-full max-w-md p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
