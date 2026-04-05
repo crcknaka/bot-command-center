@@ -34,6 +34,7 @@ function formatDetails(action: string, details: any): string | null {
     if (details.messageText) parts.push(`«${details.messageText.slice(0, 100)}${details.messageText.length > 100 ? '…' : ''}»`);
     return parts.join(' — ');
   }
+  if (action === 'bot.imported' && details.channels != null) return `${details.channels} каналов, ${details.tasks} задач`;
   if (details.name) return details.name;
   if (details.username) return `@${details.username}`;
   if (details.channelTitle) return `→ ${details.channelTitle}`;
@@ -43,7 +44,9 @@ function formatDetails(action: string, details: any): string | null {
 const actionMeta: Record<string, { icon: any; label: string; color: string }> = {
   'user.login': { icon: LogIn, label: 'Вход в систему', color: 'text-blue-400' },
   'user.registered': { icon: UserPlus, label: 'Регистрация', color: 'text-green-400' },
+  'user.password_changed': { icon: Shield, label: 'Смена пароля', color: 'text-yellow-400' },
   'bot.created': { icon: Bot, label: 'Бот создан', color: 'text-purple-400' },
+  'bot.imported': { icon: Bot, label: 'Бот импортирован', color: 'text-purple-400' },
   'bot.started': { icon: Zap, label: 'Бот запущен', color: 'text-green-400' },
   'bot.stopped': { icon: Zap, label: 'Бот остановлен', color: 'text-zinc-400' },
   'bot.deleted': { icon: Bot, label: 'Бот удалён', color: 'text-red-400' },
