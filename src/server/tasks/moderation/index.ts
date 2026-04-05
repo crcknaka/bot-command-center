@@ -206,10 +206,12 @@ export class ModerationTask implements TaskModule {
     };
 
     const logMod = (action: string, msgCtx: any, reason: string) => {
+      const msg = msgCtx.message ?? msgCtx.update?.message;
+      const messageText = (msg?.text ?? msg?.caption ?? '').slice(0, 300) || undefined;
       logActivity({
         botId: null,
         action: `mod.${action}`,
-        details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, reason },
+        details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, reason, messageText },
       });
     };
 

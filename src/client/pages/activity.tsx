@@ -24,6 +24,7 @@ function formatDetails(action: string, details: any): string | null {
       const r = details.reason.startsWith('banned_word:') ? `слово «${details.reason.split(':')[1]}»` : (reasonLabels[details.reason] ?? details.reason);
       parts.push(r);
     }
+    if (details.messageText) parts.push(`«${details.messageText.slice(0, 100)}${details.messageText.length > 100 ? '…' : ''}»`);
     return parts.join(' — ');
   }
   if (details.name) return details.name;
