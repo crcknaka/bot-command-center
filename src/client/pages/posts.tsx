@@ -27,7 +27,7 @@ import { Link } from 'react-router-dom';
 import { postStatusConfig, postStatusFilters } from '../lib/constants.js';
 
 export function PostsPage() {
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('status') ?? 'all');
   const [botFilter, setBotFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('botId') ?? 'all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState('');

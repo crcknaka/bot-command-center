@@ -81,8 +81,16 @@ const periodFilters = [
 ] as const;
 
 export function ActivityPage() {
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [modSubFilter, setModSubFilter] = useState<string>('mod');
+  const urlType = new URLSearchParams(window.location.search).get('type');
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    if (urlType?.startsWith('mod')) return 'mod';
+    if (urlType === 'auth' || urlType === 'bot' || urlType === 'post') return urlType;
+    return 'all';
+  });
+  const [modSubFilter, setModSubFilter] = useState<string>(() => {
+    if (urlType === 'mod.deleted' || urlType === 'mod.warned' || urlType === 'mod.muted') return urlType;
+    return 'mod';
+  });
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
