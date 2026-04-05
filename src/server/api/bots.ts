@@ -449,7 +449,8 @@ botsApi.post('/:id/moderate', async (c) => {
         break;
     }
 
-    logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, duration, action } });
+    const chatChannel = db.select().from(channels).where(eq(channels.chatId, String(chatId))).limit(1).get();
+    logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, chatTitle: chatChannel?.title ?? chatId, duration, action } });
     // Return expected new status so client can update immediately
     const newStatus = action === 'ban' ? 'kicked' : action === 'unban' || action === 'unmute' ? 'member' : action === 'mute' ? 'restricted' : 'restricted';
     return c.json({ ok: true, newStatus });
