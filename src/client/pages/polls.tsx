@@ -10,6 +10,7 @@ import { cn, timeAgo } from '../lib/utils.js';
 
 export function PollsPage() {
   const [showCreate, setShowCreate] = useState(false);
+  const [showVotes, setShowVotes] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [botFilter, setBotFilter] = useState<string>('all');
   const toast = useToast();
@@ -97,16 +98,40 @@ export function PollsPage() {
                     {poll.status === 'failed' && <span className="text-[11px] px-2 py-0.5 rounded bg-red-500/15 text-red-400">Ошибка</span>}
                   </div>
                   <h3 className="text-sm font-medium mb-2">{poll.question}</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(poll.options as string[]).map((opt: string, i: number) => (
-                      <span key={i} className={cn('text-[11px] px-2 py-0.5 rounded border', poll.type === 'quiz' && poll.correctOptionId === i ? 'border-green-500/30 bg-green-500/10 text-green-400' : '')} style={poll.type !== 'quiz' || poll.correctOptionId !== i ? { borderColor: 'var(--border)', color: 'var(--text-muted)' } : {}}>
-                        {poll.type === 'quiz' && poll.correctOptionId === i && '✓ '}{opt}
-                      </span>
-                    ))}
+                  {/* Options with result bars */}
+                  <div className="space-y-1">
+                    {(poll.options as string[]).map((opt: string, i: number) => {
+                      const results = (poll.results as number[]) ?? [];
+                      const votes = results[i] ?? 0;
+                      const total = poll.totalVoters ?? 0;
+                      const pct = total > 0 ? Math.round((votes / total) * 100) : 0;
+                      const isCorrect = poll.type === 'quiz' && poll.correctOptionId === i;
+                      return (
+                        <div key={i} className="text-[11px]">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className={isCorrect ? 'text-green-400 font-medium' : ''} style={isCorrect ? {} : { color: 'var(--text-muted)' }}>
+                              {isCorrect && '✓ '}{opt}
+                            </span>
+                            {total > 0 && <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{votes} ({pct}%)</span>}
+                          </div>
+                          {total > 0 && (
+                            <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                              <div className={cn('h-full rounded-full', isCorrect ? 'bg-green-500' : 'bg-blue-500')} style={{ width: `${pct}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {(poll.totalVoters ?? 0) > 0 && (
+                    <div className="text-[10px] mt-1.5 font-medium" style={{ color: 'var(--text-muted)' }}>
+                      👥 {poll.totalVoters} {poll.totalVoters === 1 ? 'проголосовал' : 'проголосовали'}
+                      {!poll.isAnonymous && <button onClick={() => setShowVotes(showVotes === poll.id ? null : poll.id)} className="ml-2 text-blue-400 hover:text-blue-300">Кто голосовал →</button>}
+                    </div>
+                  )}
                   {poll.errorMessage && <div className="text-[11px] text-red-400 mt-1.5">{poll.errorMessage}</div>}
-                  <div className="flex gap-3 mt-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    {poll.isAnonymous && <span>Анонимный</span>}
+                  <div className="flex gap-3 mt-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    {poll.isAnonymous ? <span>Анонимный</span> : <span>Не анонимный</span>}
                     {poll.allowsMultipleAnswers && <span>Несколько ответов</span>}
                     {poll.explanation && <span>Пояснение: «{poll.explanation}»</span>}
                   </div>
@@ -119,6 +144,8 @@ export function PollsPage() {
                   </button>
                 </div>
               </div>
+              {/* Votes panel (non-anonymous) */}
+              {showVotes === poll.id && <VotesPanel pollId={poll.id} options={poll.options as string[]} />}
             </div>
           ))}
         </div>
@@ -128,6 +155,38 @@ export function PollsPage() {
       {showCreate && (
         <CreatePollModal channels={channelList} onClose={() => setShowCreate(false)} onSuccess={() => { qc.invalidateQueries({ queryKey: ['polls'] }); setShowCreate(false); }} />
       )}
+    </div>
+  );
+}
+
+// ─── Votes Panel ────────────────────────────────────────────────────────────
+
+function VotesPanel({ pollId, options }: { pollId: number; options: string[] }) {
+  const { data: votes } = useQuery({ queryKey: ['poll-votes', pollId], queryFn: () => apiFetch(`/polls/${pollId}/votes`) });
+
+  if (!votes?.length) return (
+    <div className="border-t mt-3 pt-3 text-xs text-center" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+      Пока нет данных о голосах. Для не анонимных опросов в группах бот записывает кто голосовал.
+    </div>
+  );
+
+  return (
+    <div className="border-t mt-3 pt-3" style={{ borderColor: 'var(--border)' }}>
+      <div className="text-[11px] font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Кто голосовал ({votes.length}):</div>
+      <div className="space-y-1 max-h-40 overflow-y-auto">
+        {votes.map((v: any) => (
+          <div key={v.id} className="flex items-center gap-2 text-[11px]">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ background: `hsl(${v.userId % 360}, 50%, 40%)` }}>
+              {(v.userName ?? '?')[0]?.toUpperCase()}
+            </div>
+            <span className="font-medium">{v.userName}</span>
+            {v.username && <span style={{ color: 'var(--text-muted)' }}>@{v.username}</span>}
+            <span className="ml-auto text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              {(v.optionIds as number[]).map((idx: number) => options[idx] ?? `#${idx}`).join(', ')}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

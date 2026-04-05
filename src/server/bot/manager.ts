@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
 import { db } from '../db/client.js';
-import { bots, channels, tasks, messageStats, posts } from '../db/schema.js';
+import { bots, channels, tasks, messageStats, posts, polls, pollVotes } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { scheduler } from '../services/scheduler.js';
 import { getTaskModule } from '../tasks/registry.js';
@@ -185,6 +185,54 @@ class BotManager {
       } catch (e) { console.error('[stats] reaction error:', e); }
     });
 
+    // ── Poll results tracking ───────────────────────────────────────────
+    bot.on('poll', (ctx) => {
+      try {
+        const poll = ctx.poll;
+        if (!poll) return;
+        // Find our poll record by telegramPollId
+        const pollRecord = db.select().from(polls).where(eq(polls.telegramPollId, poll.id)).limit(1).get();
+        if (!pollRecord) return;
+        const results = poll.options.map((o: any) => o.voter_count);
+        db.update(polls).set({
+          totalVoters: poll.total_voter_count,
+          results: results as any,
+          lastResultsAt: new Date().toISOString(),
+        }).where(eq(polls.id, pollRecord.id)).run();
+      } catch (e) { console.error('[polls] result tracking error:', e); }
+    });
+
+    // ── Poll answer tracking (non-anonymous polls in groups) ──────────
+    bot.on('poll_answer', (ctx) => {
+      try {
+        const answer = ctx.pollAnswer;
+        if (!answer) return;
+        const pollRecord = db.select().from(polls).where(eq(polls.telegramPollId, answer.poll_id)).limit(1).get();
+        if (!pollRecord) return;
+        const user = answer.user;
+        if (!user) return;
+
+        if (answer.option_ids.length === 0) {
+          // User retracted vote — delete their record
+          db.delete(pollVotes).where(and(eq(pollVotes.pollId, pollRecord.id), eq(pollVotes.userId, user.id))).run();
+        } else {
+          // Upsert vote
+          const existing = db.select().from(pollVotes).where(and(eq(pollVotes.pollId, pollRecord.id), eq(pollVotes.userId, user.id))).limit(1).get();
+          if (existing) {
+            db.update(pollVotes).set({ optionIds: answer.option_ids as any, userName: user.first_name, username: user.username ?? null }).where(eq(pollVotes.id, existing.id)).run();
+          } else {
+            db.insert(pollVotes).values({
+              pollId: pollRecord.id,
+              userId: user.id,
+              userName: user.first_name,
+              username: user.username ?? null,
+              optionIds: answer.option_ids as any,
+            }).run();
+          }
+        }
+      } catch (e) { console.error('[polls] answer tracking error:', e); }
+    });
+
     // ── Load channels → tasks → register cron + onInit ──────────────────
     const cronJobIds: string[] = [];
     const botChannels = db.select().from(channels).where(eq(channels.botId, botId)).all();
@@ -251,7 +299,7 @@ class BotManager {
 
     // Start polling (include chat_member for welcome/farewell)
     bot.start({
-      allowed_updates: ['message', 'chat_member', 'channel_post', 'callback_query', 'inline_query', 'message_reaction'],
+      allowed_updates: ['message', 'chat_member', 'channel_post', 'callback_query', 'inline_query', 'message_reaction', 'poll', 'poll_answer'],
       onStart: () => console.log(`🟢 Bot @${me.username} started polling`),
     });
 

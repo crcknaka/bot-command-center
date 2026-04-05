@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { polls, channels, bots } from '../db/schema.js';
+import { polls, pollVotes, channels, bots } from '../db/schema.js';
 import { eq, desc, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
@@ -106,7 +106,8 @@ pollsApi.post('/', async (c) => {
       message_thread_id: channel.threadId ?? undefined,
     } as any);
 
-    db.update(polls).set({ telegramMessageId: msg.message_id }).where(eq(polls.id, pollRecord.id)).run();
+    const tgPollId = (msg as any).poll?.id ?? null;
+    db.update(polls).set({ telegramMessageId: msg.message_id, telegramPollId: tgPollId }).where(eq(polls.id, pollRecord.id)).run();
     logActivity({ userId: user.id, botId: body.botId, action: 'bot.poll_sent', details: { channelTitle: channel.title, question: body.question, type: body.type ?? 'regular' } });
 
     return c.json({ ...pollRecord, telegramMessageId: msg.message_id }, 201);
@@ -126,6 +127,19 @@ pollsApi.delete('/:id', async (c) => {
   if (!botIds.includes(poll.botId)) return c.json({ error: 'Forbidden' }, 403);
   db.delete(polls).where(eq(polls.id, id)).run();
   return c.json({ ok: true });
+});
+
+// GET /api/polls/:id/votes — individual votes (non-anonymous polls)
+pollsApi.get('/:id/votes', async (c) => {
+  const user = (c as any).get('user');
+  const id = Number(c.req.param('id'));
+  const poll = db.select().from(polls).where(eq(polls.id, id)).limit(1).get();
+  if (!poll) return c.json({ error: 'Not found' }, 404);
+  const botIds = getUserBotIds(user);
+  if (!botIds.includes(poll.botId)) return c.json({ error: 'Forbidden' }, 403);
+
+  const votes = db.select().from(pollVotes).where(eq(pollVotes.pollId, id)).all();
+  return c.json(votes);
 });
 
 export { pollsApi };

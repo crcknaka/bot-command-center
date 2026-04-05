@@ -234,8 +234,24 @@ export const polls = sqliteTable('polls', {
   isAnonymous: integer('is_anonymous', { mode: 'boolean' }).notNull().default(true),
   allowsMultipleAnswers: integer('allows_multiple_answers', { mode: 'boolean' }).notNull().default(false),
   telegramMessageId: integer('telegram_message_id'),
+  telegramPollId: text('telegram_poll_id'), // Telegram's poll ID for tracking results
   status: text('status', { enum: ['sent', 'failed'] }).notNull().default('sent'),
   errorMessage: text('error_message'),
+  totalVoters: integer('total_voters').default(0),
+  results: text('results', { mode: 'json' }).$type<number[]>(), // vote counts per option [5, 3, 1]
+  lastResultsAt: text('last_results_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// ─── Poll Votes (non-anonymous, per user) ───────────────────────────────────
+
+export const pollVotes = sqliteTable('poll_votes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  pollId: integer('poll_id').notNull().references(() => polls.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull(),
+  userName: text('user_name'),
+  username: text('username'),
+  optionIds: text('option_ids', { mode: 'json' }).$type<number[]>().notNull(), // selected option indices
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
