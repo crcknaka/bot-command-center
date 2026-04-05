@@ -332,8 +332,8 @@ export class ModerationTask implements TaskModule {
         }
       }
 
-      // Block links
-      if (config.blockLinks || (config.maxLinksPerMessage && config.maxLinksPerMessage > 0)) {
+      // Block links (blockLinks explicitly set takes priority over legacy maxLinksPerMessage)
+      if (config.blockLinks) {
         if (countLinks(text) > 0) {
           await handleViolation(msgCtx, chatId, userId, 'links', config.linksWarn, 'links');
           return;
