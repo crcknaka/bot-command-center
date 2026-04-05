@@ -620,45 +620,73 @@ function AutoReplyConfigUI({ rules, cooldownSeconds, onChangeRules, onChangeCool
       <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>Когда сообщение совпадает с ключевым словом — бот отправляет ответ.</p>
 
       <div className="space-y-3">
-        {rules.map((rule: any, i: number) => (
+        {rules.map((rule: any, i: number) => {
+          const patterns: string[] = rule.patterns ?? (rule.pattern ? [rule.pattern] : []);
+          const responses: string[] = rule.responses ?? (rule.response ? [rule.response] : []);
+          return (
           <div key={i} className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-            <div className="flex gap-2 items-start">
-              <div className="flex-1">
-                <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Ключевое слово / паттерн</label>
-                <input value={rule.pattern} onChange={(e) => updateRule(i, { pattern: e.target.value })}
-                  placeholder="цена, /start, привет"
-                  className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            <div className="flex justify-between items-center">
+              <label className="block text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Ключевые слова</label>
+              <button type="button" onClick={() => removeRule(i)} className="p-1 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
+            </div>
+            {/* Patterns as tags */}
+            <div className="flex flex-wrap gap-1 mb-1">
+              {patterns.map((p: string, j: number) => (
+                <span key={j} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
+                  {p}
+                  <button type="button" onClick={() => { const np = patterns.filter((_: string, k: number) => k !== j); updateRule(i, { patterns: np, pattern: np[0] ?? '' }); }} className="hover:text-blue-300">×</button>
+                </span>
+              ))}
+            </div>
+            <input
+              placeholder="Введите слово и нажмите Enter"
+              className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  const val = (e.target as HTMLInputElement).value.trim().replace(/,$/, '');
+                  if (val) { const np = [...patterns, val]; updateRule(i, { patterns: np, pattern: np[0] }); (e.target as HTMLInputElement).value = ''; }
+                }
+              }}
+            />
+
+            {/* Responses */}
+            <label className="block text-[10px] font-medium mt-2" style={{ color: 'var(--text-muted)' }}>
+              Варианты ответа {responses.length > 1 && <span className="font-normal">(рандомно)</span>}
+            </label>
+            {responses.map((r: string, j: number) => (
+              <div key={j} className="flex gap-1">
+                <textarea value={r} onChange={(e) => { const nr = [...responses]; nr[j] = e.target.value; updateRule(i, { responses: nr, response: nr[0] ?? '' }); }} onKeyDown={ctrlEnter}
+                  placeholder="Привет, {user}!"
+                  rows={2} className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                {responses.length > 1 && (
+                  <button type="button" onClick={() => { const nr = responses.filter((_: string, k: number) => k !== j); updateRule(i, { responses: nr, response: nr[0] ?? '' }); }} className="text-red-400/50 hover:text-red-400 px-1"><Trash2 size={10} /></button>
+                )}
               </div>
-              <button type="button" onClick={() => removeRule(i)} className="mt-4 p-1 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
-            </div>
-            <div>
-              <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Ответ бота (HTML)</label>
-              <textarea value={rule.response} onChange={(e) => updateRule(i, { response: e.target.value })} onKeyDown={ctrlEnter}
-                placeholder="Привет, {user}! Ctrl+Enter — сохранить"
-                rows={2} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-            </div>
-            <div className="flex gap-3 flex-wrap">
+            ))}
+            <button type="button" onClick={() => updateRule(i, { responses: [...responses, ''], response: responses[0] ?? '' })}
+              className="text-[10px] text-blue-400">+ Ещё вариант ответа</button>
+
+            <div className="flex gap-3 flex-wrap pt-1">
               <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                 <input type="checkbox" checked={rule.exactMatch ?? false} onChange={(e) => updateRule(i, { exactMatch: e.target.checked })} />
                 Точное слово
-                <InfoTip text="Совпадает только целое слово, а не подстрока. 'да' не поймает 'давай'." position="top" />
               </label>
               <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                 <input type="checkbox" checked={rule.isRegex ?? false} onChange={(e) => updateRule(i, { isRegex: e.target.checked })} />
                 Regex
-                <InfoTip text="Регулярное выражение. Например: ^/help$ или (цена|стоимость|прайс)" position="top" />
               </label>
               <label className="text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                 <input type="checkbox" checked={rule.replyInDm ?? false} onChange={(e) => updateRule(i, { replyInDm: e.target.checked })} />
                 Ответить в ЛС
-                <InfoTip text="Бот ответит в ЛС юзеру. Важно: юзер должен хотя бы раз написать боту /start в личку, иначе Telegram не разрешит отправить." position="top" />
               </label>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      <button type="button" onClick={() => onChangeRules([...rules, { pattern: '', response: '' }])}
+      <button type="button" onClick={() => onChangeRules([...rules, { patterns: [], responses: [''], pattern: '', response: '' }])}
         className="text-[11px] text-blue-400 hover:text-blue-300 mt-2">+ Добавить правило</button>
 
       <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
