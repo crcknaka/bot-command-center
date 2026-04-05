@@ -33,6 +33,7 @@ export function PostsPage() {
   const [searchText, setSearchText] = useState('');
   const [editPost, setEditPost] = useState<any>(null);
   const [editContent, setEditContent] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -360,7 +361,7 @@ export function PostsPage() {
                   <div className="text-sm line-clamp-3 flex-1" dangerouslySetInnerHTML={safeHtml(post.content)} />
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  <button onClick={() => { setEditPost(post); setEditContent(post.content); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
+                  <button onClick={() => { setEditPost(post); setEditContent(post.content); setEditImageUrl(post.imageUrl ?? null); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
                     <Eye size={12} /> {post.status === 'published' ? 'Просмотр' : 'Просмотр / Редактировать'}
                   </button>
                   <div className="relative">
@@ -425,7 +426,7 @@ export function PostsPage() {
                 <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Telegram превью:</div>
                 <TelegramPreview
                   content={editPost.status === 'published' ? editPost.content : editContent}
-                  imageUrl={editPost.imageUrl}
+                  imageUrl={editPost.status === 'published' ? editPost.imageUrl : (editImageUrl || undefined)}
                   channelTitle={channelMap[editPost.channelId]?.channelTitle}
                 />
               </div>
@@ -439,6 +440,19 @@ export function PostsPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Image URL */}
+                    <div className="mb-3">
+                      <div className="text-[11px] mb-1 font-medium" style={{ color: 'var(--text-muted)' }}>Картинка:</div>
+                      <div className="flex gap-2">
+                        <input value={editImageUrl ?? ''} onChange={(e) => setEditImageUrl(e.target.value || null)}
+                          placeholder="URL картинки (пусто = без картинки)"
+                          className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                        {editImageUrl && (
+                          <button type="button" onClick={() => setEditImageUrl(null)} className="px-2 py-1.5 rounded-lg text-[10px] text-red-400 hover:bg-red-500/10">Убрать</button>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Редактор (HTML):</div>
                     <textarea
                       value={editContent}
@@ -454,8 +468,8 @@ export function PostsPage() {
                     <div className="flex gap-3 justify-end mt-4">
                       <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
                       <button
-                        onClick={() => { updateMut.mutate({ id: editPost.id, content: editContent }); setEditPost(null); }}
-                        disabled={editContent === editPost.content}
+                        onClick={() => { updateMut.mutate({ id: editPost.id, content: editContent, imageUrl: editImageUrl ?? undefined } as any); setEditPost(null); }}
+                        disabled={editContent === editPost.content && editImageUrl === (editPost.imageUrl ?? null)}
                         className="px-4 py-2 rounded-lg text-sm font-medium text-white"
                         style={{ background: editContent === editPost.content ? 'var(--text-muted)' : 'var(--primary)' }}
                       >
