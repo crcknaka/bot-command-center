@@ -1,4 +1,5 @@
 import { db } from '../db/client.js';
+import { logActivity } from './activity.js';
 
 /** Sanitize HTML for Telegram — only allow supported tags */
 function sanitizeForTelegram(html: string): string {
@@ -146,15 +147,18 @@ async function publishPendingPosts() {
         }
       }
 
+      logActivity({ botId: channel.botId, action: 'post.published', details: { postId: post.id, channelTitle: channel.title } });
       console.log(`📨 Published post #${post.id} to channel ${channel.title}`);
     } catch (err) {
+      const errorMsg = (err as Error).message;
       db.update(posts).set({
         status: 'failed',
-        errorMessage: (err as Error).message,
+        errorMessage: errorMsg,
         updatedAt: new Date().toISOString(),
       }).where(eq(posts.id, post.id)).run();
 
-      console.error(`❌ Failed to publish post #${post.id}:`, (err as Error).message);
+      logActivity({ botId: channel.botId, action: 'post.failed', details: { postId: post.id, channelTitle: channel.title, error: errorMsg } });
+      console.error(`❌ Failed to publish post #${post.id}:`, errorMsg);
     }
   }
 }

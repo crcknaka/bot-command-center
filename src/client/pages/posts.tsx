@@ -12,7 +12,7 @@ const ctrlEnter = (e: React.KeyboardEvent) => {
     if (btn && !btn.disabled) btn.click();
   }
 };
-import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle, Clock, Calendar } from 'lucide-react';
+import { Send, Trash2, Eye, FileText, Plus, Pencil, Filter, X, Sparkles, CheckSquare, Square, Share2, CheckCircle, Clock, Calendar, RefreshCw } from 'lucide-react';
 import { usePosts, usePublishPost, useDeletePost, useUpdatePost, useCreatePost, useGeneratePost } from '../hooks/use-posts.js';
 import { useToast } from '../components/ui/toast.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -390,6 +390,11 @@ export function PostsPage() {
                   {(post.status === 'draft' || post.status === 'approved' || post.status === 'queued') && (
                     <button onClick={() => publishMut.mutate(post.id, { onError: (err) => toast.error(`Публикация: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
                       <Send size={12} /> Опубликовать
+                    </button>
+                  )}
+                  {post.status === 'failed' && (
+                    <button onClick={() => publishMut.mutate(post.id, { onError: (err) => toast.error(`Повтор: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 flex items-center gap-1 transition-colors">
+                      <RefreshCw size={12} /> Повторить
                     </button>
                   )}
                   {post.status !== 'published' && (
