@@ -175,9 +175,11 @@ export function MembersPage() {
                         <span className={cn('text-[10px] font-medium px-1.5 sm:px-2 py-0.5 rounded-full', st.color, st.bg)}>{st.label}</span>
                       </span>
                       <div className="w-16 sm:w-28 flex gap-1 justify-end shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <a href={`tg://user?id=${u.userId}`} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Открыть в Telegram" target="_blank" rel="noopener">
-                          <MessageSquare size={11} />
-                        </a>
+                        {u.username && (
+                          <a href={`https://t.me/${u.username}`} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title={`Написать @${u.username}`} target="_blank" rel="noopener">
+                            <MessageSquare size={11} />
+                          </a>
+                        )}
                         <button onClick={() => setActionUser(u)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Модерация">
                           <Shield size={11} />
                         </button>
