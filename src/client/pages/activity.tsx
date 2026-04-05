@@ -65,13 +65,15 @@ const periodFilters = [
 export function ActivityPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['activity', typeFilter, periodFilter],
+    queryKey: ['activity', typeFilter, periodFilter, search],
     queryFn: () => {
       const params = new URLSearchParams();
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (periodFilter !== 'all') params.set('period', periodFilter);
+      if (search.trim()) params.set('search', search.trim());
       const qs = params.toString();
       return apiFetch(`/activity${qs ? `?${qs}` : ''}`);
     },
@@ -113,6 +115,14 @@ export function ActivityPage() {
             <option key={f.id} value={f.id}>{f.label}</option>
           ))}
         </select>
+
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по имени, тексту..."
+          className="flex-1 min-w-[150px] px-3 py-1.5 rounded-lg border text-xs outline-none"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+        />
       </div>
 
       {isLoading ? (

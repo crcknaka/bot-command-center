@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
 import { activityLog, users, bots } from '../db/schema.js';
-import { desc, eq, like, gte, and, or, SQL } from 'drizzle-orm';
+import { desc, eq, like, gte, and, or, sql, SQL } from 'drizzle-orm';
 import { requireAuth, requireSuperadmin } from '../auth/middleware.js';
 
 const activityApi = new Hono();
@@ -13,6 +13,7 @@ activityApi.get('/', async (c) => {
   const limit = Number(c.req.query('limit') || '50');
   const type = c.req.query('type');   // auth, bot, post, mod
   const period = c.req.query('period'); // today, week, month
+  const search = c.req.query('search');
 
   const conditions: SQL[] = [];
 
@@ -37,6 +38,12 @@ activityApi.get('/', async (c) => {
   } else if (period === 'month') {
     const start = new Date(); start.setDate(start.getDate() - 30);
     conditions.push(gte(activityLog.createdAt, start.toISOString()));
+  }
+
+  // Text search in details JSON
+  if (search) {
+    const q = `%${search.toLowerCase()}%`;
+    conditions.push(sql`(lower(${activityLog.action}) LIKE ${q} OR lower(json_extract(${activityLog.details}, '$.userName')) LIKE ${q} OR lower(json_extract(${activityLog.details}, '$.messageText')) LIKE ${q} OR lower(json_extract(${activityLog.details}, '$.reason')) LIKE ${q})`);
   }
 
   let query = db.select().from(activityLog);
