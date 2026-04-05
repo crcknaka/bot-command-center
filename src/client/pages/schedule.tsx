@@ -158,6 +158,7 @@ export function SchedulePage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Расписание</h1>
             <InfoTip text="Перетащите пост из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
+            <a href="/posts" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Все посты →</a>
           </div>
           <div className="flex items-center gap-2">
             {unscheduled.length > 0 && (
