@@ -53,8 +53,18 @@ export function DocsPage() {
         <InfoTip text="Полное руководство по работе с Bot Command Center: настройка ботов, источники контента, AI-модели, примеры RSS-фидов." position="bottom" />
       </div>
 
+      {/* Mobile tabs */}
+      <div className="md:hidden flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+        {sections.map((s) => (
+          <button key={s.id} onClick={() => setActive(s.id)} className={cn(
+            'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0',
+            active === s.id ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500'
+          )}>{s.label}</button>
+        ))}
+      </div>
+
       <div className="flex gap-6">
-        {/* Sidebar */}
+        {/* Sidebar — desktop only */}
         <div className="w-48 shrink-0 hidden md:block">
           <nav className="space-y-1 sticky top-8">
             {sections.map((s) => {
@@ -69,16 +79,6 @@ export function DocsPage() {
               );
             })}
           </nav>
-        </div>
-
-        {/* Mobile tabs */}
-        <div className="md:hidden flex gap-1 mb-4 overflow-x-auto pb-2 w-full">
-          {sections.map((s) => (
-            <button key={s.id} onClick={() => setActive(s.id)} className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0',
-              active === s.id ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500'
-            )}>{s.label}</button>
-          ))}
         </div>
 
         {/* Content */}
