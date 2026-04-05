@@ -269,12 +269,9 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   const channel = db.select().from(channels).where(eq(channels.id, task.channelId)).limit(1).get();
   const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
 
-  // ── Web search: test AI by doing a live search + AI generation ──
+  // ── Web search: test AI from preview articles ──
   if (task.type === 'web_search') {
-    const queries: string[] = config?.queries?.filter((q: string) => q.trim()) ?? [];
-    if (queries.length === 0) return c.json({ error: 'Нет поисковых запросов.' }, 400);
-
-    const { searchWeb } = await import('../services/search.js');
+    const body = await c.req.json<{ articles?: any[] }>().catch(() => ({}));
     const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
     const { generatePostFromSearch } = await import('../services/ai/generate.js');
 
@@ -282,23 +279,35 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
     const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId: bot?.id, ownerId: bot?.ownerId });
     if (!provider) return c.json({ error: 'AI-провайдер не настроен. Добавьте в Настройки → AI-модели.' }, 400);
 
-    const query = queries[0];
+    // Use articles from preview (passed in body), or fallback to live search
+    let searchResults: Array<{ title: string; content: string; url: string; imageUrl?: string }>;
+    let topic: string;
+
+    if ((body as any).articles?.length) {
+      searchResults = (body as any).articles.map((a: any) => ({ title: a.title, content: a.summary ?? '', url: a.url, imageUrl: a.imageUrl }));
+      topic = searchResults.map(r => r.title).slice(0, 2).join(', ');
+    } else {
+      const queries: string[] = config?.queries?.filter((q: string) => q.trim()) ?? [];
+      if (queries.length === 0) return c.json({ error: 'Нет поисковых запросов.' }, 400);
+      const { searchWeb } = await import('../services/search.js');
+      topic = queries[0];
+      searchResults = await searchWeb({ query: topic, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang, searchLang: config?.searchLang, searchCountries: config?.searchCountries, includeDomains: config?.includeDomains });
+      if (searchResults.length === 0) return c.json({ error: `По запросу "${topic}" ничего не найдено.` }, 400);
+    }
+
+    const modelId = resolveModel(config.aiModel, provider.id);
+    const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Пиши на том же языке что и источники. Добавь ссылку.';
+    const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
+
     try {
-      const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang, searchLang: config?.searchLang, searchCountry: config?.searchCountry, searchCountries: config?.searchCountries, includeDomains: config?.includeDomains });
-      if (results.length === 0) return c.json({ error: `По запросу "${query}" ничего не найдено.` }, 400);
+      const generated = await generatePostFromSearch({ providerId: provider.id, modelId, systemPrompt, searchResults, topic, language: lang, maxLength: maxLen });
 
-      const modelId = resolveModel(config.aiModel, provider.id);
-      const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Пиши на том же языке что и источники. Добавь ссылку.';
-      const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
-
-      const generated = await generatePostFromSearch({ providerId: provider.id, modelId, systemPrompt, searchResults: results, topic: query, language: lang, maxLength: maxLen });
-
-      const sourcesText = results.map((r, i) => `[${i + 1}] ${r.title}\n${r.content?.slice(0, 200)}\nURL: ${r.url}`).join('\n\n');
+      const sourcesText = searchResults.map((r, i) => `[${i + 1}] ${r.title}\n${r.content?.slice(0, 200)}\nURL: ${r.url}`).join('\n\n');
 
       return c.json({
         ok: true,
-        article: { title: `Поиск: "${query}"`, summary: results.map(r => r.title).join(' · '), url: results[0]?.url, imageUrl: results[0]?.imageUrl },
-        aiInput: `System: ${systemPrompt}\n\nTopic: ${query}\nLanguage: ${lang}\nMax length: ${maxLen}\n\nSources:\n${sourcesText}`,
+        article: { title: topic, summary: searchResults.map(r => r.title).join(' · '), url: searchResults[0]?.url, imageUrl: searchResults[0]?.imageUrl },
+        aiInput: `System prompt:\n${systemPrompt}\n\nТема: ${topic}\nЯзык: ${lang}\nМакс. длина: ${maxLen}\n\nИсточники (${searchResults.length}):\n${sourcesText}`,
         post: generated.content,
         model: modelId,
         tokensUsed: generated.tokensUsed,
@@ -309,6 +318,29 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   }
 
   // ── News feed: test AI from articles ──
+  const body = await c.req.json<{ articles?: any[] }>().catch(() => ({}));
+
+  // If article passed from preview, use it directly
+  if ((body as any).articles?.length) {
+    const art = (body as any).articles[0];
+    const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
+    const { generatePost } = await import('../services/ai/generate.js');
+    const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
+    const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
+    const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId: bot?.id, ownerId: bot?.ownerId });
+    if (!provider) return c.json({ error: 'AI-провайдер не настроен.' }, 400);
+    const modelId = resolveModel(config.aiModel, provider.id);
+    const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Добавь ссылку на источник.';
+    const articleContent = art.summary ?? '';
+    const userPrompt = articleContent.trim()
+      ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${art.title}\nТекст: ${articleContent}\nИсточник: ${art.url}\n${art.author ? `Автор: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов.`
+      : `Напиши пост на основе заголовка:\n\nЗаголовок: ${art.title}\nСсылка: ${art.url}\n${art.author ? `Автор: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. НЕ выдумывай факты.`;
+    try {
+      const generated = await generatePost({ providerId: provider.id, modelId, systemPrompt, userPrompt });
+      return c.json({ ok: true, article: art, aiInput: `System:\n${systemPrompt}\n\nUser:\n${userPrompt}`, post: generated.content, model: modelId, tokensUsed: generated.tokensUsed });
+    } catch (err) { return c.json({ error: (err as Error).message }, 500); }
+  }
+
   const { articles, posts: postsTable } = await import('../db/schema.js');
   const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
 

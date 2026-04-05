@@ -2377,7 +2377,10 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
               <button onClick={async () => {
                 setTestAiLoading(true); setTestAi(null);
                 try {
-                  const res = await apiFetch(`/tasks/${task.id}/test-ai`, { method: 'POST' });
+                  const res = await apiFetch(`/tasks/${task.id}/test-ai`, {
+                    method: 'POST',
+                    body: JSON.stringify({ articles: preview.articles?.slice(0, 3) }),
+                  });
                   setTestAi(res);
                 } catch (e) { setTestAi({ error: (e as Error).message }); }
                 setTestAiLoading(false);
