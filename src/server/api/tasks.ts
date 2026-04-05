@@ -288,15 +288,17 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
       if (results.length === 0) return c.json({ error: `По запросу "${query}" ничего не найдено.` }, 400);
 
       const modelId = resolveModel(config.aiModel, provider.id);
-      const systemPrompt = config.systemPrompt ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.';
+      const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Пиши на том же языке что и источники. Добавь ссылку.';
       const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
 
       const generated = await generatePostFromSearch({ providerId: provider.id, modelId, systemPrompt, searchResults: results, topic: query, language: lang, maxLength: maxLen });
 
+      const sourcesText = results.map((r, i) => `[${i + 1}] ${r.title}\n${r.content?.slice(0, 200)}\nURL: ${r.url}`).join('\n\n');
+
       return c.json({
         ok: true,
-        article: { title: query, summary: results.map(r => r.title).join(', '), url: results[0]?.url },
-        aiInput: `Поиск: "${query}" → ${results.length} результатов`,
+        article: { title: `Поиск: "${query}"`, summary: results.map(r => r.title).join(' · '), url: results[0]?.url, imageUrl: results[0]?.imageUrl },
+        aiInput: `System: ${systemPrompt}\n\nTopic: ${query}\nLanguage: ${lang}\nMax length: ${maxLen}\n\nSources:\n${sourcesText}`,
         post: generated.content,
         model: modelId,
         tokensUsed: generated.tokensUsed,

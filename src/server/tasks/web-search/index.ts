@@ -24,7 +24,7 @@ interface WebSearchConfig {
   includeDomains?: string[]; // only search these domains
 }
 
-const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
+const DEFAULT_SYSTEM_PROMPT = `Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты на основе предоставленных источников. Используй HTML-форматирование (<b>, <i>, <a href="">). Добавляй эмодзи уместно. Всегда указывай ссылку на источник. Пиши на том же языке что и источники (если источники на латышском — пиши на латышском, если на русском — на русском).`;
 
 const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n🔗 <a href="{url}">Читать полностью</a>`;
 
