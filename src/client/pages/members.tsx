@@ -160,7 +160,7 @@ export function MembersPage() {
                 {filtered.map((u: any, i: number) => {
                   const st = memberStatusConfig[u.status] ?? memberStatusConfig.unknown;
                   return (
-                    <div key={u.userId} className="flex items-center px-3 sm:px-4 py-2.5 hover:bg-white/[0.02]">
+                    <div key={u.userId} className="flex items-center px-3 sm:px-4 py-2.5 hover:bg-white/[0.02] cursor-pointer" onClick={() => setProfileUserId(u.userId)}>
                       <span className="w-6 sm:w-8 text-[10px] font-mono shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
                       <div className="w-7 h-7 rounded-full mr-2 sm:mr-2.5 shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${u.userId % 360}, 50%, 40%)` }}>
                         {(u.userName ?? '?')[0]?.toUpperCase()}
@@ -174,11 +174,8 @@ export function MembersPage() {
                       <span className="w-16 sm:w-24 text-center shrink-0">
                         <span className={cn('text-[10px] font-medium px-1.5 sm:px-2 py-0.5 rounded-full', st.color, st.bg)}>{st.label}</span>
                       </span>
-                      <div className="w-16 sm:w-28 flex gap-1 justify-end shrink-0">
-                        <button onClick={() => setProfileUserId(u.userId)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Профиль и сообщения">
-                          <Eye size={11} />
-                        </button>
-                        <button onClick={() => setActionUser(u)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Действия">
+                      <div className="w-16 sm:w-28 flex gap-1 justify-end shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setActionUser(u)} className="px-1.5 sm:px-2 py-1 rounded text-[10px] bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Модерация">
                           <Shield size={11} />
                         </button>
                       </div>

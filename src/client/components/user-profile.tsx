@@ -83,12 +83,15 @@ export function UserProfileModal({ chatId, userId, onClose }: { chatId: string; 
               </h3>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {profile.violations.map((v: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between text-[10px] px-2 py-1 rounded" style={{ background: 'rgba(239,68,68,0.05)' }}>
-                    <span className="text-red-400">{violationLabels[v.action] ?? v.action}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>
-                      {v.reason && <span className="mr-2">{v.reason}</span>}
-                      {timeAgo(v.createdAt)}
-                    </span>
+                  <div key={i} className="text-[10px] px-2 py-1.5 rounded" style={{ background: 'rgba(239,68,68,0.05)' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-red-400">{violationLabels[v.action] ?? v.action}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {v.reason && <span className="mr-2">{v.reason}</span>}
+                        {timeAgo(v.createdAt)}
+                      </span>
+                    </div>
+                    {v.messageText && <div className="mt-0.5 text-red-300/70 truncate">«{v.messageText}»</div>}
                   </div>
                 ))}
               </div>
@@ -113,12 +116,17 @@ export function UserProfileModal({ chatId, userId, onClose }: { chatId: string; 
                   {search ? 'Ничего не найдено' : 'Нет сообщений с текстом'}
                 </p>
               )}
-              {profile.messages?.map((m: any) => (
-                <div key={m.id} className="flex gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-white/[0.02]">
+              {profile.messages?.map((m: any) => {
+                // Check if this message triggered a violation (within 5 seconds)
+                const msgTime = new Date(m.createdAt + 'Z').getTime();
+                const isViolation = profile.violations?.some((v: any) => Math.abs(new Date(v.createdAt + 'Z').getTime() - msgTime) < 5000);
+                return (
+                <div key={m.id} className={cn('flex gap-2 px-2 py-1.5 rounded text-[11px]', isViolation ? 'bg-red-500/10 border border-red-500/20' : 'hover:bg-white/[0.02]')}>
                   <span className="text-[9px] shrink-0 mt-0.5 w-10 text-right font-mono" style={{ color: 'var(--text-muted)' }}>
                     {new Date(m.createdAt + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <div className="flex-1 min-w-0">
+                    {isViolation && <span className="text-red-400 mr-1">⚠️</span>}
                     {m.text ? (
                       <span>{search ? highlightSearch(m.text, search) : m.text}</span>
                     ) : (
@@ -129,7 +137,8 @@ export function UserProfileModal({ chatId, userId, onClose }: { chatId: string; 
                     {new Date(m.createdAt + 'Z').toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })}
                   </span>
                 </div>
-              ))}
+                );
+              })}
               {profile.hasMore && (
                 <button onClick={() => setPage(p => p + 1)} className="w-full py-2 text-[11px] text-blue-400 hover:text-blue-300">
                   Загрузить ещё

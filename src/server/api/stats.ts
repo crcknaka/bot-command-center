@@ -455,7 +455,7 @@ statsApi.get('/chat/:chatId/user/:userId', async (c) => {
     .all()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 20)
-    .map(l => ({ action: l.action, reason: (l.details as any)?.reason, createdAt: l.createdAt }));
+    .map(l => ({ action: l.action, reason: (l.details as any)?.reason, messageText: (l.details as any)?.messageText, createdAt: l.createdAt }));
 
   // Filter by search
   if (search) {
