@@ -49,6 +49,7 @@ export function DashboardPage() {
     'bot.created': { icon: BotIcon, label: 'Бот создан', color: 'text-purple-400' },
     'bot.deleted': { icon: BotIcon, label: 'Бот удалён', color: 'text-red-400' },
     'bot.message_sent': { icon: Send, label: 'Сообщение', color: 'text-green-400' },
+    'bot.poll_sent': { icon: FileText, label: 'Опрос отправлен', color: 'text-cyan-400' },
     'post.published': { icon: Send, label: 'Опубликован', color: 'text-green-400' },
     'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
     'mod.deleted': { icon: Trash2, label: 'Удалено ботом', color: 'text-red-400' },

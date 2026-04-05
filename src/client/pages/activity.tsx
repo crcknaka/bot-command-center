@@ -51,6 +51,7 @@ const actionMeta: Record<string, { icon: any; label: string; color: string }> = 
   'bot.stopped': { icon: Zap, label: 'Бот остановлен', color: 'text-zinc-400' },
   'bot.deleted': { icon: Bot, label: 'Бот удалён', color: 'text-red-400' },
   'bot.message_sent': { icon: Send, label: 'Сообщение отправлено', color: 'text-green-400' },
+  'bot.poll_sent': { icon: FileText, label: 'Опрос отправлен', color: 'text-cyan-400' },
   'post.published': { icon: FileText, label: 'Пост опубликован', color: 'text-green-400' },
   'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
   'mod.deleted': { icon: Trash2, label: 'Удалено ботом', color: 'text-red-400' },

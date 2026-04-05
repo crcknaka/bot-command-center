@@ -498,4 +498,52 @@ botsApi.post('/:id/send', async (c) => {
   }
 });
 
+// POST /api/bots/:id/poll — send a poll to a channel
+botsApi.post('/:id/poll', async (c) => {
+  const user = (c as any).get('user');
+  const id = Number(c.req.param('id'));
+  if (!checkBotAccess(user, id)) return c.json({ error: 'Forbidden' }, 403);
+
+  const { channelId, question, options, isAnonymous, allowsMultipleAnswers, type, correctOptionId, explanation } = await c.req.json<{
+    channelId: number;
+    question: string;
+    options: string[];
+    isAnonymous?: boolean;
+    allowsMultipleAnswers?: boolean;
+    type?: 'regular' | 'quiz';
+    correctOptionId?: number;
+    explanation?: string;
+  }>();
+
+  if (!question?.trim()) return c.json({ error: 'Вопрос обязателен' }, 400);
+  if (!options || options.filter(o => o.trim()).length < 2) return c.json({ error: 'Минимум 2 варианта ответа' }, 400);
+  if (options.length > 10) return c.json({ error: 'Максимум 10 вариантов' }, 400);
+  if (type === 'quiz' && (correctOptionId == null || correctOptionId < 0 || correctOptionId >= options.length)) {
+    return c.json({ error: 'Для квиза нужно указать правильный ответ' }, 400);
+  }
+
+  const botInstance = botManager.getBotInstance(id);
+  if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
+
+  const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
+  if (!channel) return c.json({ error: 'Канал не найден' }, 404);
+
+  try {
+    const cleanOptions = options.filter(o => o.trim());
+    const msg = await botInstance.api.sendPoll(channel.chatId, question, cleanOptions, {
+      is_anonymous: isAnonymous ?? true,
+      allows_multiple_answers: allowsMultipleAnswers ?? false,
+      type: type ?? 'regular',
+      correct_option_id: type === 'quiz' ? correctOptionId : undefined,
+      explanation: type === 'quiz' && explanation ? explanation : undefined,
+      message_thread_id: channel.threadId ?? undefined,
+    } as any);
+
+    logActivity({ userId: user.id, botId: id, action: 'bot.poll_sent', details: { channelId, channelTitle: channel.title, question } });
+    return c.json({ ok: true, messageId: msg.message_id });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 export { botsApi };
