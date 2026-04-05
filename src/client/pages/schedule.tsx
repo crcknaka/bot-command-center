@@ -1,15 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ChevronDown, Clock, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Clock, X, Send } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { apiFetch } from '../lib/api.js';
 import { Spinner } from '../components/ui/spinner.js';
 import { safeHtml } from '../lib/sanitize.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { cn } from '../lib/utils.js';
-import { useUpdatePost } from '../hooks/use-posts.js';
+import { useUpdatePost, usePublishPost } from '../hooks/use-posts.js';
 import { TelegramPreview } from '../components/telegram-preview.js';
 import { postStatusConfig } from '../lib/constants.js';
+import { useConfirm } from '../components/ui/confirm-dialog.js';
+import { useToast } from '../components/ui/toast.js';
 
 export function SchedulePage() {
   const [view, setView] = useState<'week' | 'month'>('week');
@@ -19,6 +21,9 @@ export function SchedulePage() {
   const { data: posts, isLoading: postsLoading } = useQuery({ queryKey: ['posts'], queryFn: () => apiFetch('/posts') });
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
   const updateMut = useUpdatePost();
+  const publishMut = usePublishPost();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const toast = useToast();
   const qc = useQueryClient();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [scheduleModal, setScheduleModal] = useState<{ postId: number; date: string } | null>(null);
@@ -145,7 +150,8 @@ export function SchedulePage() {
     return <Spinner text="Загрузка расписания..." />;
   }
 
-  return (
+  return (<>
+    {confirmDialog}
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div>
         <div className="flex items-center justify-between mb-6">
@@ -174,7 +180,8 @@ export function SchedulePage() {
           <MobileUnscheduled unscheduled={unscheduled} channelMap={channelMap} activeId={activeId} onPostClick={(p: any) => { setViewPost(p); setViewContent(p.content); }} />
         )}
 
-        {/* Mobile: vertical day list */}
+        {/* Mobile: vertical day list (week view) */}
+        {view === 'week' && (
         <div className="md:hidden space-y-3">
           {weekDays.map((day) => {
             const dayKey = `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
@@ -207,8 +214,10 @@ export function SchedulePage() {
             );
           })}
         </div>
+        )}
 
         {/* Desktop: sidebar + week grid */}
+        {view === 'week' && (
         <div className="hidden md:flex gap-4">
           {/* Unscheduled sidebar (droppable) */}
           <DroppableUnscheduled isActive={activeId !== null}>
@@ -264,6 +273,163 @@ export function SchedulePage() {
             </div>
           </div>
         </div>
+        )}
+
+        {/* Month view */}
+        {view === 'month' && (
+          <div className="hidden md:flex gap-4">
+            {/* Unscheduled sidebar (droppable) */}
+            <DroppableUnscheduled isActive={activeId !== null}>
+              <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+                Незапланированные ({unscheduled.length})
+              </h3>
+              <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                {unscheduled.length === 0 ? (
+                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{activeId ? '📥 Бросьте сюда чтобы снять с расписания' : 'Нет черновиков'}</p>
+                ) : (
+                  unscheduled.map((post: any) => (
+                    <DraggablePost key={post.id} post={post} channelMap={channelMap} onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
+                  ))
+                )}
+              </div>
+            </DroppableUnscheduled>
+
+            {/* Month calendar */}
+            <div className="flex-1">
+              <div className="text-center text-sm font-semibold mb-3">
+                {monthNamesFull[monthDate.getMonth()]} {monthDate.getFullYear()}
+              </div>
+
+              {/* Day of week headers */}
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
+                  <div key={d} className="text-center text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{d}</div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {monthDays.map(({ date, isCurrentMonth }, i) => {
+                  const dayKey = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+                  const dayPosts = postsByDay[dayKey] ?? [];
+                  const todayKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+                  const isToday = dayKey === todayKey;
+                  const isSelected = dayKey === selectedDay;
+
+                  return (
+                    <DroppableDay key={`month-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null}>
+                      <div
+                        onClick={() => setSelectedDay(isSelected ? null : dayKey)}
+                        className={cn(
+                          'min-h-[60px] p-1.5 rounded-lg border cursor-pointer transition-colors text-xs',
+                          !isCurrentMonth && 'opacity-30',
+                          isToday && 'bg-blue-500/10 border-blue-500/30',
+                          isSelected && 'border-blue-500 bg-blue-500/5',
+                          !isToday && !isSelected && 'hover:border-zinc-600'
+                        )}
+                        style={{ borderColor: (isToday || isSelected) ? undefined : 'var(--border)' }}
+                      >
+                        <div className="font-medium mb-1" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</div>
+                        {/* Post dots */}
+                        <div className="flex gap-0.5 flex-wrap">
+                          {dayPosts.slice(0, 4).map((p: any, j: number) => (
+                            <span key={j} className={cn('w-2 h-2 rounded-full', postStatusConfig[p.status]?.dot ?? 'bg-zinc-500')} />
+                          ))}
+                          {dayPosts.length > 4 && <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>+{dayPosts.length - 4}</span>}
+                        </div>
+                      </div>
+                    </DroppableDay>
+                  );
+                })}
+              </div>
+
+              {/* Selected day posts */}
+              {selectedDay && (
+                <div className="mt-4 rounded-xl border p-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                  <h3 className="text-sm font-semibold mb-3">
+                    {new Date(selectedDay + 'T00:00:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', weekday: 'long' })}
+                  </h3>
+                  <div className="space-y-2">
+                    {(postsByDay[selectedDay] ?? []).map((post: any) => (
+                      <DraggablePost key={post.id} post={post} channelMap={channelMap} compact onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
+                    ))}
+                    {!(postsByDay[selectedDay]?.length) && (
+                      <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>Нет постов на этот день</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Month view — mobile */}
+        {view === 'month' && (
+          <div className="md:hidden">
+            <div className="text-center text-sm font-semibold mb-3">
+              {monthNamesFull[monthDate.getMonth()]} {monthDate.getFullYear()}
+            </div>
+
+            {/* Day of week headers */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
+                <div key={d} className="text-center text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {monthDays.map(({ date, isCurrentMonth }, i) => {
+                const dayKey = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+                const dayPosts = postsByDay[dayKey] ?? [];
+                const todayKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+                const isToday = dayKey === todayKey;
+                const isSelected = dayKey === selectedDay;
+
+                return (
+                  <DroppableDay key={`month-m-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null}>
+                    <div
+                      onClick={() => setSelectedDay(isSelected ? null : dayKey)}
+                      className={cn(
+                        'min-h-[48px] p-1 rounded-lg border cursor-pointer transition-colors text-xs',
+                        !isCurrentMonth && 'opacity-30',
+                        isToday && 'bg-blue-500/10 border-blue-500/30',
+                        isSelected && 'border-blue-500 bg-blue-500/5',
+                        !isToday && !isSelected && 'hover:border-zinc-600'
+                      )}
+                      style={{ borderColor: (isToday || isSelected) ? undefined : 'var(--border)' }}
+                    >
+                      <div className="font-medium mb-0.5 text-[11px]" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</div>
+                      <div className="flex gap-0.5 flex-wrap">
+                        {dayPosts.slice(0, 3).map((p: any, j: number) => (
+                          <span key={j} className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[p.status]?.dot ?? 'bg-zinc-500')} />
+                        ))}
+                        {dayPosts.length > 3 && <span className="text-[7px]" style={{ color: 'var(--text-muted)' }}>+{dayPosts.length - 3}</span>}
+                      </div>
+                    </div>
+                  </DroppableDay>
+                );
+              })}
+            </div>
+
+            {/* Selected day posts */}
+            {selectedDay && (
+              <div className="mt-4 rounded-xl border p-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <h3 className="text-sm font-semibold mb-3">
+                  {new Date(selectedDay + 'T00:00:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', weekday: 'long' })}
+                </h3>
+                <div className="space-y-2">
+                  {(postsByDay[selectedDay] ?? []).map((post: any) => (
+                    <DraggablePost key={post.id} post={post} channelMap={channelMap} compact onPostClick={(p) => { setViewPost(p); setViewContent(p.content); }} />
+                  ))}
+                  {!(postsByDay[selectedDay]?.length) && (
+                    <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>Нет постов на этот день</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Legend */}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-6 text-[11px]" style={{ color: 'var(--text-muted)' }}>
@@ -339,8 +505,33 @@ export function SchedulePage() {
                     <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Редактор (HTML):</div>
                     <textarea value={viewContent} onChange={(e) => setViewContent(e.target.value)} rows={12}
                       className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-                    <div className="flex gap-3 justify-end mt-4">
+                    <div className="flex gap-3 justify-end mt-4 flex-wrap">
                       <button onClick={() => setViewPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+                      {viewPost.status !== 'published' && (
+                        <button
+                          onClick={() => {
+                            const hasChanges = viewContent !== viewPost.content;
+                            const channelName = channelMap[viewPost.channelId]?.title ?? 'канал';
+                            confirm({
+                              title: 'Опубликовать сейчас?',
+                              message: `Пост будет ${hasChanges ? 'сохранён и ' : ''}отправлен в «${channelName}» прямо сейчас.`,
+                              confirmLabel: 'Опубликовать',
+                              variant: 'warning',
+                              onConfirm: () => {
+                                if (hasChanges) updateMut.mutate({ id: viewPost.id, content: viewContent });
+                                publishMut.mutate(viewPost.id, {
+                                  onSuccess: () => { toast.success('Опубликовано!'); setViewPost(null); },
+                                  onError: (err) => toast.error(`Ошибка: ${(err as Error).message}`),
+                                });
+                              },
+                            });
+                          }}
+                          disabled={publishMut.isPending}
+                          className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1.5"
+                        >
+                          <Send size={14} /> Опубликовать сейчас
+                        </button>
+                      )}
                       <button
                         onClick={() => { updateMut.mutate({ id: viewPost.id, content: viewContent }); setViewPost(null); }}
                         disabled={viewContent === viewPost.content}
@@ -356,7 +547,7 @@ export function SchedulePage() {
         </div>
       )}
     </DndContext>
-  );
+  </>);
 }
 
 // ─── Draggable Post ──────────────────────────────────────────────────────────
