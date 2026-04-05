@@ -116,11 +116,18 @@ async function publishPendingPosts() {
       let messageId: number;
 
       if (post.imageUrl) {
-        const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, {
-          caption: content,
-          ...sendOpts,
-        });
-        messageId = msg.message_id;
+        try {
+          const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, {
+            caption: content,
+            ...sendOpts,
+          });
+          messageId = msg.message_id;
+        } catch (photoErr) {
+          // Fallback: send as text without image if photo URL is broken
+          console.error(`[publisher] sendPhoto failed for post #${post.id}, sending as text: ${(photoErr as Error).message}`);
+          const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
+          messageId = msg.message_id;
+        }
       } else {
         const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
         messageId = msg.message_id;

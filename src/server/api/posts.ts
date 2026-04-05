@@ -215,8 +215,15 @@ postsApi.post('/:id/publish', async (c) => {
 
     let messageId: number;
     if (post.imageUrl) {
-      const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...sendOpts });
-      messageId = msg.message_id;
+      try {
+        const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...sendOpts });
+        messageId = msg.message_id;
+      } catch (photoErr) {
+        // Fallback: send as text without image
+        console.error(`[publish] sendPhoto failed, sending as text: ${(photoErr as Error).message}`);
+        const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
+        messageId = msg.message_id;
+      }
     } else {
       const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
       messageId = msg.message_id;
