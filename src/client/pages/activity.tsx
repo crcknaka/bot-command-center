@@ -64,6 +64,7 @@ const typeFilters = [
   { id: 'bot', label: 'Боты' },
   { id: 'post', label: 'Посты' },
   { id: 'mod', label: 'Модерация' },
+  { id: 'deleted', label: 'Удалённые' },
 ] as const;
 
 const periodFilters = [

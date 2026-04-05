@@ -26,6 +26,8 @@ activityApi.get('/', async (c) => {
     conditions.push(like(activityLog.action, 'post.%'));
   } else if (type === 'mod') {
     conditions.push(like(activityLog.action, 'mod.%'));
+  } else if (type === 'deleted') {
+    conditions.push(eq(activityLog.action, 'mod.deleted'));
   }
 
   // Filter by period
