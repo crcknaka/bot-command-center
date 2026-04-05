@@ -465,13 +465,38 @@ export function PostsPage() {
                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                       {'<b>жирный</b>  <i>курсив</i>  <a href="...">ссылка</a>  Ctrl+Enter — сохранить'}
                     </p>
-                    <div className="flex gap-3 justify-end mt-4">
+                    <div className="flex gap-3 justify-end mt-4 flex-wrap">
                       <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+                      {editPost.status !== 'published' && (
+                        <button
+                          onClick={() => {
+                            const hasChanges = editContent !== editPost.content || editImageUrl !== (editPost.imageUrl ?? null);
+                            const channelName = channelMap[editPost.channelId]?.channelTitle ?? 'канал';
+                            confirm({
+                              title: 'Опубликовать сейчас?',
+                              message: `Пост будет ${hasChanges ? 'сохранён и ' : ''}отправлен в «${channelName}» прямо сейчас.`,
+                              confirmLabel: 'Опубликовать',
+                              variant: 'warning',
+                              onConfirm: () => {
+                                if (hasChanges) updateMut.mutate({ id: editPost.id, content: editContent, imageUrl: editImageUrl ?? undefined } as any);
+                                publishMut.mutate(editPost.id, {
+                                  onSuccess: () => { toast.success('Опубликовано!'); setEditPost(null); },
+                                  onError: (err) => toast.error(`Ошибка: ${(err as Error).message}`),
+                                });
+                              },
+                            });
+                          }}
+                          disabled={publishMut.isPending}
+                          className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1.5"
+                        >
+                          <Send size={14} /> Опубликовать сейчас
+                        </button>
+                      )}
                       <button
                         onClick={() => { updateMut.mutate({ id: editPost.id, content: editContent, imageUrl: editImageUrl ?? undefined } as any); setEditPost(null); }}
                         disabled={editContent === editPost.content && editImageUrl === (editPost.imageUrl ?? null)}
                         className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-                        style={{ background: editContent === editPost.content ? 'var(--text-muted)' : 'var(--primary)' }}
+                        style={{ background: (editContent === editPost.content && editImageUrl === (editPost.imageUrl ?? null)) ? 'var(--text-muted)' : 'var(--primary)' }}
                       >
                         Сохранить
                       </button>
