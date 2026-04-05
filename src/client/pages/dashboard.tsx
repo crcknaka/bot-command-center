@@ -40,11 +40,20 @@ export function DashboardPage() {
     .sort((a: any, b: any) => (a.scheduledFor ?? '').localeCompare(b.scheduledFor ?? ''))
     .slice(0, 5);
 
-  // Activity log icons
-  const actIcons: Record<string, any> = {
-    'user.login': LogIn, 'user.registered': UserPlus, 'bot.started': Zap, 'bot.stopped': Zap,
-    'bot.created': BotIcon, 'bot.deleted': BotIcon, 'post.published': Send, 'post.failed': FileText,
-    'mod.deleted': Trash2, 'mod.muted': Shield, 'mod.warned': Shield, 'bot.message_sent': Send,
+  // Activity log meta
+  const actMeta: Record<string, { icon: any; label: string; color: string }> = {
+    'user.login': { icon: LogIn, label: 'Вход', color: 'text-blue-400' },
+    'user.registered': { icon: UserPlus, label: 'Регистрация', color: 'text-green-400' },
+    'bot.started': { icon: Zap, label: 'Бот запущен', color: 'text-green-400' },
+    'bot.stopped': { icon: Zap, label: 'Бот остановлен', color: 'text-zinc-400' },
+    'bot.created': { icon: BotIcon, label: 'Бот создан', color: 'text-purple-400' },
+    'bot.deleted': { icon: BotIcon, label: 'Бот удалён', color: 'text-red-400' },
+    'bot.message_sent': { icon: Send, label: 'Сообщение', color: 'text-green-400' },
+    'post.published': { icon: Send, label: 'Опубликован', color: 'text-green-400' },
+    'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
+    'mod.deleted': { icon: Trash2, label: 'Удалено ботом', color: 'text-red-400' },
+    'mod.muted': { icon: Shield, label: 'Мут', color: 'text-orange-400' },
+    'mod.warned': { icon: Shield, label: 'Предупреждение', color: 'text-yellow-400' },
   };
 
   return (
@@ -138,14 +147,15 @@ export function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {activity.map((log: any) => {
-                const Icon = actIcons[log.action] ?? Activity;
+                const meta = actMeta[log.action] ?? { icon: Activity, label: log.action, color: 'text-zinc-400' };
+                const Icon = meta.icon;
+                const who = log.action.startsWith('mod.') ? log.details?.userName : (log.botName ?? log.userName);
                 return (
                   <div key={log.id} className="flex items-center gap-2 text-xs">
-                    <Icon size={12} className="shrink-0 text-zinc-500" />
-                    <span className="truncate flex-1">
-                      {log.action.startsWith('mod.') ? log.details?.userName ?? log.action : log.botName ?? log.userName ?? log.action}
-                    </span>
-                    <span className="text-[9px] shrink-0" style={{ color: 'var(--text-muted)' }}>{timeAgo(log.createdAt)}</span>
+                    <Icon size={12} className={cn('shrink-0', meta.color)} />
+                    <span className={cn('shrink-0', meta.color)}>{meta.label}</span>
+                    {who && <span className="truncate" style={{ color: 'var(--text-muted)' }}>{who}</span>}
+                    <span className="text-[9px] shrink-0 ml-auto" style={{ color: 'var(--text-muted)' }}>{timeAgo(log.createdAt)}</span>
                   </div>
                 );
               })}
