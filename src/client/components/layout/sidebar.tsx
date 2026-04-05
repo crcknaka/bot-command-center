@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen, ListChecks } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
@@ -12,6 +12,7 @@ const navItems = [
   { path: '/bots', labelKey: 'nav.bots', icon: Bot },
   { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
+  { path: '/polls', labelKey: 'nav.polls', icon: ListChecks },
   { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
   { path: '/members', labelKey: 'nav.members', icon: UserCheck },
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },

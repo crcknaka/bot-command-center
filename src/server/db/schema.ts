@@ -220,6 +220,25 @@ export const messageStats = sqliteTable('message_stats', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
+// ─── Polls ──────────────────────────────────────────────────────────────────
+
+export const polls = sqliteTable('polls', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  botId: integer('bot_id').notNull().references(() => bots.id, { onDelete: 'cascade' }),
+  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  question: text('question').notNull(),
+  options: text('options', { mode: 'json' }).$type<string[]>().notNull(),
+  type: text('type', { enum: ['regular', 'quiz'] }).notNull().default('regular'),
+  correctOptionId: integer('correct_option_id'),
+  explanation: text('explanation'),
+  isAnonymous: integer('is_anonymous', { mode: 'boolean' }).notNull().default(true),
+  allowsMultipleAnswers: integer('allows_multiple_answers', { mode: 'boolean' }).notNull().default(false),
+  telegramMessageId: integer('telegram_message_id'),
+  status: text('status', { enum: ['sent', 'failed'] }).notNull().default('sent'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
 // ─── Settings (key-value) ───────────────────────────────────────────────────
 
 export const settings = sqliteTable('settings', {

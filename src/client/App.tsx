@@ -17,6 +17,7 @@ import { BotDetailPage } from './pages/bot-detail.js';
 import { ActivityPage } from './pages/activity.js';
 import { UsersPage } from './pages/users.js';
 import { RegisterPage } from './pages/register.js';
+import { PollsPage } from './pages/polls.js';
 import { ToastProvider } from './components/ui/toast.js';
 import type { ReactNode } from 'react';
 
@@ -58,6 +59,7 @@ function AppRoutes() {
       <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><AppLayout><PostsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/schedule" element={<ProtectedRoute><AppLayout><SchedulePage /></AppLayout></ProtectedRoute>} />
+      <Route path="/polls" element={<ProtectedRoute><AppLayout><PollsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AppLayout><AnalyticsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/members" element={<ProtectedRoute><AppLayout><MembersPage /></AppLayout></ProtectedRoute>} />
       <Route path="/integrations" element={<Navigate to="/settings" replace />} />
