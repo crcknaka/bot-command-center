@@ -18,6 +18,9 @@ export function DashboardPage() {
   const hasBots = (bots?.length ?? 0) > 0;
   const hasActiveBots = bots?.some((b: any) => b.status === 'active') ?? false;
   const hasProviders = (providers?.length ?? 0) > 0;
+  const hasChannelsWithTasks = bots?.some((b: any) => b.channels?.some((ch: any) => ch.taskCount > 0 || ch.tasks?.length > 0)) ?? false;
+  // Also check if any bot has channels at all
+  const hasChannels = bots?.some((b: any) => b.channels?.length > 0) ?? false;
 
   const onboardingSteps = [
     {
@@ -41,10 +44,12 @@ export function DashboardPage() {
     {
       label: 'Настроить канал и задачу',
       description: 'Откройте бота → добавьте Telegram-канал → создайте задачу «Новостная лента» → добавьте источники.',
-      done: false,
+      done: hasChannels,
       action: hasBots ? { label: 'Открыть настройки бота', onClick: () => navigate(`/bots/${bots?.[0]?.id}`) } : undefined,
     },
   ];
+
+  const allDone = onboardingSteps.every(s => s.done);
 
   return (
     <div>
@@ -55,8 +60,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Onboarding */}
-      <Stepper title="Начало работы — выполните эти шаги для запуска первого бота" steps={onboardingSteps} />
+      {/* Onboarding — hide when all steps complete */}
+      {!allDone && <Stepper title="Начало работы — выполните эти шаги для запуска первого бота" steps={onboardingSteps} />}
 
       {/* Stats */}
       {stats && (
