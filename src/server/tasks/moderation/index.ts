@@ -199,6 +199,14 @@ export class ModerationTask implements TaskModule {
     const config = ctx.config as unknown as ModerationConfig;
     if (!ctx.bot) return;
 
+    // Resolve bot and channel info for logging
+    const { channels: channelsTable, bots: botsTable } = require('../../db/schema.js');
+    const { db } = require('../../db/client.js');
+    const { eq } = require('drizzle-orm');
+    const channelRow = db.select().from(channelsTable).where(eq(channelsTable.id, ctx.channelId)).limit(1).get();
+    const botId = channelRow?.botId ?? null;
+    const chatTitle = channelRow?.title ?? ctx.chatId;
+
     const deleteSec = config.warnDeleteSeconds ?? 10;
     const warn = async (msgCtx: any, text: string | null) => {
       await sendWarn(msgCtx, text, deleteSec);
@@ -209,9 +217,9 @@ export class ModerationTask implements TaskModule {
       const msg = msgCtx.message ?? msgCtx.update?.message;
       const messageText = (msg?.text ?? msg?.caption ?? '').slice(0, 300) || undefined;
       logActivity({
-        botId: null,
+        botId,
         action: `mod.${action}`,
-        details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, reason, messageText },
+        details: { userId: msgCtx.from?.id, userName: msgCtx.from?.first_name, chatId: msgCtx.chat?.id, chatTitle, reason, messageText },
       });
     };
 

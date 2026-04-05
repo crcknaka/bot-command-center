@@ -15,10 +15,17 @@ const reasonLabels: Record<string, string> = {
 
 function formatDetails(action: string, details: any): string | null {
   if (!details) return null;
-  if (action === 'post.failed' && details.error) return `Ошибка: ${details.error}`;
-  if (action === 'bot.message_sent') return `Сообщение отправлено (ID: ${details.messageId})`;
+  if (action === 'post.published' && details.channelTitle) return `→ ${details.channelTitle}`;
+  if (action === 'post.failed') {
+    const parts: string[] = [];
+    if (details.channelTitle) parts.push(`→ ${details.channelTitle}`);
+    if (details.error) parts.push(`Ошибка: ${details.error}`);
+    return parts.join(' — ') || null;
+  }
+  if (action === 'bot.message_sent') return details.channelTitle ? `→ ${details.channelTitle}` : null;
   if (action.startsWith('mod.')) {
     const parts: string[] = [];
+    if (details.chatTitle) parts.push(`[${details.chatTitle}]`);
     if (details.userName) parts.push(details.userName);
     if (details.reason) {
       const r = details.reason.startsWith('banned_word:') ? `слово «${details.reason.split(':')[1]}»` : (reasonLabels[details.reason] ?? details.reason);
@@ -29,6 +36,7 @@ function formatDetails(action: string, details: any): string | null {
   }
   if (details.name) return details.name;
   if (details.username) return `@${details.username}`;
+  if (details.channelTitle) return `→ ${details.channelTitle}`;
   return null;
 }
 
