@@ -1500,8 +1500,8 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
             onClick={() => {
               let cfg: any = config;
               if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
-              if (task.type === 'auto_reply') cfg = { rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
-              if (task.type === 'welcome') cfg = { welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
+              if (task.type === 'auto_reply') cfg = { ...config, rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
+              if (task.type === 'welcome') cfg = { ...config, welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };
               if (task.type === 'web_search') cfg = { ...webSearchConfig, queries: (webSearchConfig.queries ?? []).filter((q: string) => q.trim()) };
               onSave({ name: name || null, schedule: schedule || null, enabled, config: cfg });
