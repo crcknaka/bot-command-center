@@ -824,172 +824,153 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
   const domains: string[] = config.includeDomains ?? [];
   const { data: searchProviders } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
 
+  const allLocales = [
+    { code: 'ru', flag: '🇷🇺', lang: 'Русский', country: 'Россия' },
+    { code: 'us', flag: '🇺🇸', lang: 'English', country: 'США' },
+    { code: 'ua', flag: '🇺🇦', lang: 'Українська', country: 'Украина' },
+    { code: 'lv', flag: '🇱🇻', lang: 'Latviešu', country: 'Латвия' },
+    { code: 'de', flag: '🇩🇪', lang: 'Deutsch', country: 'Германия' },
+    { code: 'gb', flag: '🇬🇧', lang: 'English', country: 'UK' },
+    { code: 'fr', flag: '🇫🇷', lang: 'Français', country: 'Франция' },
+    { code: 'es', flag: '🇪🇸', lang: 'Español', country: 'Испания' },
+    { code: 'kz', flag: '🇰🇿', lang: 'Русский', country: 'Казахстан' },
+    { code: 'by', flag: '🇧🇾', lang: 'Русский', country: 'Беларусь' },
+    { code: 'il', flag: '🇮🇱', lang: 'English', country: 'Израиль' },
+  ];
+  const langCodes: Record<string, string> = { ru: 'ru', us: 'en', ua: 'uk', lv: 'lv', de: 'de', gb: 'en', fr: 'fr', es: 'es', kz: 'ru', by: 'ru', il: 'en' };
+  const countries: string[] = config.searchCountries ?? ['ru'];
+
   return (
-    <div className="mb-4 space-y-4">
-      {/* Search provider status */}
+    <div className="mb-4 space-y-2">
       {!searchProviders?.length && (
         <div className="rounded-lg p-3 text-xs bg-yellow-500/10 text-yellow-400">
-          ⚠️ Поисковый провайдер не подключён. Перейдите в <b>Настройки → Поиск</b> и добавьте Tavily, Serper или другой.
+          ⚠️ Поисковый провайдер не подключён. <b>Настройки → Поиск</b> → добавьте Serper, Tavily или другой.
         </div>
       )}
 
-      {/* Queries */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Поисковые запросы</label>
-        <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
-          Бот будет искать статьи в интернете по этим запросам. Чем конкретнее запрос — тем точнее результат.
-        </p>
-        <div className="flex gap-2 mb-2">
-          <input value={newQ} onChange={(e) => setNewQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } } }}
-            placeholder="Например: electric unicycle news 2026"
-            className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-          <button type="button" onClick={() => { if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } }}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
-            Добавить
-          </button>
+      {/* ═══ SECTION 1: Queries ═══ */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pb-1">🔍 Поисковые запросы</div>
+      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        Бот ищет статьи по этим запросам. Чем конкретнее — тем лучше. Пример: <code>electric unicycle review 2026</code>
+      </p>
+      <div className="flex gap-2 mb-1">
+        <input value={newQ} onChange={(e) => setNewQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } } }}
+          placeholder="Введите запрос..."
+          className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        <button type="button" onClick={() => { if (newQ.trim()) { onChange({ queries: [...queries, newQ.trim()] }); setNewQ(''); } }}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
+          Добавить
+        </button>
+      </div>
+      {queries.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {queries.map((q: string, i: number) => (
+            <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
+              {q} <button type="button" onClick={() => onChange({ queries: queries.filter((_: string, j: number) => j !== i) })} className="hover:text-blue-300">×</button>
+            </span>
+          ))}
         </div>
-        {queries.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {queries.map((q: string, i: number) => (
-              <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 flex items-center gap-1">
-                🔍 {q}
-                <button type="button" onClick={() => onChange({ queries: queries.filter((_: string, j: number) => j !== i) })} className="hover:text-blue-300">×</button>
-              </span>
-            ))}
-          </div>
-        )}
+      )}
+
+      {/* ═══ SECTION 2: Region ═══ */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>🌍 Регион и язык</div>
+      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        Выберите страны — поиск будет приоритизировать результаты оттуда. Язык подставится автоматически.
+      </p>
+      <div className="flex flex-wrap gap-1 mb-1">
+        {countries.map((code: string) => {
+          const loc = allLocales.find(x => x.code === code);
+          return (
+            <span key={code} className="px-2 py-0.5 rounded-full text-[10px] bg-green-500/10 text-green-400 flex items-center gap-1">
+              {loc?.flag} {loc?.country ?? code} <span style={{ color: 'var(--text-muted)' }}>({loc?.lang ?? '?'})</span>
+              <button type="button" onClick={() => { const next = countries.filter((x: string) => x !== code); onChange({ searchCountries: next.length ? next : ['ru'], searchLang: langCodes[next[0] ?? 'ru'] ?? 'ru' }); }} className="hover:text-green-300">×</button>
+            </span>
+          );
+        })}
+      </div>
+      <select value="" onChange={(e) => {
+        if (e.target.value) {
+          const next = [...countries, e.target.value];
+          onChange({ searchCountries: next, searchLang: langCodes[e.target.value] ?? config.searchLang ?? 'ru' });
+        }
+        e.target.value = '';
+      }} className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <option value="">+ Добавить страну</option>
+        {allLocales.filter(c => !countries.includes(c.code)).map(c => <option key={c.code} value={c.code}>{c.flag} {c.country} ({c.lang})</option>)}
+      </select>
+
+      {/* ═══ SECTION 3: Search params ═══ */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>⚙️ Параметры поиска</div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Свежесть результатов</label>
+          <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
+            className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+            <option value="day">За последний день</option>
+            <option value="week">За неделю</option>
+            <option value="month">За месяц</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Результатов на запрос</label>
+          <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
+            className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
       </div>
 
-      {/* Domains filter */}
+      {/* Domains */}
       <div>
-        <label className="block text-xs font-medium mb-1">Искать только на этих сайтах <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(необязательно)</span></label>
-        <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>
-          Если указать домены — поиск будет только по ним. Пусто = искать везде.
-        </p>
-        <div className="flex gap-2 mb-2">
+        <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Искать только на этих сайтах (необязательно)</label>
+        <div className="flex gap-2 mb-1">
           <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const d = newDomain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); if (d) { onChange({ includeDomains: [...domains, d] }); setNewDomain(''); } } }}
-            placeholder="euc.sale, electrotransport.ru"
+            placeholder="example.com"
             className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
           <button type="button" onClick={() => { const d = newDomain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); if (d) { onChange({ includeDomains: [...domains, d] }); setNewDomain(''); } }}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">
-            Добавить
-          </button>
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shrink-0">+</button>
         </div>
         {domains.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-1">
             {domains.map((d: string, i: number) => (
               <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/10 text-purple-400 flex items-center gap-1">
-                🌐 {d}
-                <button type="button" onClick={() => onChange({ includeDomains: domains.filter((_: string, j: number) => j !== i) })} className="hover:text-purple-300">×</button>
+                {d} <button type="button" onClick={() => onChange({ includeDomains: domains.filter((_: string, j: number) => j !== i) })} className="hover:text-purple-300">×</button>
               </span>
             ))}
           </div>
         )}
       </div>
 
-      {/* AI mode */}
-      <div>
-        <label className="block text-sm font-medium mb-2">Как делать пост из результатов?</label>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => onChange({ useAi: true })}
-            className={cn('p-3 rounded-xl border text-left text-xs transition-colors', (config.useAi !== false) ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
-            style={{ borderColor: (config.useAi !== false) ? undefined : 'var(--border)' }}>
-            <div className="font-medium mb-1">🤖 С AI</div>
-            <div style={{ color: 'var(--text-muted)' }}>AI напишет уникальный пост на основе найденных статей. Нужен AI-провайдер.</div>
-          </button>
-          <button type="button" onClick={() => onChange({ useAi: false })}
-            className={cn('p-3 rounded-xl border text-left text-xs transition-colors', config.useAi === false ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
-            style={{ borderColor: config.useAi === false ? undefined : 'var(--border)' }}>
-            <div className="font-medium mb-1">📋 Без AI</div>
-            <div style={{ color: 'var(--text-muted)' }}>Заголовок + текст + ссылка из шаблона. Бесплатно, без AI.</div>
-          </button>
-        </div>
+      {/* ═══ SECTION 4: Post generation ═══ */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>✍️ Генерация поста</div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => onChange({ useAi: true })}
+          className={cn('p-3 rounded-xl border text-left text-xs transition-colors', (config.useAi !== false) ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+          style={{ borderColor: (config.useAi !== false) ? undefined : 'var(--border)' }}>
+          <div className="font-medium mb-1">🤖 С AI</div>
+          <div style={{ color: 'var(--text-muted)' }}>AI напишет уникальный пост. Нужен AI-провайдер.</div>
+        </button>
+        <button type="button" onClick={() => onChange({ useAi: false })}
+          className={cn('p-3 rounded-xl border text-left text-xs transition-colors', config.useAi === false ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
+          style={{ borderColor: config.useAi === false ? undefined : 'var(--border)' }}>
+          <div className="font-medium mb-1">📋 Шаблон</div>
+          <div style={{ color: 'var(--text-muted)' }}>Заголовок + текст + ссылка. Без AI.</div>
+        </button>
       </div>
-
-      {/* Search settings */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          <span style={{ color: 'var(--text-muted)' }}>Язык результатов:</span>
-          <select value={config.searchLang ?? 'ru'} onChange={(e) => onChange({ searchLang: e.target.value })}
-            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-            <option value="ru">Русский</option>
-            <option value="en">English</option>
-            <option value="uk">Українська</option>
-            <option value="lv">Latviešu</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Français</option>
-            <option value="es">Español</option>
-            <option value="zh">中文</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-          </select>
-          <span style={{ color: 'var(--text-muted)' }}>Период:</span>
-          <select value={config.timeRange ?? 'day'} onChange={(e) => onChange({ timeRange: e.target.value })}
-            className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-            <option value="day">День</option>
-            <option value="week">Неделя</option>
-            <option value="month">Месяц</option>
-          </select>
-          <span style={{ color: 'var(--text-muted)' }}>Результатов на запрос:</span>
-          <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
-            className="w-14 px-2 py-1 rounded-lg border text-xs text-center" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-        </div>
-
-        {/* Countries — multi-select as tags */}
+      {config.useAi !== false && (
         <div>
-          <label className="block text-xs font-medium mb-1">Страны поиска</label>
-          <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>Из каких стран приоритизировать результаты. Можно выбрать несколько.</p>
-          {(() => {
-            const countries: string[] = config.searchCountries ?? (config.searchCountry ? [config.searchCountry] : ['ru']);
-            const allCountries: Array<{ code: string; flag: string; name: string }> = [
-              { code: 'ru', flag: '🇷🇺', name: 'Россия' },
-              { code: 'us', flag: '🇺🇸', name: 'США' },
-              { code: 'ua', flag: '🇺🇦', name: 'Украина' },
-              { code: 'lv', flag: '🇱🇻', name: 'Латвия' },
-              { code: 'de', flag: '🇩🇪', name: 'Германия' },
-              { code: 'gb', flag: '🇬🇧', name: 'Великобритания' },
-              { code: 'fr', flag: '🇫🇷', name: 'Франция' },
-              { code: 'es', flag: '🇪🇸', name: 'Испания' },
-              { code: 'kz', flag: '🇰🇿', name: 'Казахстан' },
-              { code: 'by', flag: '🇧🇾', name: 'Беларусь' },
-              { code: 'il', flag: '🇮🇱', name: 'Израиль' },
-              { code: 'cn', flag: '🇨🇳', name: 'Китай' },
-              { code: 'jp', flag: '🇯🇵', name: 'Япония' },
-              { code: 'kr', flag: '🇰🇷', name: 'Корея' },
-            ];
-            const available = allCountries.filter(c => !countries.includes(c.code));
-            return (
-              <>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {countries.map((code: string) => {
-                    const c = allCountries.find(x => x.code === code);
-                    return (
-                      <span key={code} className="px-2 py-0.5 rounded-full text-[10px] bg-green-500/10 text-green-400 flex items-center gap-1">
-                        {c?.flag} {c?.name ?? code}
-                        <button type="button" onClick={() => { const next = countries.filter((x: string) => x !== code); onChange({ searchCountries: next.length ? next : ['ru'] }); }} className="hover:text-green-300">×</button>
-                      </span>
-                    );
-                  })}
-                </div>
-                {available.length > 0 && (
-                  <select value="" onChange={(e) => { if (e.target.value) onChange({ searchCountries: [...countries, e.target.value] }); e.target.value = ''; }}
-                    className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-                    <option value="">+ Добавить страну</option>
-                    {available.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                  </select>
-                )}
-              </>
-            );
-          })()}
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>AI промпт (как бот должен писать посты)</label>
+          <textarea value={config.systemPrompt ?? ''} onChange={(e) => onChange({ systemPrompt: e.target.value })}
+            placeholder="Ты — редактор Telegram-канала про моноколёса. Пиши с юмором, кратко, на русском. Добавляй ссылку на источник."
+            rows={3} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = стандартный промпт. Здесь можно задать тон, стиль, язык постов.</p>
         </div>
-      </div>
+      )}
 
       {/* Auto-approve */}
-      <label className="flex items-center gap-2 text-xs">
+      <label className="flex items-center gap-2 text-xs mt-2">
         <input type="checkbox" checked={config.autoApprove ?? false} onChange={(e) => onChange({ autoApprove: e.target.checked })} />
-        Авто-одобрение (пост создаётся одобренным, без ручной проверки)
+        Авто-одобрение (сразу в очередь без проверки)
       </label>
     </div>
   );
