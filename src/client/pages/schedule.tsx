@@ -297,19 +297,19 @@ export function SchedulePage() {
 
             {/* Month calendar */}
             <div className="flex-1">
-              <div className="text-center text-sm font-semibold mb-3">
+              <div className="text-center text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
                 {monthNamesFull[monthDate.getMonth()]} {monthDate.getFullYear()}
               </div>
 
               {/* Day of week headers */}
-              <div className="grid grid-cols-7 gap-1 mb-1">
+              <div className="grid grid-cols-7 mb-0.5">
                 {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
-                  <div key={d} className="text-center text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{d}</div>
+                  <div key={d} className="text-center text-[10px] font-medium py-1" style={{ color: 'var(--text-muted)' }}>{d}</div>
                 ))}
               </div>
 
               {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7">
                 {monthDays.map(({ date, isCurrentMonth }, i) => {
                   const dayKey = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
                   const dayPosts = postsByDay[dayKey] ?? [];
@@ -318,11 +318,11 @@ export function SchedulePage() {
                   const isSelected = dayKey === selectedDay;
 
                   return (
-                    <DroppableDay key={`month-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null}>
+                    <DroppableDay key={`month-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null} compact>
                       <div
                         onClick={() => setSelectedDay(isSelected ? null : dayKey)}
                         className={cn(
-                          'min-h-[60px] p-1.5 rounded-lg border cursor-pointer transition-colors text-xs',
+                          'min-h-[44px] p-1 rounded-md border cursor-pointer transition-colors text-xs',
                           !isCurrentMonth && 'opacity-30',
                           isToday && 'bg-blue-500/10 border-blue-500/30',
                           isSelected && 'border-blue-500 bg-blue-500/5',
@@ -330,14 +330,19 @@ export function SchedulePage() {
                         )}
                         style={{ borderColor: (isToday || isSelected) ? undefined : 'var(--border)' }}
                       >
-                        <div className="font-medium mb-1" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</div>
-                        {/* Post dots */}
-                        <div className="flex gap-0.5 flex-wrap">
-                          {dayPosts.slice(0, 4).map((p: any, j: number) => (
-                            <span key={j} className={cn('w-2 h-2 rounded-full', postStatusConfig[p.status]?.dot ?? 'bg-zinc-500')} />
-                          ))}
-                          {dayPosts.length > 4 && <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>+{dayPosts.length - 4}</span>}
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-[11px]" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</span>
+                          {dayPosts.length > 0 && (
+                            <span className="text-[9px] font-medium px-1 rounded bg-blue-500/15 text-blue-400">{dayPosts.length}</span>
+                          )}
                         </div>
+                        {dayPosts.length > 0 && (
+                          <div className="flex gap-0.5 mt-0.5">
+                            {dayPosts.slice(0, 3).map((p: any, j: number) => (
+                              <span key={j} className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[p.status]?.dot ?? 'bg-zinc-500')} />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </DroppableDay>
                   );
@@ -367,19 +372,17 @@ export function SchedulePage() {
         {/* Month view — mobile */}
         {view === 'month' && (
           <div className="md:hidden">
-            <div className="text-center text-sm font-semibold mb-3">
+            <div className="text-center text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
               {monthNamesFull[monthDate.getMonth()]} {monthDate.getFullYear()}
             </div>
 
-            {/* Day of week headers */}
-            <div className="grid grid-cols-7 gap-1 mb-1">
+            <div className="grid grid-cols-7 mb-0.5">
               {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
-                <div key={d} className="text-center text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{d}</div>
+                <div key={d} className="text-center text-[9px] font-medium py-0.5" style={{ color: 'var(--text-muted)' }}>{d}</div>
               ))}
             </div>
 
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7">
               {monthDays.map(({ date, isCurrentMonth }, i) => {
                 const dayKey = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
                 const dayPosts = postsByDay[dayKey] ?? [];
@@ -388,11 +391,11 @@ export function SchedulePage() {
                 const isSelected = dayKey === selectedDay;
 
                 return (
-                  <DroppableDay key={`month-m-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null}>
+                  <DroppableDay key={`month-m-${dayKey}-${i}`} dayKey={dayKey} isActive={activeId !== null} compact>
                     <div
                       onClick={() => setSelectedDay(isSelected ? null : dayKey)}
                       className={cn(
-                        'min-h-[48px] p-1 rounded-lg border cursor-pointer transition-colors text-xs',
+                        'min-h-[40px] p-1 rounded-md border cursor-pointer transition-colors',
                         !isCurrentMonth && 'opacity-30',
                         isToday && 'bg-blue-500/10 border-blue-500/30',
                         isSelected && 'border-blue-500 bg-blue-500/5',
@@ -400,12 +403,9 @@ export function SchedulePage() {
                       )}
                       style={{ borderColor: (isToday || isSelected) ? undefined : 'var(--border)' }}
                     >
-                      <div className="font-medium mb-0.5 text-[11px]" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</div>
-                      <div className="flex gap-0.5 flex-wrap">
-                        {dayPosts.slice(0, 3).map((p: any, j: number) => (
-                          <span key={j} className={cn('w-1.5 h-1.5 rounded-full', postStatusConfig[p.status]?.dot ?? 'bg-zinc-500')} />
-                        ))}
-                        {dayPosts.length > 3 && <span className="text-[7px]" style={{ color: 'var(--text-muted)' }}>+{dayPosts.length - 3}</span>}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-medium" style={isToday ? { color: 'var(--primary)' } : isCurrentMonth ? {} : { color: 'var(--text-muted)' }}>{date.getDate()}</span>
+                        {dayPosts.length > 0 && <span className="text-[8px] font-medium px-0.5 rounded bg-blue-500/15 text-blue-400">{dayPosts.length}</span>}
                       </div>
                     </div>
                   </DroppableDay>
@@ -622,12 +622,12 @@ function MobileUnscheduled({ unscheduled, channelMap, activeId, onPostClick }: {
   );
 }
 
-function DroppableDay({ dayKey, isActive, children }: { dayKey: string; isActive: boolean; children: React.ReactNode }) {
+function DroppableDay({ dayKey, isActive, compact, children }: { dayKey: string; isActive: boolean; compact?: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: dayKey });
 
   return (
     <div ref={setNodeRef}
-      className={cn('min-h-[200px] rounded-lg transition-colors', isOver && 'bg-blue-500/10 ring-1 ring-blue-500/30', isActive && !isOver && 'bg-white/[0.02]')}
+      className={cn('rounded-lg transition-colors', !compact && 'min-h-[200px]', isOver && 'bg-blue-500/10 ring-1 ring-blue-500/30', isActive && !isOver && 'bg-white/[0.02]')}
     >
       {children}
     </div>
