@@ -176,18 +176,23 @@ statsApi.get('/chat/:chatId/top-users', async (c) => {
   const allMsgs = getChatMessages(chatId, period, threadId);
 
   // Group by user
-  const users: Record<number, { userId: number; userName: string; username: string | null; count: number; types: Record<string, number>; textLength: number }> = {};
+  const users: Record<number, { userId: number; userName: string; username: string | null; count: number; types: Record<string, number>; textLength: number; lastMessage: string | null; lastMessageAt: string | null }> = {};
   for (const m of allMsgs) {
-    if (!users[m.userId]) users[m.userId] = { userId: m.userId, userName: m.userName ?? 'Unknown', username: m.username, count: 0, types: {}, textLength: 0 };
+    if (!users[m.userId]) users[m.userId] = { userId: m.userId, userName: m.userName ?? 'Unknown', username: m.username, count: 0, types: {}, textLength: 0, lastMessage: null, lastMessageAt: null };
     users[m.userId].count++;
     users[m.userId].types[m.messageType] = (users[m.userId].types[m.messageType] ?? 0) + 1;
     users[m.userId].textLength += m.textLength ?? 0;
-    // Update name to latest
     if (m.userName) users[m.userId].userName = m.userName;
     if (m.username) users[m.userId].username = m.username;
+    // Track last message
+    if (!users[m.userId].lastMessageAt || m.createdAt > users[m.userId].lastMessageAt!) {
+      users[m.userId].lastMessageAt = m.createdAt;
+      users[m.userId].lastMessage = m.textPreview ?? `[${m.messageType}]`;
+    }
   }
 
-  const sorted = Object.values(users).sort((a, b) => b.count - a.count).slice(0, 20);
+  const sorted = Object.values(users).sort((a, b) => b.count - a.count).slice(0, 20)
+    .map(u => ({ ...u, avgLength: u.count > 0 ? Math.round(u.textLength / u.count) : 0 }));
   return c.json({ total: allMsgs.length, users: sorted });
 });
 

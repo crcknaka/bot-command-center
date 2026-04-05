@@ -375,20 +375,28 @@ export function AnalyticsPage() {
                   const pct = topUsers.total > 0 ? Math.round((u.count / topUsers.total) * 100) : 0;
                   const mainType = Object.entries(u.types as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
                   return (
-                    <div key={u.userId} className="flex items-center text-xs py-0.5 cursor-pointer hover:bg-white/[0.03] rounded px-1 -mx-1" onClick={() => setProfileUserId(u.userId)}>
-                      <span className="w-6 sm:w-8 shrink-0 font-bold" style={{ color: i < 3 ? undefined : 'var(--text-muted)' }}>
-                        {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium truncate">{u.userName}</span>
-                        {u.username && <span className="ml-1 text-[10px] hidden sm:inline" style={{ color: 'var(--text-muted)' }}>@{u.username}</span>}
-                        <span className="sm:hidden text-[10px] ml-1.5 font-mono" style={{ color: 'var(--text-muted)' }}>{u.count} сообщ.</span>
+                    <div key={u.userId} className="cursor-pointer hover:bg-white/[0.03] rounded px-1 -mx-1 py-1.5" onClick={() => setProfileUserId(u.userId)}>
+                      <div className="flex items-center text-xs">
+                        <span className="w-6 sm:w-8 shrink-0 font-bold" style={{ color: i < 3 ? undefined : 'var(--text-muted)' }}>
+                          {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium truncate">{u.userName}</span>
+                          {u.username && <span className="ml-1 text-[10px] hidden sm:inline" style={{ color: 'var(--text-muted)' }}>@{u.username}</span>}
+                          <span className="sm:hidden text-[10px] ml-1.5 font-mono" style={{ color: 'var(--text-muted)' }}>{u.count} сообщ.</span>
+                        </div>
+                        <span className="w-16 text-right font-mono hidden sm:block">{u.count}</span>
+                        <span className="w-10 text-right hidden sm:block" style={{ color: 'var(--text-muted)' }}>{pct}%</span>
+                        <span className="w-24 text-right hidden sm:block text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                          {mainType ? `${typeLabels[mainType[0]] ?? mainType[0]} ${Math.round((mainType[1] / u.count) * 100)}%` : ''}
+                        </span>
                       </div>
-                      <span className="w-20 text-right font-mono hidden sm:block">{u.count}</span>
-                      <span className="w-12 text-right hidden sm:block" style={{ color: 'var(--text-muted)' }}>{pct}%</span>
-                      <span className="w-32 text-right hidden sm:block text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        {mainType ? `${typeLabels[mainType[0]] ?? mainType[0]} ${Math.round((mainType[1] / u.count) * 100)}%` : ''}
-                      </span>
+                      {u.lastMessage && (
+                        <div className="ml-6 sm:ml-8 mt-0.5 text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                          💬 {u.lastMessage.slice(0, 80)}{u.lastMessage.length > 80 ? '…' : ''}
+                          {u.avgLength > 0 && <span className="ml-2 hidden sm:inline">· сред. {u.avgLength} симв.</span>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
