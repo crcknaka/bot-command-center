@@ -82,16 +82,24 @@ const periodFilters = [
 
 export function ActivityPage() {
   const urlType = new URLSearchParams(window.location.search).get('type');
-  const [typeFilter, setTypeFilter] = useState<string>(() => {
+  const [typeFilter, _setTypeFilter] = useState<string>(() => {
     if (urlType?.startsWith('mod')) return 'mod';
     if (urlType === 'auth' || urlType === 'bot' || urlType === 'post') return urlType;
     return 'all';
   });
-  const [modSubFilter, setModSubFilter] = useState<string>(() => {
+  const [modSubFilter, _setModSubFilter] = useState<string>(() => {
     if (urlType === 'mod.deleted' || urlType === 'mod.warned' || urlType === 'mod.muted') return urlType;
     return 'mod';
   });
   const [periodFilter, setPeriodFilter] = useState<string>('all');
+
+  const updateActivityUrl = (type: string) => {
+    const url = new URL(window.location.href);
+    type === 'all' ? url.searchParams.delete('type') : url.searchParams.set('type', type);
+    window.history.replaceState({}, '', url.toString());
+  };
+  const setTypeFilter = (v: string) => { _setTypeFilter(v); if (v !== 'mod') _setModSubFilter('mod'); updateActivityUrl(v); };
+  const setModSubFilter = (v: string) => { _setModSubFilter(v); updateActivityUrl(v === 'mod' ? 'mod' : v); };
   const [search, setSearch] = useState('');
 
   const activeType = typeFilter === 'mod' && modSubFilter !== 'mod' ? modSubFilter : typeFilter;

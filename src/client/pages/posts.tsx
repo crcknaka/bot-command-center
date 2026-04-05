@@ -27,8 +27,16 @@ import { Link } from 'react-router-dom';
 import { postStatusConfig, postStatusFilters } from '../lib/constants.js';
 
 export function PostsPage() {
-  const [statusFilter, setStatusFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('status') ?? 'all');
-  const [botFilter, setBotFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('botId') ?? 'all');
+  const [statusFilter, _setStatusFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('status') ?? 'all');
+  const [botFilter, _setBotFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('botId') ?? 'all');
+
+  const updateUrl = (params: Record<string, string>) => {
+    const url = new URL(window.location.href);
+    Object.entries(params).forEach(([k, v]) => v === 'all' ? url.searchParams.delete(k) : url.searchParams.set(k, v));
+    window.history.replaceState({}, '', url.toString());
+  };
+  const setStatusFilter = (v: string) => { _setStatusFilter(v); updateUrl({ status: v }); };
+  const setBotFilter = (v: string) => { _setBotFilter(v); updateUrl({ botId: v }); };
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
   const [editPost, setEditPost] = useState<any>(null);

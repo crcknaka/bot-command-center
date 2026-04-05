@@ -15,7 +15,7 @@ import { useConfirm } from '../components/ui/confirm-dialog.js';
 import { useToast } from '../components/ui/toast.js';
 
 export function SchedulePage() {
-  const [view, setView] = useState<'week' | 'month'>('week');
+  const [view, setView] = useState<'week' | 'month'>(() => (new URLSearchParams(window.location.search).get('view') as any) ?? 'week');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
