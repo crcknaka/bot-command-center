@@ -194,21 +194,21 @@ export function BotDetailPage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{bot.name}</h1>
-            {bot.username && <span className="text-sm" style={{ color: 'var(--text-muted)' }}>@{bot.username}</span>}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">{bot.name}</h1>
+            {bot.username && <span className="text-xs sm:text-sm hidden sm:inline" style={{ color: 'var(--text-muted)' }}>@{bot.username}</span>}
             <span className={cn('w-2.5 h-2.5 rounded-full', bot.status === 'active' ? 'bg-green-500' : bot.status === 'error' ? 'bg-red-500' : 'bg-zinc-500')} />
             <span className={cn('text-xs', bot.status === 'active' ? 'text-green-400' : bot.status === 'error' ? 'text-red-400' : 'text-zinc-500')}>
               {{ active: 'Работает', stopped: 'Остановлен', error: 'Ошибка' }[bot.status as string] ?? bot.status}
             </span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           {bot.status === 'active' && (
-            <button onClick={() => confirm({ title: 'Остановить бота?', message: 'Все задачи перестанут работать до следующего запуска.', confirmLabel: 'Остановить', variant: 'warning', onConfirm: () => botAction.mutate({ id: botId, action: 'stop' }) })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25">
-              <Square size={16} /> {botAction.isPending ? '...' : 'Остановить'}
+            <button onClick={() => confirm({ title: 'Остановить бота?', message: 'Все задачи перестанут работать до следующего запуска.', confirmLabel: 'Остановить', variant: 'warning', onConfirm: () => botAction.mutate({ id: botId, action: 'stop' }) })} disabled={botAction.isPending} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25">
+              <Square size={14} /> {botAction.isPending ? '...' : 'Остановить'}
             </button>
           )}
         </div>
@@ -235,7 +235,7 @@ export function BotDetailPage() {
 
       {/* Channels */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold">Каналы</h2>
             <InfoTip text="Каналы — это Telegram-каналы или группы, куда бот публикует контент. Сначала добавьте бота как администратора в канал, затем привяжите его здесь через @имя_канала или числовой ID." position="right" />
@@ -275,7 +275,7 @@ export function BotDetailPage() {
               const orphanTopics = topics.filter((t: any) => !parents.some((p: any) => p.chatId === t.chatId || p.title === t.title));
 
               const renderCard = (channel: any, isTopic = false) => (
-                <div key={channel.id} className={isTopic ? 'ml-6 border-l-2 pl-4' : ''} style={isTopic ? { borderColor: 'var(--border)' } : undefined}>
+                <div key={channel.id} className={isTopic ? 'ml-2 sm:ml-6 border-l-2 pl-2 sm:pl-4' : ''} style={isTopic ? { borderColor: 'var(--border)' } : undefined}>
                   <ChannelCard
                     channel={channel}
                     botId={botId}
@@ -2019,8 +2019,8 @@ function ChannelCard({ channel, botId, allChannels, isTopic, onAddTask, onDelete
   return (
     <div ref={setNodeRef} className={`rounded-xl border overflow-hidden transition-colors ${isOver ? 'ring-2 ring-blue-500/50' : ''}`} style={{ background: isOver ? 'rgba(59,130,246,0.05)' : 'var(--bg-card)', borderColor: isOver ? 'var(--primary)' : 'var(--border)' }}>
       {/* Channel header */}
-      <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           {isTopic ? (
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400"># Топик</span>
           ) : channel.type === 'channel' ? (
@@ -2185,10 +2185,10 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
   });
 
   return (
-    <div ref={setNodeRef} className={`rounded-lg border p-3 transition-opacity ${isDragging ? 'opacity-30' : ''}`} style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400" title="Перетащите в другой канал">
+    <div ref={setNodeRef} className={`rounded-lg border p-2 sm:p-3 transition-opacity ${isDragging ? 'opacity-30' : ''}`} style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 hidden sm:block" title="Перетащите в другой канал">
             <GripVertical size={14} />
           </div>
           <span className="text-sm font-medium">
@@ -2205,7 +2205,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {/* Left: toggle + run */}
           <div className="flex gap-1.5">
             <button onClick={() => onToggle(task.id, !task.enabled)}
