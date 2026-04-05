@@ -53,8 +53,8 @@ const actionMeta: Record<string, { icon: any; label: string; color: string }> = 
   'bot.message_sent': { icon: Send, label: 'Сообщение отправлено', color: 'text-green-400' },
   'post.published': { icon: FileText, label: 'Пост опубликован', color: 'text-green-400' },
   'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
-  'mod.deleted': { icon: Trash2, label: 'Сообщение удалено', color: 'text-red-400' },
-  'mod.muted': { icon: Shield, label: 'Мут', color: 'text-orange-400' },
+  'mod.deleted': { icon: Trash2, label: 'Удалено ботом', color: 'text-red-400' },
+  'mod.muted': { icon: Shield, label: 'Мут за нарушение', color: 'text-orange-400' },
   'mod.warned': { icon: Shield, label: 'Предупреждение', color: 'text-yellow-400' },
 };
 
@@ -64,7 +64,13 @@ const typeFilters = [
   { id: 'bot', label: 'Боты' },
   { id: 'post', label: 'Посты' },
   { id: 'mod', label: 'Модерация' },
-  { id: 'deleted', label: 'Удалённые' },
+] as const;
+
+const modSubFilters = [
+  { id: 'mod', label: 'Все' },
+  { id: 'mod.deleted', label: '🗑 Удалено ботом' },
+  { id: 'mod.warned', label: '⚠️ Предупреждения' },
+  { id: 'mod.muted', label: '🔇 Муты' },
 ] as const;
 
 const periodFilters = [
@@ -76,14 +82,17 @@ const periodFilters = [
 
 export function ActivityPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [modSubFilter, setModSubFilter] = useState<string>('mod');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
+  const activeType = typeFilter === 'mod' && modSubFilter !== 'mod' ? modSubFilter : typeFilter;
+
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['activity', typeFilter, periodFilter, search],
+    queryKey: ['activity', activeType, periodFilter, search],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (activeType !== 'all') params.set('type', activeType);
       if (periodFilter !== 'all') params.set('period', periodFilter);
       if (search.trim()) params.set('search', search.trim());
       const qs = params.toString();
@@ -136,6 +145,20 @@ export function ActivityPage() {
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
         />
       </div>
+
+      {/* Moderation sub-filters */}
+      {typeFilter === 'mod' && (
+        <div className="flex gap-1 mb-4">
+          {modSubFilters.map((f) => (
+            <button key={f.id} onClick={() => setModSubFilter(f.id)}
+              className={cn('px-2.5 py-1 text-[11px] rounded-md transition-colors',
+                modSubFilter === f.id ? 'bg-red-500/15 text-red-400' : 'text-zinc-500 hover:text-zinc-300'
+              )}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <Spinner text="Загрузка..." />
