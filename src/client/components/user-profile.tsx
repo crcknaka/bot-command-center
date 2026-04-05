@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Search, MessageSquare, AlertTriangle } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
 import { cn, timeAgo } from '../lib/utils.js';
@@ -16,11 +16,19 @@ const violationLabels: Record<string, string> = {
 
 export function UserProfileModal({ chatId, userId, onClose }: { chatId: string; userId: number; onClose: () => void }) {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
 
+  // Debounce search to avoid refetching on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data: profile } = useQuery({
-    queryKey: ['user-profile', chatId, userId, search, page],
-    queryFn: () => apiFetch(`/stats/chat/${chatId}/user/${userId}?search=${encodeURIComponent(search)}&offset=${page * 50}`),
+    queryKey: ['user-profile', chatId, userId, debouncedSearch, page],
+    queryFn: () => apiFetch(`/stats/chat/${chatId}/user/${userId}?search=${encodeURIComponent(debouncedSearch)}&offset=${page * 50}`),
+    placeholderData: keepPreviousData,
   });
 
   if (!profile) return null;
