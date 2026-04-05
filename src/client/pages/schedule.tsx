@@ -25,18 +25,28 @@ export function SchedulePage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
+  const [botFilter, setBotFilter] = useState<string>('all');
   const [activeId, setActiveId] = useState<number | null>(null);
   const [scheduleModal, setScheduleModal] = useState<{ postId: number; date: string } | null>(null);
   const [viewPost, setViewPost] = useState<any>(null);
   const [viewContent, setViewContent] = useState('');
 
-  // Channel lookup
+  // Channel lookup + bot list for filters
   const channelMap: Record<number, { botName: string; title: string; botId: number }> = {};
+  const botList: Array<{ id: number; name: string }> = [];
   bots?.forEach((bot: any) => {
+    botList.push({ id: bot.id, name: bot.name });
     bot.channels?.forEach?.((ch: any) => {
       channelMap[ch.id] = { botName: bot.name, title: ch.title, botId: bot.id };
     });
   });
+
+  // Filter posts by selected bot
+  const filterPost = (p: any) => {
+    if (botFilter === 'all') return true;
+    const ch = channelMap[p.channelId];
+    return ch?.botId === Number(botFilter);
+  };
 
   // Week days — start from today
   const today = new Date();
@@ -98,7 +108,7 @@ export function SchedulePage() {
 
   const postsByDay = useMemo(() => {
     const map: Record<string, any[]> = {};
-    (posts ?? []).forEach((post: any) => {
+    (posts ?? []).filter(filterPost).forEach((post: any) => {
       if (!post.scheduledFor) return;
       const dayKey = toLocalDayKey(post.scheduledFor);
       if (!map[dayKey]) map[dayKey] = [];
@@ -106,10 +116,10 @@ export function SchedulePage() {
     });
     Object.values(map).forEach((arr) => arr.sort((a: any, b: any) => (a.scheduledFor ?? a.createdAt).localeCompare(b.scheduledFor ?? b.createdAt)));
     return map;
-  }, [posts]);
+  }, [posts, botFilter]);
 
   // Unscheduled posts
-  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved'));
+  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved')).filter(filterPost);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const activePost = activeId ? (posts ?? []).find((p: any) => p.id === activeId) : null;
@@ -160,7 +170,14 @@ export function SchedulePage() {
             <InfoTip text="Перетащите пост из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
             <a href="/posts" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Все посты →</a>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {botList.length > 1 && (
+              <select value={botFilter} onChange={(e) => setBotFilter(e.target.value)}
+                className="px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                <option value="all">Все боты</option>
+                {botList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
             {unscheduled.length > 0 && (
               <span className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-yellow-500/10 text-yellow-400">
                 {unscheduled.length} незапланир.
