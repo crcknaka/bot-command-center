@@ -1329,15 +1329,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   // Moderation — single state object for ModerationConfigUI
   const [modConfig, setModConfig] = useState<Record<string, any>>({ ...config });
   // Web search
-  const [webSearchConfig, setWebSearchConfig] = useState<Record<string, any>>({
-    queries: config.queries ?? [],
-    useAi: config.useAi ?? true,
-    systemPrompt: config.systemPrompt,
-    rawTemplate: config.rawTemplate,
-    autoApprove: config.autoApprove ?? false,
-    maxResults: config.maxResults ?? 3,
-    timeRange: config.timeRange ?? 'day',
-  });
+  const [webSearchConfig, setWebSearchConfig] = useState<Record<string, any>>({ ...config });
 
   return (
     <Modal title="Редактировать задачу" onClose={onClose}>
