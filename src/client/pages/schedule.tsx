@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ChevronDown, Clock, X, Send } from 'lucide-react';
 import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { apiFetch } from '../lib/api.js';
@@ -168,7 +169,7 @@ export function SchedulePage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Расписание</h1>
             <InfoTip text="Перетащите пост из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
-            <a href="/posts" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Все посты →</a>
+            <Link to="/posts" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Все посты →</Link>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {botList.length > 1 && (
