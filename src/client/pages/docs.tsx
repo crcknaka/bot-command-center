@@ -43,7 +43,8 @@ function FeedRow({ name, url, desc }: { name: string; url: string; desc: string 
 }
 
 export function DocsPage() {
-  const [active, setActive] = useState<string>('quickstart');
+  const [active, _setActive] = useState<string>(() => new URLSearchParams(window.location.search).get('section') ?? 'quickstart');
+  const setActive = (v: string) => { _setActive(v); const url = new URL(window.location.href); v === 'quickstart' ? url.searchParams.delete('section') : url.searchParams.set('section', v); window.history.replaceState({}, '', url.toString()); };
 
   return (
     <div>

@@ -19,7 +19,8 @@ const tabs: readonly { id: string; label: string; icon: any; disabled?: boolean 
 type TabId = 'general' | 'ai' | 'search' | 'templates';
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('general');
+  const [activeTab, _setActiveTab] = useState<TabId>(() => (new URLSearchParams(window.location.search).get('tab') as TabId) ?? 'general');
+  const setActiveTab = (v: TabId) => { _setActiveTab(v); const url = new URL(window.location.href); v === 'general' ? url.searchParams.delete('tab') : url.searchParams.set('tab', v); window.history.replaceState({}, '', url.toString()); };
 
   return (
     <div>
