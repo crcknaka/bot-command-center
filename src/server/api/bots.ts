@@ -405,6 +405,8 @@ botsApi.post('/:id/moderate', async (c) => {
         await botInstance.api.restrictChatMember(numChatId, userId, { permissions: muted, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
       case 'unmute': {
+        // First unban if user was kicked, then restore permissions
+        try { await botInstance.api.unbanChatMember(numChatId, userId, { only_if_banned: true }); } catch {}
         // Get the group's default permissions and apply them to user
         const chatInfo = await botInstance.api.getChat(numChatId) as any;
         const groupPerms = chatInfo.permissions ?? {};
@@ -447,7 +449,7 @@ botsApi.post('/:id/moderate', async (c) => {
         break;
     }
 
-    logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, duration } });
+    logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, duration, action } });
     // Return expected new status so client can update immediately
     const newStatus = action === 'ban' ? 'kicked' : action === 'unban' || action === 'unmute' ? 'member' : action === 'mute' ? 'restricted' : 'restricted';
     return c.json({ ok: true, newStatus });

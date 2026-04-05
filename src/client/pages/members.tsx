@@ -206,11 +206,9 @@ export function MembersPage() {
                 </div>
 
                 <div className="space-y-3">
+                  {/* Mute */}
                   <div>
-                    <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
-                      🔇 Мут
-                      <InfoTip text="Запретить отправку сообщений на выбранный срок." position="right" />
-                    </div>
+                    <div className="text-xs font-medium mb-1.5">🔇 Мут <span className="font-normal" style={{ color: 'var(--text-muted)' }}>— запретить писать</span></div>
                     <div className="flex flex-wrap gap-1.5">
                       {durations.map((d) => (
                         <button key={`mute-${d.value}`} onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'mute', duration: d.value })}
@@ -222,30 +220,32 @@ export function MembersPage() {
                     </div>
                   </div>
 
+                  {/* Restrictions */}
                   <div>
-                    <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
-                      ⛔ Ограничения
-                      <InfoTip text="Запретить определённые типы контента." position="right" />
-                    </div>
+                    <div className="text-xs font-medium mb-1.5">⛔ Ограничения <span className="font-normal" style={{ color: 'var(--text-muted)' }}>— может писать текст, но не медиа/ссылки</span></div>
                     <div className="flex flex-wrap gap-1.5">
-                      <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'restrict_media', duration: 0 })}
-                        disabled={moderateMut.isPending}
-                        className="px-3 py-1.5 rounded-lg text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors flex items-center gap-1">
-                        <Image size={12} /> Без медиа
-                      </button>
-                      <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'restrict_links', duration: 0 })}
-                        disabled={moderateMut.isPending}
-                        className="px-3 py-1.5 rounded-lg text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors flex items-center gap-1">
-                        <Link2 size={12} /> Без ссылок
-                      </button>
+                      {durations.map((d) => (
+                        <button key={`media-${d.value}`} onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'restrict_media', duration: d.value })}
+                          disabled={moderateMut.isPending}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors flex items-center gap-1">
+                          <Image size={11} /> Без медиа {d.value > 0 ? d.label : '∞'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {durations.map((d) => (
+                        <button key={`links-${d.value}`} onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'restrict_links', duration: d.value })}
+                          disabled={moderateMut.isPending}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors flex items-center gap-1">
+                          <Link2 size={11} /> Без ссылок {d.value > 0 ? d.label : '∞'}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
+                  {/* Ban */}
                   <div>
-                    <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
-                      🚫 Бан
-                      <InfoTip text="Удалить из группы и запретить возвращаться." position="right" />
-                    </div>
+                    <div className="text-xs font-medium mb-1.5">🚫 Бан <span className="font-normal" style={{ color: 'var(--text-muted)' }}>— удалить из группы, нельзя вернуться</span></div>
                     <div className="flex flex-wrap gap-1.5">
                       {durations.map((d) => (
                         <button key={`ban-${d.value}`} onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'ban', duration: d.value })}
@@ -257,20 +257,16 @@ export function MembersPage() {
                     </div>
                   </div>
 
+                  {/* Restore */}
                   {(actionUser.status === 'restricted' || actionUser.status === 'kicked') && (
                     <div>
                       <div className="text-xs font-medium mb-1.5">✅ Снять ограничения</div>
                       <div className="flex gap-1.5">
-                        {actionUser.status === 'restricted' && (
-                          <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'unmute' })}
-                            disabled={moderateMut.isPending}
-                            className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">Снять мут</button>
-                        )}
-                        {actionUser.status === 'kicked' && (
-                          <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'unban' })}
-                            disabled={moderateMut.isPending}
-                            className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">Разбанить</button>
-                        )}
+                        <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'unmute' })}
+                          disabled={moderateMut.isPending}
+                          className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+                          {actionUser.status === 'kicked' ? 'Разбанить' : 'Снять все ограничения'}
+                        </button>
                       </div>
                     </div>
                   )}
