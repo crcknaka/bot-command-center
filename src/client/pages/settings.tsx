@@ -289,7 +289,7 @@ function AIModelsTab() {
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Глобальные AI-провайдеры — доступны всем ботам. Для отдельного бота можно переназначить на его странице.
         </p>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
+        <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
           <Plus size={14} /> Добавить
         </button>
       </div>
@@ -299,7 +299,7 @@ function AIModelsTab() {
           <Zap size={40} className="mx-auto mb-3 text-zinc-600" />
           <p className="font-medium mb-1">Нет AI-провайдеров</p>
           <p className="text-xs mb-4 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>Получите API-ключ на сайте <b>OpenAI</b>, <b>Anthropic</b>, <b>Google</b> или <b>OpenRouter</b>.</p>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
+          <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -344,10 +344,10 @@ function AIModelsTab() {
             <div className="w-full max-w-md mx-4 p-6 rounded-2xl border max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
               <h2 className="text-lg font-bold mb-1">Добавить AI-провайдера</h2>
               <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Облачный сервис или локальная модель на вашем компьютере.</p>
-              <form onSubmit={(e) => { e.preventDefault(); createMut.mutate({ ...form, baseUrl: form.baseUrl || (selected as any)?.defaultUrl || '' }); }} className="space-y-3">
+              <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); createMut.mutate({ ...form, baseUrl: form.baseUrl || (selected as any)?.defaultUrl || '' }); }} className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Название</label>
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={isLocal ? 'Например: Мой Ollama' : 'Например: Мой OpenAI'} className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
+                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={selected?.label ?? 'Название провайдера'} autoComplete="off" className="w-full px-3 py-2 rounded-lg border text-sm outline-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Тип</label>
@@ -355,7 +355,7 @@ function AIModelsTab() {
                     <div className="text-[10px] uppercase font-medium tracking-wider" style={{ color: 'var(--text-muted)' }}>Облачные</div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {providerTypes.filter((t) => t.group === 'cloud').map((t) => (
-                        <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value, baseUrl: '' })}
+                        <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value, baseUrl: '', name: form.name || t.label })}
                           className={cn('p-2 rounded-lg border text-left text-xs transition-colors', form.type === t.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
                           style={{ borderColor: form.type === t.value ? undefined : 'var(--border)' }}>
                           <div className="font-medium">{t.label}</div>
@@ -366,7 +366,7 @@ function AIModelsTab() {
                     <div className="text-[10px] uppercase font-medium tracking-wider mt-3" style={{ color: 'var(--text-muted)' }}>Локальные</div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {providerTypes.filter((t) => t.group === 'local').map((t) => (
-                        <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value, apiKey: '', baseUrl: (t as any).defaultUrl ?? '' })}
+                        <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value, apiKey: '', baseUrl: (t as any).defaultUrl ?? '', name: form.name || t.label })}
                           className={cn('p-2 rounded-lg border text-left text-xs transition-colors', form.type === t.value ? 'border-blue-500 bg-blue-500/5' : 'hover:border-zinc-600')}
                           style={{ borderColor: form.type === t.value ? undefined : 'var(--border)' }}>
                           <div className="font-medium">{t.label}</div>
@@ -387,7 +387,7 @@ function AIModelsTab() {
                 {selected?.needsKey && (
                   <div>
                     <label className="block text-sm font-medium mb-1">API-ключ</label>
-                    <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.type === 'groq' ? 'gsk_...' : 'sk-...'} className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.type === 'groq' ? 'gsk_...' : form.type === 'google' ? 'AIza...' : 'sk-...'} autoComplete="new-password" className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                     {form.type === 'groq' && (
                       <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                         Бесплатно: 14400 запросов/день. Получите ключ на <a href="https://console.groq.com/keys" target="_blank" rel="noopener" className="text-blue-400 hover:underline">console.groq.com/keys</a>
@@ -469,7 +469,7 @@ function SearchTab() {
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Поисковые провайдеры ищут новости в интернете для генерации постов. Для каждого бота можно переназначить отдельно.
         </p>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
+        <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
           <Plus size={14} /> Добавить
         </button>
       </div>
@@ -481,7 +481,7 @@ function SearchTab() {
           <p className="text-xs mb-4 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
             Добавьте API-ключ от <b>Tavily</b>, <b>Serper</b>, <b>Brave Search</b> или другого поискового сервиса.
           </p>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
+          <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
         </div>
       ) : (
         <div className="space-y-3">
