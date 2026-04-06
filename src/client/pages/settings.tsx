@@ -207,6 +207,7 @@ const providerTypes = [
   { value: 'anthropic', label: 'Anthropic', desc: 'Claude Sonnet, Haiku', models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001'], group: 'cloud', needsKey: true },
   { value: 'google', label: 'Google Gemini', desc: 'Gemini 2.5 Flash/Pro', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], group: 'cloud', needsKey: true },
   { value: 'openrouter', label: 'OpenRouter', desc: '100+ моделей через один ключ', models: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-20250514'], group: 'cloud', needsKey: true },
+  { value: 'groq', label: 'Groq', desc: 'Бесплатно: 14400 req/день. Llama 3.3 70B, очень быстрый', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'], group: 'cloud', needsKey: true },
   // Local
   { value: 'ollama', label: 'Ollama', desc: 'Локальные модели (llama3, mistral, qwen)', models: ['llama3.1', 'mistral', 'qwen2.5', 'gemma2', 'phi3'], group: 'local', needsKey: false, defaultUrl: 'http://localhost:11434/v1' },
   { value: 'lmstudio', label: 'LM Studio', desc: 'Локальные модели через GUI', models: ['loaded-model'], group: 'local', needsKey: false, defaultUrl: 'http://localhost:1234/v1' },
@@ -386,7 +387,12 @@ function AIModelsTab() {
                 {selected?.needsKey && (
                   <div>
                     <label className="block text-sm font-medium mb-1">API-ключ</label>
-                    <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="sk-..." className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.type === 'groq' ? 'gsk_...' : 'sk-...'} className="w-full px-3 py-2 rounded-lg border text-sm outline-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                    {form.type === 'groq' && (
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                        Бесплатно: 14400 запросов/день. Получите ключ на <a href="https://console.groq.com/keys" target="_blank" rel="noopener" className="text-blue-400 hover:underline">console.groq.com/keys</a>
+                      </p>
+                    )}
                   </div>
                 )}
                 {isLocal && (

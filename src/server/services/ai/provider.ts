@@ -7,7 +7,7 @@ import { aiProviders, bots } from '../../db/schema.js';
 import { eq, and, or, isNull } from 'drizzle-orm';
 import type { LanguageModel } from 'ai';
 
-type ProviderType = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'ollama' | 'lmstudio' | 'custom';
+type ProviderType = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'groq' | 'ollama' | 'lmstudio' | 'custom';
 
 /** Default base URLs for local providers */
 const LOCAL_DEFAULTS: Record<string, string> = {
@@ -44,6 +44,10 @@ export function createModelFromProvider(providerId: number, modelId: string): La
       const key = provider.oauthToken ?? apiKey;
       const openrouter = createOpenRouter({ apiKey: key });
       return openrouter(modelId);
+    }
+    case 'groq': {
+      const groq = createOpenAI({ apiKey, baseURL: baseURL || 'https://api.groq.com/openai/v1' });
+      return groq(modelId);
     }
     case 'ollama':
     case 'lmstudio':
@@ -109,6 +113,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   anthropic: 'claude-sonnet-4-20250514',
   google: 'gemini-2.5-flash',
   openrouter: 'openai/gpt-4o',
+  groq: 'llama-3.3-70b-versatile',
   ollama: 'llama3.1',
   lmstudio: 'loaded-model',
   custom: 'gpt-4o',

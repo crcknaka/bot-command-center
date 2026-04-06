@@ -41,7 +41,7 @@ export const aiProviders = sqliteTable('ai_providers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   ownerId: integer('owner_id').references(() => users.id, { onDelete: 'cascade' }), // null = global
   name: text('name').notNull(),
-  type: text('type', { enum: ['openai', 'anthropic', 'google', 'openrouter', 'ollama', 'lmstudio', 'custom'] }).notNull(),
+  type: text('type', { enum: ['openai', 'anthropic', 'google', 'openrouter', 'groq', 'ollama', 'lmstudio', 'custom'] }).notNull(),
   authType: text('auth_type', { enum: ['api_key', 'oauth'] }).notNull().default('api_key'),
   apiKey: text('api_key'),
   oauthToken: text('oauth_token'),
