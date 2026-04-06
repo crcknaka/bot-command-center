@@ -7,14 +7,18 @@ import { api } from './api/index.js';
 import { serve } from '@hono/node-server';
 import { scheduler } from './services/scheduler.js';
 import { db } from './db/client.js';
-import { sessions, messageStats } from './db/schema.js';
-import { lt } from 'drizzle-orm';
+import { sessions, messageStats, posts } from './db/schema.js';
+import { lt, eq } from 'drizzle-orm';
 
 async function main() {
   console.log('🚀 Bot Command Center starting...');
 
   // 1. Run database migrations
   runMigrations();
+
+  // 1b. Migrate: approved → draft (status removed)
+  const migratedApproved = db.update(posts).set({ status: 'draft' }).where(eq(posts.status, 'approved' as any)).run();
+  if (migratedApproved.changes > 0) console.log(`📦 Migrated ${migratedApproved.changes} approved post(s) �� draft`);
 
   // 2. Create default superadmin if none exists
   await ensureSuperadmin();

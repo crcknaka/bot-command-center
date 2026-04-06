@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 import { fetchAndStore } from './fetcher.js';
 import { generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
+import { resolvePostMode, type PostMode } from '../utils.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../prompts.js';
 
 interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
@@ -16,10 +18,9 @@ interface NewsFeedConfig {
   systemPrompt?: string;
   postLanguage?: string;
   postMaxLength?: number;
-  autoApprove?: boolean;
+  postMode?: PostMode; // queue (default) | draft | publish
+  autoApprove?: boolean; // legacy, mapped to postMode
 }
-
-const DEFAULT_SYSTEM_PROMPT = `You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.`;
 
 const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a> · {author}`;
 
@@ -177,24 +178,27 @@ export class NewsFeedTask implements TaskModule {
             content = formatRaw(article, rawTemplate, maxLen);
           }
 
-          db.insert(posts).values({
+          const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, bot?.minPostIntervalMinutes);
+          const inserted = db.insert(posts).values({
             channelId: ctx.channelId,
             taskId: ctx.taskId,
             articleId: article.id,
             content,
             imageUrl: article.imageUrl,
-            status: config.autoApprove ? 'approved' : 'draft',
+            status: postStatus,
+            scheduledFor,
             aiProviderId: aiPid,
             aiModel,
-          }).run();
+          }).returning().get();
 
-
+          const modeLabel = postStatus === 'queued' ? (scheduledFor ? `в очереди (${new Date(scheduledFor).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })})` : 'в очереди') : 'черновик';
           steps.push({
             action: `Статья: "${article.title.slice(0, 50)}..."`,
             status: 'ok',
             detail: useAi
-              ? `AI-пост (${tokensUsed} токенов, ${aiModel}). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.`
-              : `Пост из шаблона (без AI). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.`,
+              ? `AI-пост (${tokensUsed} токенов, ${aiModel}). Статус: ${modeLabel}.`
+              : `Пост из шаблона (без AI). Статус: ${modeLabel}.`,
+            postId: inserted.id,
           });
         } catch (err) {
           const errMsg = (err as Error).message;

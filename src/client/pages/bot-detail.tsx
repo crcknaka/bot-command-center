@@ -410,7 +410,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, autoApprove: taskConfig.autoApprove, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountries: taskConfig.searchCountries, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, postMode: taskConfig.postMode, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountries: taskConfig.searchCountries, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -554,9 +554,9 @@ export function BotDetailPage() {
 
             {/* Hint per task type */}
             <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--text-muted)' }}>
-              {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в уникальные посты.</>}
-              {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон — без AI, бесплатно.</>}
-              {taskType === 'web_search' && <>💡 Задайте поисковые запросы. Бот найдёт свежие статьи в интернете и создаст посты.</>}
+              {taskType === 'news_feed' && taskConfig.useAi && <>💡 Добавьте источники → «Запустить сейчас». AI переработает новости в посты.</>}
+              {taskType === 'news_feed' && !taskConfig.useAi && <>💡 Добавьте источники. Бот подставит данные в шаблон.</>}
+              {taskType === 'web_search' && <>💡 Задайте поисковые запросы. Бот найдёт статьи и создаст посты.</>}
               {taskType === 'auto_reply' && <>💡 Авто-ответы работают на <b>всю группу</b> (все топики). Достаточно добавить один раз.</>}
               {taskType === 'welcome' && <>💡 Приветствие действует на <b>всю группу</b>. Достаточно добавить один раз.</>}
               {taskType === 'moderation' && <>💡 Модерация действует на <b>всю группу</b> (все топики). Достаточно добавить один раз.</>}
@@ -842,6 +842,11 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
 
   return (
     <div className="mb-4 space-y-2">
+      {/* Mini flow diagram */}
+      <div className="flex items-center gap-2 text-[11px] py-2 px-3 rounded-lg" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+        <span>🔍 Запросы</span><span>→</span><span>📄 Результаты</span><span>→</span><span>🤖 AI</span><span>→</span><span>📤 Пост</span>
+      </div>
+
       {!searchProviders?.length && (
         <div className="rounded-lg p-3 text-xs bg-yellow-500/10 text-yellow-400">
           ⚠️ Поисковый провайдер не подключён. <b>Настройки → Поиск</b> → добавьте Serper, Tavily или другой.
@@ -960,18 +965,49 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
       {config.useAi !== false && (
         <div>
           <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>AI промпт (как бот должен писать посты)</label>
+          <p className="text-[10px] mb-1.5" style={{ color: 'var(--text-muted)' }}>AI получит: ваш промпт + найденные статьи (заголовок, текст, URL). AI напишет: один пост для Telegram.</p>
           <textarea value={config.systemPrompt ?? ''} onChange={(e) => onChange({ systemPrompt: e.target.value })}
             placeholder="Ты — редактор Telegram-канала про моноколёса. Пиши с юмором, кратко, на русском. Добавляй ссылку на источник."
-            rows={3} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+            rows={5} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
           <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Пусто = стандартный промпт. Здесь можно задать тон, стиль, язык постов.</p>
         </div>
       )}
+      {config.useAi === false && (
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Шаблон поста</label>
+          <textarea value={config.rawTemplate ?? ''} onChange={(e) => onChange({ rawTemplate: e.target.value })}
+            placeholder={'<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>'}
+            rows={5} className="w-full px-2 py-1.5 rounded-lg border text-xs outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Переменные: <code>{'{title}'}</code>, <code>{'{summary}'}</code>, <code>{'{url}'}</code>. Поддерживается HTML.</p>
+        </div>
+      )}
 
-      {/* Auto-approve */}
-      <label className="flex items-center gap-2 text-xs mt-2">
-        <input type="checkbox" checked={config.autoApprove ?? false} onChange={(e) => onChange({ autoApprove: e.target.checked })} />
-        Авто-одобрение (сразу в очередь без проверки)
-      </label>
+      {/* Post mode */}
+      <div className="mt-2">
+        <div className="text-xs font-medium mb-1.5">📤 После генерации:</div>
+        <div className="grid grid-cols-3 gap-2">
+          <button type="button" onClick={() => onChange({ postMode: 'queue' })}
+            className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', (config.postMode ?? 'queue') === 'queue' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+            style={{ borderColor: (config.postMode ?? 'queue') === 'queue' ? undefined : 'var(--border)' }}>
+            В очередь
+          </button>
+          <button type="button" onClick={() => onChange({ postMode: 'draft' })}
+            className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', config.postMode === 'draft' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+            style={{ borderColor: config.postMode === 'draft' ? undefined : 'var(--border)' }}>
+            Черновик
+          </button>
+          <button type="button" onClick={() => onChange({ postMode: 'publish' })}
+            className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', config.postMode === 'publish' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+            style={{ borderColor: config.postMode === 'publish' ? undefined : 'var(--border)' }}>
+            Сразу
+          </button>
+        </div>
+        <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+          {(config.postMode ?? 'queue') === 'queue' && 'Посты попадут в очередь и будут опубликованы по расписанию.'}
+          {config.postMode === 'draft' && 'Посты сохранятся как черновики — вы проверите и одобрите вручную.'}
+          {config.postMode === 'publish' && 'Посты будут опубликованы сразу после генерации — без проверки.'}
+        </p>
+      </div>
     </div>
   );
 }
@@ -1293,7 +1329,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
   const [useAi, setUseAi] = useState(config.useAi !== false);
   const [taskPrompt, setTaskPrompt] = useState(config.systemPrompt ?? '');
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
-  const [autoApprove, setAutoApprove] = useState(config.autoApprove ?? false);
+  const [postMode, setPostMode] = useState(config.postMode ?? 'queue');
   const [filterKeywords, setFilterKeywords] = useState<string[]>(config.filterKeywords ?? []);
   const [newFilterKw, setNewFilterKw] = useState('');
   const [maxAgeDays, setMaxAgeDays] = useState(config.maxAgeDays ?? 7);
@@ -1467,12 +1503,33 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           </div>
         )}
 
-        {/* Auto-approve */}
+        {/* Post mode */}
         {task.type === 'news_feed' && (
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
-            Авто-одобрение (пост создаётся одобренным, без ручной проверки)
-          </label>
+          <div>
+            <div className="text-xs font-medium mb-1.5">📤 После генерации:</div>
+            <div className="grid grid-cols-3 gap-2">
+              <button type="button" onClick={() => setPostMode('queue')}
+                className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', postMode === 'queue' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+                style={{ borderColor: postMode === 'queue' ? undefined : 'var(--border)' }}>
+                В очередь
+              </button>
+              <button type="button" onClick={() => setPostMode('draft')}
+                className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', postMode === 'draft' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+                style={{ borderColor: postMode === 'draft' ? undefined : 'var(--border)' }}>
+                Черновик
+              </button>
+              <button type="button" onClick={() => setPostMode('publish')}
+                className={cn('px-3 py-1.5 rounded-lg border text-xs text-center transition-colors', postMode === 'publish' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'hover:border-zinc-600')}
+                style={{ borderColor: postMode === 'publish' ? undefined : 'var(--border)' }}>
+                Сразу
+              </button>
+            </div>
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              {postMode === 'queue' && 'Посты попадут в очередь и будут опубликованы по расписанию.'}
+              {postMode === 'draft' && 'Посты сохранятся как черновики — вы проверите и одобрите вручную.'}
+              {postMode === 'publish' && 'Посты будут опубликованы сразу после генерации — без проверки.'}
+            </p>
+          </div>
         )}
 
         <div className="flex gap-3 justify-end pt-2">
@@ -1480,7 +1537,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, autoApprove, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, postMode, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
               if (task.type === 'auto_reply') cfg = { ...config, rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { ...config, welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };
@@ -2306,12 +2363,12 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
       )}
       {task.type === 'news_feed' && !sources?.length && (
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(234,179,8,0.06)', color: 'var(--text-muted)' }}>
-          ⚠️ Добавьте хотя бы один источник. «Запустить» загрузит статьи из всех источников, отфильтрует по ключевым словам и создаст черновики (макс. {(task.config as any)?.maxPostsPerDay ?? 5} в день).
+          ⚠️ Добавьте хотя бы один источник. «Запустить» загрузит статьи из всех источников, отфильтрует по ключевым словам и создаст посты (макс. {(task.config as any)?.maxPostsPerDay ?? 5} в день).
         </div>
       )}
       {task.type === 'web_search' && (
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
-          💡 «Запустить» найдёт статьи в интернете по запросам и создаст черновики. Кол-во постов = запросы × макс. результатов.
+          💡 «Запустить» найдёт статьи в интернете по запросам и создаст посты. Кол-во постов = запросы × макс. результатов.
         </div>
       )}
 

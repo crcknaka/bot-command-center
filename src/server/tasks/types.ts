@@ -20,6 +20,7 @@ export interface TaskRunStep {
   action: string;
   status: 'ok' | 'error' | 'skipped';
   detail: string;
+  postId?: number;
 }
 
 export interface TaskModule {

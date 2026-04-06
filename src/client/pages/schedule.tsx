@@ -120,7 +120,7 @@ export function SchedulePage() {
   }, [posts, botFilter]);
 
   // Unscheduled posts
-  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && (p.status === 'draft' || p.status === 'approved')).filter(filterPost);
+  const unscheduled = (posts ?? []).filter((p: any) => !p.scheduledFor && p.status === 'draft').filter(filterPost);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const activePost = activeId ? (posts ?? []).find((p: any) => p.id === activeId) : null;
@@ -138,7 +138,7 @@ export function SchedulePage() {
 
     if (target === 'unscheduled') {
       // Move back to unscheduled
-      updateMut.mutate({ id: postId, scheduledFor: null as any, status: 'approved' }, {
+      updateMut.mutate({ id: postId, scheduledFor: null as any, status: 'draft' }, {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
       });
       return;
@@ -168,7 +168,7 @@ export function SchedulePage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Расписание</h1>
-            <InfoTip text="Перетащите пост из левой панели на день в календаре. Посты автоматически публикуются в назначенное время." position="bottom" />
+            <InfoTip text="Перетащите черновик на день в календаре, или используйте кнопку «В очередь» на странице Постов для автоматического планирования." position="bottom" />
             <Link to="/posts" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Все посты →</Link>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -452,7 +452,7 @@ export function SchedulePage() {
 
         {/* Legend */}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-6 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          {Object.entries(postStatusConfig).filter(([k]) => ['draft', 'approved', 'queued', 'published', 'failed'].includes(k)).map(([key, cfg]) => (
+          {Object.entries(postStatusConfig).filter(([k]) => ['draft', 'queued', 'published', 'failed'].includes(k)).map(([key, cfg]) => (
             <span key={key} className="flex items-center gap-1.5">
               <span className={cn('w-2 h-2 rounded-full', cfg.dot)} />
               {cfg.label}

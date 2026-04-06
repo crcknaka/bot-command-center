@@ -165,7 +165,7 @@ export const posts = sqliteTable('posts', {
   articleId: integer('article_id').references(() => articles.id, { onDelete: 'set null' }),
   content: text('content').notNull(),
   imageUrl: text('image_url'),
-  status: text('status', { enum: ['draft', 'approved', 'queued', 'publishing', 'published', 'failed'] }).notNull().default('draft'),
+  status: text('status', { enum: ['draft', 'queued', 'publishing', 'published', 'failed'] }).notNull().default('draft'),
   scheduledFor: text('scheduled_for'),
   publishedAt: text('published_at'),
   telegramMessageId: integer('telegram_message_id'),

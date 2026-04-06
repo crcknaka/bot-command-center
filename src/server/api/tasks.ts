@@ -6,6 +6,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
 import { fetchAndStore, fetchOnly } from '../tasks/news-feed/fetcher.js';
 import { botManager } from '../bot/manager.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../tasks/prompts.js';
 import cron from 'node-cron';
 
 /** Restart the bot that owns this channel (so new handlers register) */
@@ -160,7 +161,8 @@ tasksApi.post('/tasks/:id/run', async (c) => {
       config: task.config as Record<string, unknown>,
       bot: null as any,
     });
-    return c.json({ ok: true, ...result });
+    const createdPostIds = result.steps.filter(s => s.status === 'ok' && s.postId).map(s => s.postId);
+    return c.json({ ok: true, ...result, createdPostIds });
   } catch (err) {
     return c.json({ ok: false, error: (err as Error).message, steps: [{ action: 'Запуск задачи', status: 'error', detail: (err as Error).message }] }, 500);
   }
@@ -203,36 +205,57 @@ tasksApi.post('/tasks/:id/preview', async (c) => {
     });
   }
 
-  // News feed preview — check sources/articles
+  // News feed preview — check sources/articles (read-only, no DB writes)
   const config = task.config as any;
   const maxAgeDays = config?.maxAgeDays ?? 7;
 
-  // Fetch from all sources (store in DB like normal run)
   const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
+
+  // Fetch fresh articles without storing in DB
+  const freshArticlesBySource = new Map<number, any[]>();
   for (const source of taskSources) {
     if (source.enabled) {
-      try { await fetchAndStore(source.id, maxAgeDays); } catch {}
+      try {
+        const fetched = await fetchOnly(source.id);
+        freshArticlesBySource.set(source.id, fetched);
+      } catch {}
     }
   }
 
-  // Get articles that would be processed
+  // Combine stored articles + fresh (deduplicate by URL)
   const { articles } = await import('../db/schema.js');
   const { posts: postsTable } = await import('../db/schema.js');
-  const allArticles = taskSources.flatMap((src) =>
+  const storedArticles = taskSources.flatMap((src) =>
     db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
   );
+  const storedUrls = new Set(storedArticles.map(a => a.url));
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const freshExtras: any[] = [];
+  for (const [, fetched] of freshArticlesBySource) {
+    for (const a of fetched) {
+      if (storedUrls.has(a.url)) continue;
+      if (a.publishedAt) {
+        const pubDate = new Date(a.publishedAt).getTime();
+        if (!isNaN(pubDate) && pubDate < cutoff) continue;
+      }
+      freshExtras.push({ ...a, id: `fresh-${freshExtras.length}`, title: a.title ?? '', summary: a.summary ?? '', content: a.content ?? '' });
+      storedUrls.add(a.url);
+    }
+  }
+  const allArticles = [...storedArticles, ...freshExtras];
 
   // Apply keyword filter
   const keywords: string[] = config?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
   const filtered = keywords.length > 0
-    ? allArticles.filter((a) => {
+    ? allArticles.filter((a: any) => {
         const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
-        return keywords.some((kw) => text.includes(kw.toLowerCase()));
+        return keywords.some((kw: string) => text.includes(kw.toLowerCase()));
       })
     : allArticles;
 
-  // Only unprocessed
-  const unprocessed = filtered.filter((article) => {
+  // Only unprocessed (fresh articles are always unprocessed)
+  const unprocessed = filtered.filter((article: any) => {
+    if (typeof article.id === 'string' && article.id.startsWith('fresh-')) return true;
     const existing = db.select({ id: postsTable.id }).from(postsTable)
       .where(eq(postsTable.articleId, article.id)).limit(1).get();
     return !existing;
@@ -296,7 +319,7 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
     }
 
     const modelId = resolveModel(config.aiModel, provider.id);
-    const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Пиши на том же языке что и источники. Добавь ссылку.';
+    const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
     const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
 
     try {
@@ -320,61 +343,12 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   // ── News feed: test AI from articles ──
   const body = await c.req.json<{ articles?: any[] }>().catch(() => ({}));
 
-  // If article passed from preview, use it directly
-  if ((body as any).articles?.length) {
-    const art = (body as any).articles[0];
-    const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
-    const { generatePost } = await import('../services/ai/generate.js');
-    const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
-    const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
-    const provider = resolveProvider({ taskConfigProviderId: config.aiProviderId, botId: bot?.id, ownerId: bot?.ownerId });
-    if (!provider) return c.json({ error: 'AI-провайдер не настроен.' }, 400);
-    const modelId = resolveModel(config.aiModel, provider.id);
-    const systemPrompt = config.systemPrompt ?? 'Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты. Используй HTML (<b>, <i>, <a href="">). Добавь ссылку на источник.';
-    const articleContent = art.summary ?? '';
-    const userPrompt = articleContent.trim()
-      ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${art.title}\nТекст: ${articleContent}\nИсточник: ${art.url}\n${art.author ? `Автор: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов.`
-      : `Напиши пост на основе заголовка:\n\nЗаголовок: ${art.title}\nСсылка: ${art.url}\n${art.author ? `Автор: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. НЕ выдумывай факты.`;
-    try {
-      const generated = await generatePost({ providerId: provider.id, modelId, systemPrompt, userPrompt });
-      return c.json({ ok: true, article: art, aiInput: `System:\n${systemPrompt}\n\nUser:\n${userPrompt}`, post: generated.content, model: modelId, tokensUsed: generated.tokensUsed });
-    } catch (err) { return c.json({ error: (err as Error).message }, 500); }
+  // Articles must come from preview (no auto-fetching)
+  if (!(body as any).articles?.length) {
+    return c.json({ error: 'Нажмите «Превью» чтобы загрузить статьи, затем «Тест AI».' }, 400);
   }
 
-  const { articles, posts: postsTable } = await import('../db/schema.js');
-  const taskSources = db.select().from(sources).where(eq(sources.taskId, id)).all();
-
-  // Fetch fresh articles first
-  for (const source of taskSources) {
-    if (source.enabled) {
-      try { await fetchAndStore(source.id, config.maxAgeDays ?? 7); } catch {}
-    }
-  }
-
-  const allArticles = taskSources.flatMap((src) =>
-    db.select().from(articles).where(eq(articles.sourceId, src.id)).all()
-  );
-
-  // Apply keyword filter
-  const keywords: string[] = config?.filterKeywords?.filter((k: string) => k.trim()) ?? [];
-  const filtered = keywords.length > 0
-    ? allArticles.filter((a) => {
-        const text = `${a.title} ${a.summary ?? ''} ${a.content ?? ''}`.toLowerCase();
-        return keywords.some((kw) => text.includes(kw.toLowerCase()));
-      })
-    : allArticles;
-
-  const unprocessed = filtered.filter((article) => {
-    const existing = db.select({ id: postsTable.id }).from(postsTable)
-      .where(eq(postsTable.articleId, article.id)).limit(1).get();
-    return !existing;
-  });
-
-  if (unprocessed.length === 0) {
-    return c.json({ error: 'Нет статей для тестирования. Добавьте источники и нажмите «Превью».' }, 400);
-  }
-
-  const article = unprocessed[0];
+  const art = (body as any).articles[0];
   const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
   const { generatePost } = await import('../services/ai/generate.js');
 
@@ -386,12 +360,12 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
   const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
   const modelId = resolveModel(config.aiModel, provider.id);
-  const systemPrompt = config.systemPrompt ?? 'You are a professional Telegram channel editor. Create engaging, concise posts using HTML formatting (<b>, <i>, <a href="">). Include relevant emoji sparingly. Always include the source link at the end.';
+  const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
 
-  const articleContent = article.content ?? article.summary ?? '';
+  const articleContent = art.content ?? art.summary ?? '';
   const userPrompt = articleContent.trim()
-    ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${article.title}\nТекст: ${articleContent}\nИсточник: ${article.url}\n${article.author ? `Автор: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Сохрани ключевые факты. Добавь ссылку на источник.`
-    : `Напиши пост для Telegram-канала на основе этого заголовка:\n\nЗаголовок: ${article.title}\nСсылка: ${article.url}\n${article.author ? `Автор/Источник: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Используй только информацию из заголовка — НЕ выдумывай факты. Если информации мало — напиши кратко. Добавь ссылку.`;
+    ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${art.title}\nТекст: ${articleContent}\nИсточник: ${art.url}\n${art.author ? `Автор: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Сохрани ключевые факты. Добавь ссылку на источник.`
+    : `Напиши пост для Telegram-канала на основе этого заголовка:\n\nЗаголовок: ${art.title}\nСсылка: ${art.url}\n${art.author ? `Автор/Источник: ${art.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Используй только информацию из заголовка — НЕ выдумывай факты. Если информации мало — напиши кратко. Добавь ссылку.`;
 
   try {
     const generated = await generatePost({
@@ -400,8 +374,8 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
 
     return c.json({
       ok: true,
-      article: { title: article.title, summary: articleContent.slice(0, 300), url: article.url, author: article.author, imageUrl: article.imageUrl },
-      aiInput: userPrompt,
+      article: art,
+      aiInput: `System:\n${systemPrompt}\n\nUser:\n${userPrompt}`,
       post: generated.content,
       model: modelId,
       tokensUsed: generated.tokensUsed,

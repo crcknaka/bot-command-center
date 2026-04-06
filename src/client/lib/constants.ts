@@ -2,7 +2,6 @@
 
 export const postStatusConfig: Record<string, { badge: string; label: string; dot: string }> = {
   draft:      { badge: 'bg-zinc-500/15 text-zinc-400',  label: 'Черновик',       dot: 'bg-zinc-500' },
-  approved:   { badge: 'bg-blue-500/15 text-blue-400',  label: 'Одобрен',        dot: 'bg-blue-500' },
   queued:     { badge: 'bg-yellow-500/15 text-yellow-400', label: 'В очереди',    dot: 'bg-yellow-500' },
   publishing: { badge: 'bg-cyan-500/15 text-cyan-400',  label: 'Публикуется...', dot: 'bg-cyan-500' },
   published:  { badge: 'bg-green-500/15 text-green-400', label: 'Опубликован',   dot: 'bg-green-500' },
@@ -12,7 +11,6 @@ export const postStatusConfig: Record<string, { badge: string; label: string; do
 export const postStatusFilters = [
   { value: 'all', label: 'Все' },
   { value: 'draft', label: 'Черновики' },
-  { value: 'approved', label: 'Одобренные' },
   { value: 'queued', label: 'В очереди' },
   { value: 'published', label: 'Опубликовано' },
   { value: 'failed', label: 'Ошибки' },

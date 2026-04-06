@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 import { searchWeb } from '../../services/search.js';
 import { generatePostFromSearch, generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
+import { resolvePostMode, type PostMode } from '../utils.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../prompts.js';
 
 interface WebSearchConfig {
   queries: string[]; // Search queries
@@ -15,7 +17,8 @@ interface WebSearchConfig {
   systemPrompt?: string;
   postLanguage?: string;
   postMaxLength?: number;
-  autoApprove?: boolean;
+  postMode?: PostMode; // queue (default) | draft | publish
+  autoApprove?: boolean; // legacy, mapped to postMode
   maxResults?: number; // Max search results per query
   timeRange?: 'day' | 'week' | 'month' | 'year';
   searchLang?: string; // 'ru', 'en', etc.
@@ -23,8 +26,6 @@ interface WebSearchConfig {
   searchCountries?: string[]; // ['ru', 'us'] — multiple countries
   includeDomains?: string[]; // only search these domains
 }
-
-const DEFAULT_SYSTEM_PROMPT = `Ты — профессиональный редактор Telegram-канала. Создавай краткие, информативные посты на основе предоставленных источников. Используй HTML-форматирование (<b>, <i>, <a href="">). Добавляй эмодзи уместно. Всегда указывай ссылку на источник. Пиши на том же языке что и источники (если источники на латышском — пиши на латышском, если на русском — на русском).`;
 
 const DEFAULT_RAW_TEMPLATE = `<b>{title}</b>\n\n{summary}\n\n🔗 <a href="{url}">Читать полностью</a>`;
 
@@ -121,33 +122,41 @@ export class WebSearchTask implements TaskModule {
             searchResults: results, topic: query, language: lang, maxLength: maxLen,
           });
 
-          db.insert(posts).values({
+          const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, bot?.minPostIntervalMinutes);
+          const inserted = db.insert(posts).values({
             channelId: ctx.channelId, taskId: ctx.taskId,
             content: generated.content, imageUrl: results[0]?.imageUrl,
-            status: config.autoApprove ? 'approved' : 'draft',
+            status: postStatus, scheduledFor,
             aiProviderId: provider.id, aiModel: modelId,
-          }).run();
+          }).returning().get();
 
-          steps.push({ action: `✍️ "${query}"`, status: 'ok', detail: `AI-пост создан (${generated.tokensUsed} токенов). Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.` });
+          const modeLabel = postStatus === 'queued' ? 'в очереди' : 'черновик';
+          steps.push({ action: `✍️ "${query}"`, status: 'ok', detail: `AI-пост создан (${generated.tokensUsed} токенов). Статус: ${modeLabel}.`, postId: inserted.id });
         } else {
-          for (const sr of results) {
+          // Combine all results into one post per query
+          const parts = results.map(sr => {
             const summary = cleanSnippet(sr.content ?? '', sr.title);
-            if (!summary) continue; // skip empty results
-            const content = rawTemplate
+            if (!summary) return '';
+            return rawTemplate
               .replace(/\{title\}/g, sr.title)
               .replace(/\{summary\}/g, summary)
               .replace(/\{content\}/g, summary)
               .replace(/\{url\}/g, sr.url)
               .replace(/\{author\}/g, '');
+          }).filter(Boolean);
 
-            db.insert(posts).values({
+          if (parts.length > 0) {
+            const content = parts.join('\n\n---\n\n');
+            const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, bot?.minPostIntervalMinutes);
+            const inserted = db.insert(posts).values({
               channelId: ctx.channelId, taskId: ctx.taskId,
-              content, imageUrl: sr.imageUrl,
-              status: config.autoApprove ? 'approved' : 'draft',
-            }).run();
-          }
+              content, imageUrl: results[0]?.imageUrl,
+              status: postStatus, scheduledFor,
+            }).returning().get();
 
-          steps.push({ action: `📋 "${query}"`, status: 'ok', detail: `${results.length} постов из шаблона. Статус: ${config.autoApprove ? 'одобрен' : 'черновик'}.` });
+            const modeLabel = postStatus === 'queued' ? 'в очереди' : 'черновик';
+            steps.push({ action: `📋 "${query}"`, status: 'ok', detail: `Пост из шаблона (${results.length} источников). Статус: ${modeLabel}.`, postId: inserted.id });
+          }
         }
       } catch (err) {
         steps.push({ action: `🔍 "${query}"`, status: 'error', detail: (err as Error).message });

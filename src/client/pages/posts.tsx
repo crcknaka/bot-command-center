@@ -77,6 +77,12 @@ export function PostsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); setRegenId(null); },
   });
 
+  const enqueueMut = useMutation({
+    mutationFn: async (postId: number) => apiFetch(`/posts/${postId}/enqueue`, { method: 'POST' }),
+    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['posts'] }); toast.success(`Пост в очереди. Публикация ~${new Date(data.scheduledFor).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`); },
+    onError: (err) => toast.error((err as Error).message),
+  });
+
   const [bulkError, setBulkError] = useState('');
   const bulkMut = useMutation({
     mutationFn: (data: { ids: number[]; action: string }) =>
@@ -146,7 +152,7 @@ export function PostsPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Посты</h1>
-          <InfoTip text="Все посты со всех ботов. Черновик → Одобрить → Запланировать или Опубликовать." position="bottom" />
+          <InfoTip text="Все посты со всех ботов. Черновик → В очередь (автопубликация) или Опубликовать сейчас." position="bottom" />
         </div>
       </div>
 
@@ -254,11 +260,11 @@ export function PostsPage() {
           <span className="text-xs font-medium">Выбрано: {selected.size}</span>
           <div className="flex gap-2 ml-auto">
             <button
-              onClick={() => confirm({ title: 'Одобрить посты?', message: `${selected.size} постов будут одобрены.`, confirmLabel: 'Одобрить', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'approve' }) })}
+              onClick={() => confirm({ title: 'В очередь?', message: `${selected.size} постов встанут в очередь на автопубликацию.`, confirmLabel: 'В очередь', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'enqueue' }) })}
               disabled={bulkMut.isPending}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors"
             >
-              <CheckCircle size={10} /> Одобрить
+              <Calendar size={10} /> В очередь
             </button>
             <button
               onClick={() => confirm({ title: 'Опубликовать посты?', message: `${selected.size} постов будут отправлены в Telegram.`, confirmLabel: 'Опубликовать', variant: 'warning', onConfirm: () => bulkMut.mutate({ ids: [...selected], action: 'publish' }) })}
@@ -339,7 +345,12 @@ export function PostsPage() {
                       {ctx.channelTitle}
                     </span>
                   )}
-                  <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.badge)}>{badge.label}</span>
+                  <span className={cn('px-2 py-0.5 rounded text-[11px] font-medium', badge.badge)} title={
+                    post.status === 'draft' ? 'Ожидает вашего решения — поставьте в очередь или опубликуйте' :
+                    post.status === 'queued' && post.scheduledFor ? `Опубликуется автоматически в ${new Date(post.scheduledFor).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}` :
+                    post.status === 'published' ? `Отправлен в Telegram ${timeAgo(post.publishedAt)}` :
+                    post.status === 'failed' ? `${post.errorMessage ?? 'Ошибка публикации'}. Нажмите «Повторить»` : ''
+                  }>{badge.label}</span>
                   {post.taskName && <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{post.taskName}</span>}
                   {post.aiModel && <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">{post.aiModel}</span>}
                   {post.scheduledFor && post.status === 'queued' && (
@@ -390,17 +401,22 @@ export function PostsPage() {
                     </button>
                   )}
                   {post.status === 'draft' && (
-                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'approved' })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1 transition-colors">
-                      <CheckCircle size={12} /> Одобрить
+                    <button onClick={() => enqueueMut.mutate(post.id)} disabled={enqueueMut.isPending} title="Пост встанет в очередь и опубликуется автоматически" className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors">
+                      <Calendar size={12} /> В очередь
                     </button>
                   )}
-                  {(post.status === 'draft' || post.status === 'approved') && (
-                    <button onClick={() => setSchedulePost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1 transition-colors">
-                      <Calendar size={12} /> Запланировать
+                  {post.status === 'draft' && (
+                    <button onClick={() => setSchedulePost(post)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-yellow-400/60 hover:text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-1 transition-colors">
+                      <Clock size={12} /> На дату
                     </button>
                   )}
-                  {(post.status === 'draft' || post.status === 'approved' || post.status === 'queued') && (
-                    <button onClick={() => publishMut.mutate(post.id, { onError: (err) => toast.error(`Публикация: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
+                  {post.status === 'queued' && (
+                    <button onClick={() => updateMut.mutate({ id: post.id, status: 'draft', scheduledFor: null as any })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400/60 hover:text-zinc-400 hover:bg-zinc-500/10 flex items-center gap-1 transition-colors">
+                      Вернуть в черновик
+                    </button>
+                  )}
+                  {(post.status === 'draft' || post.status === 'queued') && (
+                    <button onClick={() => confirm({ title: 'Опубликовать сейчас?', message: 'Пост будет мгновенно отправлен в Telegram.', confirmLabel: 'Опубликовать', variant: 'warning', onConfirm: () => publishMut.mutate(post.id, { onError: (err) => toast.error(`Публикация: ${(err as Error).message}`), onSuccess: () => toast.success('Опубликовано!') }) })} disabled={publishMut.isPending} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 flex items-center gap-1 transition-colors">
                       <Send size={12} /> Опубликовать
                     </button>
                   )}
@@ -419,6 +435,16 @@ export function PostsPage() {
               </div>
             );
           })}
+          {posts.length === 0 && !isLoading && (
+            <div className="text-center py-12 rounded-xl border border-dashed" style={{ borderColor: 'var(--border)' }}>
+              <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+                {statusFilter === 'draft' ? 'Нет черновиков' : statusFilter === 'queued' ? 'Очередь пуста' : statusFilter === 'failed' ? 'Нет ошибок — всё хорошо!' : 'Нет постов'}
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+                {statusFilter === 'draft' ? 'Запустите задачу или создайте пост вручную.' : statusFilter === 'queued' ? 'Посты появятся автоматически по расписанию задач.' : statusFilter === 'all' ? 'Создайте пост вручную или настройте задачу для автоматической генерации.' : ''}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

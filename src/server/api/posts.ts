@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
 import { posts, channels, bots, tasks } from '../db/schema.js';
-import { eq, desc, inArray, and } from 'drizzle-orm';
+import { eq, desc, inArray, and, or } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { logActivity } from '../services/activity.js';
@@ -19,6 +19,32 @@ function sanitizeForTelegram(html: string): string {
     for (let i = 0; i < opens - closes; i++) clean += `</${tag}>`;
   }
   return clean;
+}
+
+/** Calculate next available time slot for a channel based on existing scheduled/published posts */
+function calculateNextSlot(channelId: number): string {
+  const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
+  const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
+  const intervalMinutes = bot?.minPostIntervalMinutes ?? 60;
+
+  // Find the latest scheduled or recently published post
+  const lastScheduled = db.select().from(posts)
+    .where(and(eq(posts.channelId, channelId), or(eq(posts.status, 'queued'), eq(posts.status, 'published'))))
+    .orderBy(desc(posts.scheduledFor))
+    .limit(1).get();
+
+  const now = new Date();
+  let nextSlot: Date;
+
+  if (lastScheduled?.scheduledFor) {
+    const lastTime = new Date(lastScheduled.scheduledFor);
+    nextSlot = new Date(lastTime.getTime() + intervalMinutes * 60000);
+    if (nextSlot < now) nextSlot = new Date(now.getTime() + 60000);
+  } else {
+    nextSlot = new Date(now.getTime() + 60000);
+  }
+
+  return nextSlot.toISOString();
 }
 
 const postsApi = new Hono();
@@ -140,9 +166,8 @@ postsApi.patch('/:id', async (c) => {
   // Status transition validation
   if (body.status && body.status !== existing.status) {
     const allowedTransitions: Record<string, string[]> = {
-      draft: ['approved', 'queued', 'publishing'],
-      approved: ['queued', 'publishing', 'draft'],
-      queued: ['publishing', 'failed', 'approved'],
+      draft: ['queued', 'publishing'],
+      queued: ['publishing', 'failed', 'draft'],
       publishing: ['published', 'failed'],
       published: [],
       failed: ['queued', 'draft'],
@@ -251,10 +276,28 @@ postsApi.post('/:id/publish', async (c) => {
   }
 });
 
+// POST /api/posts/:id/enqueue — auto-calculate slot and queue
+postsApi.post('/:id/enqueue', async (c) => {
+  const user = (c as any).get('user');
+  const id = Number(c.req.param('id'));
+  const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
+  if (!post) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
+  if (post.status !== 'draft') return c.json({ error: 'Только черновики можно поставить в очередь' }, 400);
+
+  const slot = calculateNextSlot(post.channelId);
+  const updated = db.update(posts)
+    .set({ status: 'queued', scheduledFor: slot, updatedAt: new Date().toISOString() })
+    .where(eq(posts.id, id))
+    .returning().get();
+
+  return c.json({ ok: true, scheduledFor: slot, post: updated });
+});
+
 // POST /api/posts/bulk — bulk operations
 postsApi.post('/bulk', async (c) => {
   const user = (c as any).get('user');
-  const { ids, action, scheduledFor } = await c.req.json<{ ids: number[]; action: 'approve' | 'schedule' | 'publish' | 'delete'; scheduledFor?: string }>();
+  const { ids, action, scheduledFor } = await c.req.json<{ ids: number[]; action: 'enqueue' | 'schedule' | 'publish' | 'delete'; scheduledFor?: string }>();
 
   if (!ids?.length) return c.json({ error: 'Не выбраны посты' }, 400);
 
@@ -268,15 +311,16 @@ postsApi.post('/bulk', async (c) => {
 
     try {
       switch (action) {
-        case 'approve':
+        case 'enqueue':
           if (post.status === 'draft') {
-            db.update(posts).set({ status: 'approved', updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+            const slot = calculateNextSlot(post.channelId);
+            db.update(posts).set({ status: 'queued', scheduledFor: slot, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
             ok++;
           } else { failed++; }
           break;
 
         case 'schedule':
-          if (post.status === 'draft' || post.status === 'approved') {
+          if (post.status === 'draft') {
             db.update(posts).set({ status: 'queued', scheduledFor: scheduledFor ?? null, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
             ok++;
           } else { failed++; }
