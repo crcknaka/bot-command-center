@@ -159,9 +159,78 @@ export async function generateTaskConfig(options: {
 }> {
   const model = createModelFromProvider(options.providerId, options.modelId);
 
-  const result = await generateObject({
+  // Use generateText + JSON parse instead of generateObject
+  // because some providers (Groq) don't support json_schema mode
+  const result = await generateText({
     model,
-    schema: z.object({
+    prompt: `Пользователь хочет настроить автоматический поиск новостей и генерацию постов для Telegram-канала.
+
+Вот что он написал:
+"${options.userPrompt}"
+
+Верни ТОЛЬКО валидный JSON (без markdown, без \`\`\`, без пояснений) с полями:
+{
+  "queries": ["запрос1", "запрос2", ...],
+  "searchCountries": ["lv", "lt"],
+  "searchLang": "ru",
+  "systemPrompt": "инструкция для AI-редактора",
+  "timeRange": "day",
+  "maxResults": 3,
+  "maxPostsPerDay": 2,
+  "postIntervalMinutes": 60,
+  "postMaxLength": 1000,
+  "schedule": "0 9 * * *"
+}
+
+Правила:
+- queries: 3-5 поисковых запросов для Google, конкретные. Если тема связана со страной — добавляй страну в запросы. Язык запросов — тот на котором больше контента.
+- searchCountries: ISO коды стран (ru, us, lv, lt, ee, de, ua, gb, fr, es, kz, by, il, pl). Прибалтика = lv, lt, ee.
+- searchLang: язык РЕЗУЛЬТАТОВ (не страны). Русскоязычный контент = "ru", даже если ищем в Латвии.
+- systemPrompt: инструкция для AI который будет писать пост. Стиль, тон, язык, что включать.
+- timeRange: "day" для новостей, "week" для обзоров, "month" для исследований.
+- maxResults: 3-5 источников на запрос.
+- maxPostsPerDay: для новостного 3-5, для нишевого 1-2.
+- postIntervalMinutes: 60 для частых, 120-480 для редких.
+- postMaxLength: 800-1200 коротких, 1500-2500 подробных.
+- schedule: cron. "0 9 * * *" раз в день, "0 9,18 * * *" дважды, "0 */4 * * *" каждые 4ч. Время в UTC!`,
+    maxOutputTokens: 1000,
+    maxRetries: 1,
+  });
+
+  // Parse JSON from response
+  let jsonText = result.text.trim();
+  if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    return {
+      queries: parsed.queries ?? [],
+      searchCountries: parsed.searchCountries ?? ['ru'],
+      searchLang: parsed.searchLang ?? 'ru',
+      systemPrompt: parsed.systemPrompt ?? '',
+      timeRange: parsed.timeRange ?? 'day',
+      maxResults: parsed.maxResults ?? 3,
+      maxPostsPerDay: parsed.maxPostsPerDay ?? 5,
+      postIntervalMinutes: parsed.postIntervalMinutes ?? 60,
+      postMaxLength: parsed.postMaxLength ?? 1500,
+      schedule: parsed.schedule ?? '0 9 * * *',
+    };
+  } catch {
+    throw new Error('AI вернул некорректный ответ. Попробуйте ещё раз.');
+  }
+}
+
+// Remove unused imports placeholder
+void generateObject;
+void z;
+
+/*
+  Old code used generateObject with z.object schema — removed because
+  Groq and some other providers don't support json_schema response format.
+  Now using generateText + JSON parse which works with all providers.
+*/
       queries: z.array(z.string()).describe('3-5 поисковых запросов для Google, короткие и конкретные, на языке который даст лучшие результаты'),
       searchCountries: z.array(z.string()).describe('ISO коды стран для поиска: ru, us, lv, lt, ee, de, ua, gb, fr, es, kz, by, il'),
       searchLang: z.string().describe('Код языка результатов: ru, en, lv, uk, de, fr, es'),
