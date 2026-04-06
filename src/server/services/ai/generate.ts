@@ -87,6 +87,6 @@ ${sourcesText}
     modelId: options.modelId,
     systemPrompt: options.systemPrompt,
     userPrompt,
-    maxTokens: Math.max(1000, Math.ceil(maxLen / 2)),
+    maxTokens: Math.max(1500, maxLen),
   });
 }

@@ -2415,12 +2415,13 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
                   <span>✨ Результат AI ({testAi.model}, {testAi.tokensUsed} токенов)</span>
                   <button onClick={() => setTestAi(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">×</button>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 max-h-80 overflow-y-auto">
                   {testAi.article?.imageUrl && (
                     <img src={testAi.article.imageUrl} alt="" className="w-20 h-20 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
                   )}
                   <div className="text-xs" dangerouslySetInnerHTML={{ __html: testAi.post }} />
                 </div>
+                <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>{testAi.post?.length ?? 0} символов</div>
               </div>
             </div>
           )}
