@@ -125,6 +125,17 @@ aiProvidersApi.get('/:id/models', async (c) => {
         }
         break;
       }
+      case 'groq': {
+        const res = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (res.ok) {
+          const data = await res.json() as any;
+          models = (data.data ?? []).map((m: any) => m.id).filter((id: string) => !id.includes('whisper')).sort();
+        }
+        break;
+      }
       case 'ollama': {
         const base = baseURL || 'http://localhost:11434';
         const res = await fetch(`${base.replace('/v1', '')}/api/tags`, { signal: AbortSignal.timeout(5000) });
