@@ -918,9 +918,12 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
           </select>
         </div>
         <div>
-          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Результатов на запрос</label>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Источников для AI на запрос</label>
           <input type="number" min={1} max={10} value={config.maxResults ?? 3} onChange={(e) => onChange({ maxResults: Number(e.target.value) })}
             className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+            AI получит {config.maxResults ?? 3} {(config.maxResults ?? 3) === 1 ? 'статью' : (config.maxResults ?? 3) < 5 ? 'статьи' : 'статей'} и напишет из них 1 пост. Больше источников = больше контекста, но дороже по токенам.
+          </div>
         </div>
       </div>
 
@@ -2224,9 +2227,18 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
           <span className="text-sm font-medium">
             {task.name || { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] || task.type}
           </span>
-          {task.type === 'news_feed' && (
+          {(task.type === 'news_feed' || task.type === 'web_search') && (
             <span className={cn('text-[10px] px-1.5 py-0.5 rounded', (task.config as any)?.useAi === false ? 'bg-zinc-700/50 text-zinc-400' : 'bg-purple-500/10 text-purple-400')}>
               {(task.config as any)?.useAi === false ? '📋 Без AI' : '🤖 AI'}
+            </span>
+          )}
+          {(task.type === 'news_feed' || task.type === 'web_search') && (
+            <span className={cn('text-[10px] px-1.5 py-0.5 rounded', {
+              'bg-yellow-500/10 text-yellow-400': (task.config as any)?.postMode !== 'draft' && (task.config as any)?.postMode !== 'publish',
+              'bg-zinc-700/50 text-zinc-400': (task.config as any)?.postMode === 'draft',
+              'bg-green-500/10 text-green-400': (task.config as any)?.postMode === 'publish',
+            })}>
+              {(task.config as any)?.postMode === 'draft' ? '📝 Черновик' : (task.config as any)?.postMode === 'publish' ? '⚡ Сразу' : '📤 В очередь'}
             </span>
           )}
           {(task.type === 'news_feed' || task.type === 'web_search') && task.schedule && (
@@ -2253,7 +2265,7 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
               }} disabled={previewLoading} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 flex items-center gap-1 transition-colors" title="Показать какие статьи будут обработаны">
                 <Eye size={12} /> {previewLoading ? '...' : 'Превью'}
               </button>
-              <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title="Запустить — создать посты">
+              <button onClick={onRun} disabled={isRunning} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center gap-1 transition-colors" title={task.type === 'web_search' ? `Поиск по ${(task.config as any)?.queries?.length ?? 0} запросам → создать посты` : 'Загрузить статьи из источников → создать посты'}>
                 <Zap size={12} /> {isRunning ? 'Работаю...' : 'Запустить'}
               </button>
             </>)}
@@ -2298,10 +2310,16 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
           {runResult.error && !runResult.steps?.length && (
             <div className="text-[11px] text-red-400">{runResult.error}</div>
           )}
-          {runResult.ok !== false && runResult.steps?.some((s: any) => s.status === 'ok' && s.action.startsWith('Генерация')) && (
-            <Link to="/posts?status=draft" className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors">
-              Перейти к постам →
-            </Link>
+          {runResult.ok !== false && runResult.createdPostIds?.length > 0 && (
+            <div className="mt-2 flex items-center gap-3">
+              <span className="text-[11px] font-medium text-green-400">Создано {runResult.createdPostIds.length} {runResult.createdPostIds.length === 1 ? 'пост' : 'постов'}</span>
+              <Link to="/posts" className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors">
+                Открыть в Постах →
+              </Link>
+            </div>
+          )}
+          {runResult.ok !== false && (!runResult.createdPostIds || runResult.createdPostIds.length === 0) && runResult.steps?.some((s: any) => s.status === 'ok') && (
+            <div className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>Новых постов не создано — все статьи уже обработаны.</div>
           )}
         </div>
       )}
@@ -2363,12 +2381,21 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
       )}
       {task.type === 'news_feed' && !sources?.length && (
         <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(234,179,8,0.06)', color: 'var(--text-muted)' }}>
-          ⚠️ Добавьте хотя бы один источник. «Запустить» загрузит статьи из всех источников, отфильтрует по ключевым словам и создаст посты (макс. {(task.config as any)?.maxPostsPerDay ?? 5} в день).
+          ⚠️ Добавьте хотя бы один источник чтобы задача могла собирать новости.
         </div>
       )}
-      {task.type === 'web_search' && (
-        <div className="ml-5 mt-2 text-[11px] rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
-          💡 «Запустить» найдёт статьи в интернете по запросам и создаст посты. Кол-во постов = запросы × макс. результатов.
+      {(task.type === 'news_feed' || task.type === 'web_search') && (
+        <div className="ml-5 mt-2 text-[11px] rounded-lg p-2 space-y-1" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
+          {task.type === 'news_feed' ? (
+            <div>📰 <b>«Превью»</b> — покажет найденные статьи. <b>«Запустить»</b> — создаст по одному посту на каждую новую статью (макс. {(task.config as any)?.maxPostsPerDay ?? 5} в день).</div>
+          ) : (
+            <div>🔍 <b>«Превью»</b> — покажет результаты поиска. <b>«Запустить»</b> — создаст по одному посту на каждый запрос ({(task.config as any)?.queries?.filter((q: string) => q.trim()).length ?? 0} {((task.config as any)?.queries?.filter((q: string) => q.trim()).length ?? 0) === 1 ? 'запрос' : 'запросов'} = {(task.config as any)?.queries?.filter((q: string) => q.trim()).length ?? 0} {((task.config as any)?.queries?.filter((q: string) => q.trim()).length ?? 0) === 1 ? 'пост' : 'постов'}).</div>
+          )}
+          <div style={{ opacity: 0.7 }}>
+            {(task.config as any)?.postMode === 'draft' ? '📝 Посты создадутся как черновики — вы проверите каждый вручную.' :
+             (task.config as any)?.postMode === 'publish' ? '⚡ Посты опубликуются в Telegram мгновенно.' :
+             '📤 Посты встанут в очередь и опубликуются автоматически по интервалу.'}
+          </div>
         </div>
       )}
 
