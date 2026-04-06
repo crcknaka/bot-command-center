@@ -881,15 +881,28 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
       {/* ═══ SECTION 2: Region ═══ */}
       <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>🌍 Регион и язык</div>
       <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-        Выберите страны — поиск будет приоритизировать результаты оттуда. Язык подставится автоматически.
+        Выберите страны — поиск будет приоритизировать результаты оттуда.
       </p>
+      <div className="flex items-center gap-2 mb-1">
+        <label className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Язык результатов:</label>
+        <select value={config.searchLang ?? 'ru'} onChange={(e) => onChange({ searchLang: e.target.value })}
+          className="px-2 py-0.5 rounded border text-[10px]" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+          <option value="lv">Latviešu</option>
+          <option value="uk">Українська</option>
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
       <div className="flex flex-wrap gap-1 mb-1">
         {countries.map((code: string) => {
           const loc = allLocales.find(x => x.code === code);
           return (
             <span key={code} className="px-2 py-0.5 rounded-full text-[10px] bg-green-500/10 text-green-400 flex items-center gap-1">
               {loc?.flag} {loc?.country ?? code} <span style={{ color: 'var(--text-muted)' }}>({loc?.lang ?? '?'})</span>
-              <button type="button" onClick={() => { const next = countries.filter((x: string) => x !== code); onChange({ searchCountries: next.length ? next : ['ru'], searchLang: langCodes[next[0] ?? 'ru'] ?? 'ru' }); }} className="hover:text-green-300">×</button>
+              <button type="button" onClick={() => { const next = countries.filter((x: string) => x !== code); onChange({ searchCountries: next.length ? next : ['ru'] }); }} className="hover:text-green-300">×</button>
             </span>
           );
         })}
@@ -897,7 +910,7 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
       <select value="" onChange={(e) => {
         if (e.target.value) {
           const next = [...countries, e.target.value];
-          onChange({ searchCountries: next, searchLang: langCodes[e.target.value] ?? config.searchLang ?? 'ru' });
+          onChange({ searchCountries: next });
         }
         e.target.value = '';
       }} className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
@@ -907,6 +920,9 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
 
       {/* ═══ SECTION 3: Search params ═══ */}
       <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>⚙️ Параметры поиска</div>
+      <div className="text-[9px] -mt-1 mb-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+        💡 Точность фильтрации по стране зависит от поискового провайдера. Serper/Google лучше всех фильтруют по региону. Tavily ищет глобально и добавляет страну как подсказку в запрос.
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Свежесть результатов</label>

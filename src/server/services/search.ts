@@ -118,10 +118,14 @@ function buildQueryWithDomains(query: string, domains?: string[]): string {
 
 async function searchTavily(apiKey: string, opts: SearchOptions): Promise<SearchResult[]> {
   const client = tavily({ apiKey });
-  // Tavily doesn't support gl/hl, so we hint language in the query itself
+  // Tavily doesn't support gl/hl natively — add country/language hints to the query
   const locale = getLocale(opts);
-  const langHints: Record<string, string> = { ru: ' на русском', uk: ' українською', de: ' auf Deutsch' };
-  const queryWithLang = locale.hl !== 'en' ? opts.query + (langHints[locale.hl] ?? '') : opts.query;
+  const langHints: Record<string, string> = { ru: ' на русском', uk: ' українською', de: ' auf Deutsch', lv: ' latviešu', fr: ' en français', es: ' en español' };
+  const countryHints: Record<string, string> = { lv: ' Латвия', lt: ' Литва', ee: ' Эстония', de: ' Германия', us: ' USA', gb: ' UK', ua: ' Украина' };
+  const country = opts.searchCountries?.[0] ?? opts.searchCountry;
+  let queryWithLang = opts.query;
+  if (locale.hl !== 'en') queryWithLang += (langHints[locale.hl] ?? '');
+  if (country && countryHints[country]) queryWithLang += countryHints[country];
   const response = await client.search(queryWithLang, {
     searchDepth: 'basic',
     maxResults: opts.maxResults ?? 5,
