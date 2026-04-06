@@ -1,7 +1,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Play, Square, Hash, Settings2, Trash2, Zap, RefreshCw, Pencil, Copy, Send, Eye, BarChart3, Users, GripVertical, Sparkles } from 'lucide-react';
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { Spinner } from '../components/ui/spinner.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
@@ -549,7 +549,7 @@ export function BotDetailPage() {
 
             {/* Web Search config */}
             {taskType === 'web_search' && (
-              <WebSearchConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} />
+              <WebSearchConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} botId={botId} />
             )}
 
             {/* Hint per task type */}
@@ -580,6 +580,7 @@ export function BotDetailPage() {
           onSave={(data) => editTaskMut.mutate({ id: editingTask.id, ...data })}
           onClose={() => setEditingTask(null)}
           isPending={editTaskMut.isPending}
+          botId={botId}
         />
       )}
 
@@ -817,9 +818,12 @@ function WarnConfig({ label, warnKey, value, onChange }: {
 
 // ─── Web Search Config UI ────────────────────────────────────────────────────
 
-function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch: any) => void }) {
+function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange: (patch: any) => void; botId?: number }) {
   const [newQ, setNewQ] = useState('');
   const [newDomain, setNewDomain] = useState('');
+  const [aiSetupPrompt, setAiSetupPrompt] = useState('');
+  const [aiSetupLoading, setAiSetupLoading] = useState(false);
+  const [aiSetupDone, setAiSetupDone] = useState(false);
   const queries: string[] = config.queries ?? [];
   const domains: string[] = config.includeDomains ?? [];
   const { data: searchProviders } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
@@ -842,6 +846,53 @@ function WebSearchConfigUI({ config, onChange }: { config: any; onChange: (patch
 
   return (
     <div className="mb-4 space-y-2">
+      {/* AI Smart Setup */}
+      <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.04)' }}>
+        <div className="text-xs font-semibold flex items-center gap-1.5">✨ Опишите что искать</div>
+        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          Напишите простым языком что вы хотите — AI сам настроит запросы, регион, язык и промпт.
+        </p>
+        <textarea
+          value={aiSetupPrompt}
+          onChange={(e) => setAiSetupPrompt(e.target.value)}
+          placeholder="Например: новости про моноколёса связанные с Латвией и Прибалтикой, на русском языке, с юмором"
+          rows={2}
+          className="w-full px-3 py-2 rounded-lg border text-xs resize-none"
+          style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (!aiSetupPrompt.trim()) return;
+              setAiSetupLoading(true);
+              try {
+                const res = await apiFetch('/tasks/ai-setup', { method: 'POST', body: JSON.stringify({ prompt: aiSetupPrompt, botId }) });
+                if (res.ok && res.config) {
+                  onChange({
+                    queries: res.config.queries,
+                    searchCountries: res.config.searchCountries,
+                    searchLang: res.config.searchLang,
+                    systemPrompt: res.config.systemPrompt,
+                    timeRange: res.config.timeRange,
+                    maxResults: res.config.maxResults,
+                    useAi: true,
+                  });
+                  setAiSetupDone(true);
+                  setTimeout(() => setAiSetupDone(false), 3000);
+                }
+              } catch (err) {
+                console.error('AI setup failed:', err);
+              } finally { setAiSetupLoading(false); }
+            }}
+            disabled={aiSetupLoading || !aiSetupPrompt.trim()}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+          >
+            <Sparkles size={12} /> {aiSetupLoading ? 'Настраиваю...' : 'Настроить автоматически'}
+          </button>
+          {aiSetupDone && <span className="text-[11px] text-green-400">✅ Готово! Проверьте настройки ниже.</span>}
+        </div>
+      </div>
+
       {/* Mini flow diagram */}
       <div className="flex items-center gap-2 text-[11px] py-2 px-3 rounded-lg" style={{ background: 'rgba(59,130,246,0.06)', color: 'var(--text-muted)' }}>
         <span>🔍 Запросы</span><span>→</span><span>📄 Результаты</span><span>→</span><span>🤖 AI</span><span>→</span><span>📤 Пост</span>
@@ -1337,8 +1388,8 @@ function SchedulePicker({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
-function EditTaskModal({ task, onSave, onClose, isPending }: {
-  task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean;
+function EditTaskModal({ task, onSave, onClose, isPending, botId }: {
+  task: any; onSave: (data: any) => void; onClose: () => void; isPending: boolean; botId?: number;
 }) {
   const config = task.config ?? {};
   const defaultName = { news_feed: '📰 Новостная лента', web_search: '🔍 Мониторинг тем', auto_reply: '🤖 Авто-ответы', welcome: '👋 Приветствие', moderation: '🛡️ Модерация' }[task.type as string] ?? task.type;
@@ -1477,7 +1528,7 @@ function EditTaskModal({ task, onSave, onClose, isPending }: {
 
         {/* Web Search config */}
         {task.type === 'web_search' && (
-          <WebSearchConfigUI config={webSearchConfig} onChange={(patch: any) => setWebSearchConfig((prev: any) => ({ ...prev, ...patch }))} />
+          <WebSearchConfigUI config={webSearchConfig} onChange={(patch: any) => setWebSearchConfig((prev: any) => ({ ...prev, ...patch }))} botId={botId} />
         )}
 
         {/* Filter keywords */}

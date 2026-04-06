@@ -385,6 +385,28 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   }
 });
 
+// POST /api/tasks/ai-setup — AI generates task config from natural language
+tasksApi.post('/tasks/ai-setup', async (c) => {
+  const { prompt, botId } = await c.req.json<{ prompt: string; botId?: number }>();
+  if (!prompt?.trim()) return c.json({ error: 'Опишите что вы хотите.' }, 400);
+
+  const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
+  const { generateTaskConfig } = await import('../services/ai/generate.js');
+
+  const bot = botId ? db.select().from(bots).where(eq(bots.id, botId)).limit(1).get() : null;
+  const provider = resolveProvider({ botId: bot?.id, ownerId: bot?.ownerId });
+  if (!provider) return c.json({ error: 'AI-провайдер не настроен. Добавьте в Настройки → AI-модели.' }, 400);
+
+  const modelId = resolveModel(undefined, provider.id);
+
+  try {
+    const config = await generateTaskConfig({ providerId: provider.id, modelId, userPrompt: prompt });
+    return c.json({ ok: true, config });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 // ── Sources sub-routes ──────────────────────────────────────────────────────
 
 // GET /api/tasks/:taskId/sources
