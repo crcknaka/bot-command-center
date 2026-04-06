@@ -68,20 +68,25 @@ export async function generatePostFromSearch(options: {
     .map((r, i) => `[${i + 1}] ${r.title}\n${r.content}\nURL: ${r.url}`)
     .join('\n\n');
 
-  const userPrompt = `Topic: ${options.topic}
-Language: ${options.language ?? 'Russian'}
-Max length: ${options.maxLength ?? 500} characters
+  const lang = options.language ?? 'Russian';
+  const maxLen = options.maxLength ?? 1500;
 
-Sources:
+  const userPrompt = `Напиши пост для Telegram-канала на основе этих источников.
+
+Тема: ${options.topic}
+Язык: ${lang}
+Максимум ${maxLen} символов.
+
+Источники:
 ${sourcesText}
 
-Create an engaging Telegram post based on these sources. Use HTML formatting (<b>, <i>, <a href="">).`;
+Сохрани ключевые факты. Добавь ссылки на источники.`;
 
   return generatePost({
     providerId: options.providerId,
     modelId: options.modelId,
     systemPrompt: options.systemPrompt,
     userPrompt,
-    maxTokens: 1000,
+    maxTokens: Math.max(1000, Math.ceil(maxLen / 2)),
   });
 }

@@ -6,7 +6,7 @@ import { searchWeb } from '../../services/search.js';
 import { generatePostFromSearch, generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 import { resolvePostMode, type PostMode } from '../utils.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../prompts.js';
+import { buildSystemPrompt } from '../prompts.js';
 
 interface WebSearchConfig {
   queries: string[]; // Search queries
@@ -115,7 +115,7 @@ export class WebSearchTask implements TaskModule {
           }
 
           const modelId = resolveModel(config.aiModel, provider.id);
-          const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+          const systemPrompt = buildSystemPrompt(config.systemPrompt);
 
           const generated = await generatePostFromSearch({
             providerId: provider.id, modelId, systemPrompt,

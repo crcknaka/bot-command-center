@@ -6,7 +6,7 @@ import { fetchAndStore } from './fetcher.js';
 import { generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 import { resolvePostMode, type PostMode } from '../utils.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../prompts.js';
+import { buildSystemPrompt } from '../prompts.js';
 
 interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
@@ -161,7 +161,7 @@ export class NewsFeedTask implements TaskModule {
               break;
             }
             const modelId = resolveModel(config.aiModel, provider.id);
-            const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+            const systemPrompt = buildSystemPrompt(config.systemPrompt);
             const articleContent = article.content ?? article.summary ?? '';
             const userPrompt = articleContent.trim()
               ? `Перепиши эту статью в пост для Telegram-канала:\n\nЗаголовок: ${article.title}\nТекст: ${articleContent}\nИсточник: ${article.url}\n${article.author ? `Автор: ${article.author}` : ''}\n\nЯзык: ${lang}\nМаксимум ${maxLen} символов. Сохрани ключевые факты. Добавь ссылку на источник.`

@@ -6,7 +6,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
 import { fetchAndStore, fetchOnly } from '../tasks/news-feed/fetcher.js';
 import { botManager } from '../bot/manager.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../tasks/prompts.js';
+import { buildSystemPrompt } from '../tasks/prompts.js';
 import cron from 'node-cron';
 
 /** Restart the bot that owns this channel (so new handlers register) */
@@ -319,7 +319,7 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
     }
 
     const modelId = resolveModel(config.aiModel, provider.id);
-    const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+    const systemPrompt = buildSystemPrompt(config.systemPrompt);
     const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
 
     try {
@@ -360,7 +360,7 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
   const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
   const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
   const modelId = resolveModel(config.aiModel, provider.id);
-  const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+  const systemPrompt = buildSystemPrompt(config.systemPrompt);
 
   const articleContent = art.content ?? art.summary ?? '';
   const userPrompt = articleContent.trim()
