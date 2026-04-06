@@ -821,7 +821,7 @@ function WarnConfig({ label, warnKey, value, onChange }: {
 function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange: (patch: any) => void; botId?: number }) {
   const [newQ, setNewQ] = useState('');
   const [newDomain, setNewDomain] = useState('');
-  const [aiSetupPrompt, setAiSetupPrompt] = useState('');
+  const [aiSetupPrompt, setAiSetupPrompt] = useState(config.aiSetupPrompt ?? '');
   const [aiSetupLoading, setAiSetupLoading] = useState(false);
   const [aiSetupDone, setAiSetupDone] = useState(false);
   const queries: string[] = config.queries ?? [];
@@ -876,6 +876,7 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
                     timeRange: res.config.timeRange,
                     maxResults: res.config.maxResults,
                     useAi: true,
+                    aiSetupPrompt: aiSetupPrompt.trim(),
                   });
                   setAiSetupDone(true);
                   setTimeout(() => setAiSetupDone(false), 3000);
