@@ -199,7 +199,6 @@ postsApi.delete('/:id', async (c) => {
   const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
   if (!post) return c.json({ error: 'Not found' }, 404);
   if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
-  if (post.status === 'published') return c.json({ error: 'Cannot delete published post' }, 400);
 
   db.delete(posts).where(eq(posts.id, id)).run();
   return c.json({ ok: true });
@@ -353,10 +352,8 @@ postsApi.post('/bulk', async (c) => {
         }
 
         case 'delete':
-          if (post.status !== 'published') {
-            db.delete(posts).where(eq(posts.id, id)).run();
-            ok++;
-          } else { failed++; }
+          db.delete(posts).where(eq(posts.id, id)).run();
+          ok++;
           break;
       }
     } catch {

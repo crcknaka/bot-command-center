@@ -17,6 +17,51 @@ export interface GeneratePostResult {
 }
 
 /**
+ * If AI output was truncated mid-word/sentence, trim to the last complete sentence.
+ * Preserves HTML tags.
+ */
+function trimToCompleteSentence(text: string): string {
+  if (!text) return text;
+  const trimmed = text.trimEnd();
+
+  // Check if text ends "naturally" — with punctuation, closing tag, emoji, or link
+  if (/[.!?…»")\]>]\s*(<\/[a-z]+>)*\s*$/.test(trimmed)) return trimmed;
+  if (trimmed.endsWith('</a>') || trimmed.endsWith('</b>') || trimmed.endsWith('</i>')) return trimmed;
+
+  // Text is likely truncated — find the last sentence boundary
+  // Strip trailing HTML tags to find the raw text boundary
+  const withoutTrailingTags = trimmed.replace(/(<\/[a-z]+>\s*)+$/, '');
+  const lastSentenceEnd = Math.max(
+    withoutTrailingTags.lastIndexOf('. '),
+    withoutTrailingTags.lastIndexOf('! '),
+    withoutTrailingTags.lastIndexOf('? '),
+    withoutTrailingTags.lastIndexOf('.\n'),
+    withoutTrailingTags.lastIndexOf('!\n'),
+    withoutTrailingTags.lastIndexOf('?\n'),
+  );
+
+  if (lastSentenceEnd > trimmed.length * 0.5) {
+    // Cut at last sentence, keep the punctuation
+    let result = trimmed.slice(0, lastSentenceEnd + 1);
+    // Close any unclosed HTML tags
+    const openTags = (result.match(/<(b|i|u|s|a)[^>]*>/g) ?? []).map(t => t.match(/<(\w+)/)?.[1]);
+    const closeTags = (result.match(/<\/(b|i|u|s|a)>/g) ?? []).map(t => t.match(/<\/(\w+)>/)?.[1]);
+    for (const tag of openTags.reverse()) {
+      if (tag && !closeTags.includes(tag)) result += `</${tag}>`;
+    }
+    return result;
+  }
+
+  // Can't find good cut point — return as-is with trailing incomplete word removed
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace > trimmed.length * 0.8) {
+    return trimmed.slice(0, lastSpace).replace(/[,;:\-–—]\s*$/, '').trimEnd() + '...';
+  }
+
+  return trimmed;
+}
+
+/**
  * Generate a Telegram post using the specified AI model.
  */
 export async function generatePost(options: GeneratePostOptions): Promise<GeneratePostResult> {
@@ -32,7 +77,7 @@ export async function generatePost(options: GeneratePostOptions): Promise<Genera
     });
 
     return {
-      content: result.text,
+      content: trimToCompleteSentence(result.text),
       model: options.modelId,
       tokensUsed: (result.usage?.totalTokens) ?? 0,
     };
