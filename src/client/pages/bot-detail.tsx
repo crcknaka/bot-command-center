@@ -2468,85 +2468,121 @@ function TaskCard({ task, onEdit, onRun, onToggle, onDelete, onDuplicate, onAddS
       )}
 
       {/* Preview Modal */}
-      {preview && (
-        <Modal title="Превью: что получит AI" onClose={() => setPreview(null)}>
-          <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-            {preview.available} статей готово к обработке (из {preview.total} в базе, {preview.filtered} прошли фильтр). Лимит: {preview.limit} в день.
-          </p>
-          {preview.articles?.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Нет статей для обработки.</p>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {preview.articles.map((a: any) => (
-                <div key={a.id} className="rounded-lg border p-3 flex gap-3" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                  {a.imageUrl && <img src={a.imageUrl} alt="" className="w-16 h-16 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium mb-1">{a.title}</div>
-                    <div className="text-[10px] line-clamp-2 mb-1" style={{ color: 'var(--text-muted)' }}>{a.summary}</div>
-                    <div className="flex gap-2 text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                      {a.author && <span>{a.author}</span>}
-                      {a.publishedAt && <span>{new Date(a.publishedAt).toLocaleDateString('ru')}</span>}
+      {preview && (() => {
+        const useAi = (task.config as any)?.useAi !== false;
+        const cfg = task.config as any;
+        const systemPrompt = cfg?.systemPrompt
+          ? `Базовые правила (всегда):\nHTML-форматирование, ссылки на источник, не выдумывать факты.\n\nВаши инструкции:\n${cfg.systemPrompt}`
+          : 'Стандартный промпт: краткий информативный пост с HTML-форматированием и ссылкой.';
+        const articlesForAi = preview.articles?.slice(0, cfg?.maxResults ?? 3) ?? [];
+        return (
+        <Modal title={task.type === 'web_search' ? 'Результаты поиска' : 'Найденные статьи'} onClose={() => setPreview(null)}>
+
+          {/* STEP 1: What was found */}
+          <div className="mb-4">
+            <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+              📄 Шаг 1: Что нашлось ({preview.articles?.length ?? 0})
+            </div>
+            {preview.articles?.length === 0 ? (
+              <div className="text-xs rounded-lg p-3 border border-dashed" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                Ничего не найдено. Попробуйте изменить запросы или расширить период поиска.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {preview.articles.map((a: any, i: number) => (
+                  <div key={a.id} className="rounded-lg border p-2.5 flex gap-2.5" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                    {a.imageUrl && <img src={a.imageUrl} alt="" className="w-12 h-12 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-medium">{a.title}</div>
+                      <div className="text-[10px] line-clamp-1" style={{ color: 'var(--text-muted)' }}>{a.summary}</div>
+                      {a.url && <div className="text-[9px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{a.url}</div>}
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* STEP 2: What AI will receive */}
+          {useAi && preview.articles?.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                🤖 Шаг 2: Что получит AI
+              </div>
+              <div className="rounded-lg border p-3 text-[10px] space-y-2" style={{ borderColor: 'var(--border)', background: 'rgba(0,0,0,0.15)' }}>
+                <div>
+                  <span className="font-medium" style={{ color: 'var(--text-muted)' }}>Промпт:</span>
+                  <div className="whitespace-pre-wrap mt-1" style={{ color: 'var(--text-muted)', opacity: 0.8 }}>{systemPrompt}</div>
                 </div>
-              ))}
-            </div>
-          )}
-          {/* Test AI result */}
-          {testAi?.ok && (
-            <div className="mt-3 space-y-2">
-              {/* What AI received */}
-              <details className="rounded-lg border p-2" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                <summary className="text-[10px] font-medium cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                  📥 Что получил AI (вход) — {testAi.article?.summary ? 'есть текст' : 'только заголовок'}
-                </summary>
-                <div className="mt-2 text-[10px] whitespace-pre-wrap p-2 rounded" style={{ background: 'rgba(0,0,0,0.2)', color: 'var(--text-muted)' }}>
-                  {testAi.aiInput}
+                <div>
+                  <span className="font-medium" style={{ color: 'var(--text-muted)' }}>Источники ({articlesForAi.length} из {preview.articles.length}):</span>
+                  <div className="mt-1 space-y-1" style={{ color: 'var(--text-muted)', opacity: 0.8 }}>
+                    {articlesForAi.map((a: any, i: number) => (
+                      <div key={i}>[{i + 1}] {a.title}</div>
+                    ))}
+                  </div>
                 </div>
-              </details>
-              {/* What AI generated */}
-              <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.05)' }}>
-                <div className="text-[10px] font-medium mb-2 flex items-center justify-between">
-                  <span>✨ Результат AI ({testAi.model}, {testAi.tokensUsed} токенов)</span>
-                  <button onClick={() => setTestAi(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">×</button>
+                <div style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+                  → AI напишет из этого <b>1 пост</b> для Telegram
                 </div>
-                <div className="flex gap-3 max-h-80 overflow-y-auto">
-                  {testAi.article?.imageUrl && (
-                    <img src={testAi.article.imageUrl} alt="" className="w-20 h-20 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
-                  )}
-                  <div className="text-xs" dangerouslySetInnerHTML={{ __html: testAi.post }} />
-                </div>
-                <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>{testAi.post?.length ?? 0} символов</div>
               </div>
             </div>
           )}
-          {testAi?.error && (
-            <div className="mt-3 text-xs text-red-400 bg-red-500/10 rounded-lg p-2">{testAi.error}</div>
+
+          {/* STEP 3: Test result */}
+          {useAi && preview.articles?.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                ✨ Шаг 3: Тестовый пост
+                {!testAi && <span className="font-normal text-[10px]" style={{ color: 'var(--text-muted)' }}>— нажмите кнопку чтобы сгенерировать</span>}
+              </div>
+              {testAi?.ok ? (
+                <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.05)' }}>
+                  <div className="text-[10px] font-medium mb-2 flex items-center justify-between" style={{ color: 'var(--text-muted)' }}>
+                    <span>{testAi.model} · {testAi.tokensUsed} токенов · {testAi.post?.length ?? 0} символов</span>
+                  </div>
+                  <div className="flex gap-3 max-h-80 overflow-y-auto">
+                    {testAi.article?.imageUrl && (
+                      <img src={testAi.article.imageUrl} alt="" className="w-20 h-20 rounded object-cover shrink-0" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+                    )}
+                    <div className="text-xs" dangerouslySetInnerHTML={{ __html: testAi.post }} />
+                  </div>
+                </div>
+              ) : testAi?.error ? (
+                <div className="text-xs text-red-400 bg-red-500/10 rounded-lg p-2">{testAi.error}</div>
+              ) : (
+                <div className="text-[11px] rounded-lg p-3 border border-dashed flex items-center justify-center" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                  Нажмите «Тест» чтобы увидеть как будет выглядеть пост
+                </div>
+              )}
+            </div>
           )}
 
-          <div className="flex gap-3 justify-end mt-4">
-            <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
-            {(task.config as any)?.useAi !== false && preview.articles?.length > 0 && (
+          {/* Buttons */}
+          <div className="flex gap-3 justify-end pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+            <button onClick={() => { setPreview(null); setTestAi(null); }} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
+            {useAi && preview.articles?.length > 0 && (
               <button onClick={async () => {
                 setTestAiLoading(true); setTestAi(null);
                 try {
                   const res = await apiFetch(`/tasks/${task.id}/test-ai`, {
                     method: 'POST',
-                    body: JSON.stringify({ articles: preview.articles?.slice(0, 3) }),
+                    body: JSON.stringify({ articles: preview.articles?.slice(0, cfg?.maxResults ?? 3) }),
                   });
                   setTestAi(res);
                 } catch (e) { setTestAi({ error: (e as Error).message }); }
                 setTestAiLoading(false);
-              }} disabled={testAiLoading} className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 flex items-center gap-1.5">
-                <Eye size={14} /> {testAiLoading ? 'Генерирую...' : 'Тест 1 пост'}
+              }} disabled={testAiLoading} className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 flex items-center gap-1.5" title="Сгенерировать один тестовый пост из найденных источников — не сохраняется">
+                <Sparkles size={14} /> {testAiLoading ? 'Генерирую...' : testAi?.ok ? 'Сгенерировать ещё раз' : 'Тест — сгенерировать пост'}
               </button>
             )}
-            <button onClick={() => { setPreview(null); setTestAi(null); onRun(); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-1.5" style={{ background: 'var(--primary)' }}>
-              <Zap size={14} /> Запустить все
+            <button onClick={() => { setPreview(null); setTestAi(null); onRun(); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-1.5" style={{ background: 'var(--primary)' }} title={`Создать посты для всех ${task.type === 'web_search' ? 'запросов' : 'статей'}`}>
+              <Zap size={14} /> Запустить
             </button>
           </div>
         </Modal>
-      )}
+        );
+      })()}
     </div>
   );
 }
