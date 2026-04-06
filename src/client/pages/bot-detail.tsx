@@ -848,9 +848,9 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
     <div className="mb-4 space-y-2">
       {/* AI Smart Setup */}
       <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'rgba(139,92,246,0.04)' }}>
-        <div className="text-xs font-semibold flex items-center gap-1.5">✨ Опишите что искать</div>
+        <div className="text-xs font-semibold flex items-center gap-1.5">✨ Быстрая настройка</div>
         <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          Напишите простым языком что вы хотите — AI сам настроит запросы, регион, язык и промпт.
+          Опишите какие новости искать и как писать посты. AI настроит всё автоматически: запросы, регион, промпт и лимиты. Вы сможете подправить любую настройку ниже.
         </p>
         <textarea
           value={aiSetupPrompt}
@@ -875,6 +875,9 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
                     systemPrompt: res.config.systemPrompt,
                     timeRange: res.config.timeRange,
                     maxResults: res.config.maxResults,
+                    maxPostsPerDay: res.config.maxPostsPerDay,
+                    postIntervalMinutes: res.config.postIntervalMinutes,
+                    postMaxLength: res.config.postMaxLength,
                     useAi: true,
                     aiSetupPrompt: aiSetupPrompt.trim(),
                   });
@@ -1078,6 +1081,27 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
           {config.postMode === 'draft' && 'Посты сохранятся как черновики — вы проверите и одобрите вручную.'}
           {config.postMode === 'publish' && 'Посты будут опубликованы сразу после генерации — без проверки.'}
         </p>
+      </div>
+
+      {/* Limits */}
+      <div className="text-xs font-semibold flex items-center gap-1.5 pt-3 pb-1 border-t mt-3" style={{ borderColor: 'var(--border)' }}>📊 Лимиты</div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Макс. постов в день</label>
+          <input type="number" min={1} max={50} value={config.maxPostsPerDay ?? 5} onChange={(e) => onChange({ maxPostsPerDay: Number(e.target.value) })}
+            className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Интервал (мин)</label>
+          <input type="number" min={1} max={1440} value={config.postIntervalMinutes ?? 60} onChange={(e) => onChange({ postIntervalMinutes: Number(e.target.value) })}
+            className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+          <div className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Минимум между публикациями</div>
+        </div>
+        <div>
+          <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Макс. символов</label>
+          <input type="number" min={100} max={4000} step={100} value={config.postMaxLength ?? 2000} onChange={(e) => onChange({ postMaxLength: Number(e.target.value) })}
+            className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+        </div>
       </div>
     </div>
   );
@@ -1401,6 +1425,9 @@ function EditTaskModal({ task, onSave, onClose, isPending, botId }: {
   const [taskPrompt, setTaskPrompt] = useState(config.systemPrompt ?? '');
   const [rawTemplate, setRawTemplate] = useState(config.rawTemplate ?? '<b>{title}</b>\n\n{summary}\n\n<a href="{url}">Читать далее</a>');
   const [postMode, setPostMode] = useState(config.postMode ?? 'queue');
+  const [nfMaxPostsPerDay, setNfMaxPostsPerDay] = useState(config.maxPostsPerDay ?? 5);
+  const [nfIntervalMinutes, setNfIntervalMinutes] = useState(config.postIntervalMinutes ?? 60);
+  const [nfMaxLength, setNfMaxLength] = useState(config.postMaxLength ?? 2000);
   const [filterKeywords, setFilterKeywords] = useState<string[]>(config.filterKeywords ?? []);
   const [newFilterKw, setNewFilterKw] = useState('');
   const [maxAgeDays, setMaxAgeDays] = useState(config.maxAgeDays ?? 7);
@@ -1600,6 +1627,25 @@ function EditTaskModal({ task, onSave, onClose, isPending, botId }: {
               {postMode === 'draft' && 'Посты сохранятся как черновики — вы проверите и одобрите вручную.'}
               {postMode === 'publish' && 'Посты будут опубликованы сразу после генерации — без проверки.'}
             </p>
+            {/* Limits */}
+            <div className="text-[10px] font-semibold mt-3 mb-1" style={{ color: 'var(--text-muted)' }}>📊 Лимиты</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Макс. постов/день</label>
+                <input type="number" min={1} max={50} value={nfMaxPostsPerDay} onChange={(e) => setNfMaxPostsPerDay(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+              <div>
+                <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Интервал (мин)</label>
+                <input type="number" min={1} max={1440} value={nfIntervalMinutes} onChange={(e) => setNfIntervalMinutes(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+              <div>
+                <label className="block text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Макс. символов</label>
+                <input type="number" min={100} max={4000} step={100} value={nfMaxLength} onChange={(e) => setNfMaxLength(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+              </div>
+            </div>
           </div>
         )}
 
@@ -1608,7 +1654,7 @@ function EditTaskModal({ task, onSave, onClose, isPending, botId }: {
           <button
             onClick={() => {
               let cfg: any = config;
-              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, postMode, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
+              if (task.type === 'news_feed') cfg = { ...config, useAi, systemPrompt: useAi ? (taskPrompt || undefined) : undefined, rawTemplate: useAi ? undefined : rawTemplate, postMode, maxPostsPerDay: nfMaxPostsPerDay, postIntervalMinutes: nfIntervalMinutes, postMaxLength: nfMaxLength, filterKeywords: filterKeywords.length ? filterKeywords : undefined, maxAgeDays };
               if (task.type === 'auto_reply') cfg = { ...config, rules: rules.filter(r => r.pattern), cooldownSeconds: cooldownSec };
               if (task.type === 'welcome') cfg = { ...config, welcomeText, deleteAfterSeconds: deleteAfterSec, imageUrl: welcomeImageUrl || undefined, buttons: welcomeButtons.filter(b => b.text && b.url), farewellText: farewellText || undefined, farewellImageUrl: farewellImageUrl || undefined };
               if (task.type === 'moderation') cfg = { ...modConfig };

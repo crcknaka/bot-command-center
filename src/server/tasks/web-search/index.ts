@@ -18,6 +18,8 @@ interface WebSearchConfig {
   postLanguage?: string;
   postMaxLength?: number;
   postMode?: PostMode; // queue (default) | draft | publish
+  maxPostsPerDay?: number; // task-level daily limit
+  postIntervalMinutes?: number; // task-level interval between posts
   autoApprove?: boolean; // legacy, mapped to postMode
   maxResults?: number; // Max search results per query
   timeRange?: 'day' | 'week' | 'month' | 'year';
@@ -70,7 +72,8 @@ export class WebSearchTask implements TaskModule {
     const ownerId = bot?.ownerId;
     const lang = config.postLanguage ?? bot?.postLanguage ?? 'Russian';
     const maxLen = config.postMaxLength ?? bot?.maxPostLength ?? 2000;
-    const maxPerDay = bot?.maxPostsPerDay ?? 5;
+    const maxPerDay = config.maxPostsPerDay ?? bot?.maxPostsPerDay ?? 5;
+    const intervalMinutes = config.postIntervalMinutes ?? bot?.minPostIntervalMinutes ?? 60;
     const useAi = config.useAi !== false;
     const rawTemplate = config.rawTemplate ?? DEFAULT_RAW_TEMPLATE;
 
@@ -122,7 +125,7 @@ export class WebSearchTask implements TaskModule {
             searchResults: results, topic: query, language: lang, maxLength: maxLen,
           });
 
-          const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, bot?.minPostIntervalMinutes);
+          const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, intervalMinutes);
           const inserted = db.insert(posts).values({
             channelId: ctx.channelId, taskId: ctx.taskId,
             content: generated.content, imageUrl: results[0]?.imageUrl,
@@ -147,7 +150,7 @@ export class WebSearchTask implements TaskModule {
 
           if (parts.length > 0) {
             const content = parts.join('\n\n---\n\n');
-            const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, bot?.minPostIntervalMinutes);
+            const { status: postStatus, scheduledFor } = resolvePostMode(config, ctx.channelId, intervalMinutes);
             const inserted = db.insert(posts).values({
               channelId: ctx.channelId, taskId: ctx.taskId,
               content, imageUrl: results[0]?.imageUrl,

@@ -22,10 +22,16 @@ function sanitizeForTelegram(html: string): string {
 }
 
 /** Calculate next available time slot for a channel based on existing scheduled/published posts */
-function calculateNextSlot(channelId: number): string {
+function calculateNextSlot(channelId: number, taskId?: number | null): string {
   const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
   const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
-  const intervalMinutes = bot?.minPostIntervalMinutes ?? 60;
+  // Task-level interval > bot-level > default 60
+  let intervalMinutes = bot?.minPostIntervalMinutes ?? 60;
+  if (taskId) {
+    const task = db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1).get();
+    const taskInterval = (task?.config as any)?.postIntervalMinutes;
+    if (taskInterval && taskInterval > 0) intervalMinutes = taskInterval;
+  }
 
   // Find the latest scheduled or recently published post
   const lastScheduled = db.select().from(posts)
@@ -284,7 +290,7 @@ postsApi.post('/:id/enqueue', async (c) => {
   if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
   if (post.status !== 'draft') return c.json({ error: 'Только черновики можно поставить в очередь' }, 400);
 
-  const slot = calculateNextSlot(post.channelId);
+  const slot = calculateNextSlot(post.channelId, post.taskId);
   const updated = db.update(posts)
     .set({ status: 'queued', scheduledFor: slot, updatedAt: new Date().toISOString() })
     .where(eq(posts.id, id))
@@ -312,7 +318,7 @@ postsApi.post('/bulk', async (c) => {
       switch (action) {
         case 'enqueue':
           if (post.status === 'draft') {
-            const slot = calculateNextSlot(post.channelId);
+            const slot = calculateNextSlot(post.channelId, post.taskId);
             db.update(posts).set({ status: 'queued', scheduledFor: slot, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
             ok++;
           } else { failed++; }

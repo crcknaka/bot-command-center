@@ -152,6 +152,9 @@ export async function generateTaskConfig(options: {
   systemPrompt: string;
   timeRange: string;
   maxResults: number;
+  maxPostsPerDay: number;
+  postIntervalMinutes: number;
+  postMaxLength: number;
 }> {
   const model = createModelFromProvider(options.providerId, options.modelId);
 
@@ -164,6 +167,9 @@ export async function generateTaskConfig(options: {
       systemPrompt: z.string().describe('Промпт для AI который будет писать пост из найденных статей — стиль, тон, что включать, на каком языке писать'),
       timeRange: z.enum(['day', 'week', 'month']).describe('Как свежие нужны результаты'),
       maxResults: z.number().min(1).max(10).describe('Сколько источников искать на каждый запрос'),
+      maxPostsPerDay: z.number().min(1).max(20).describe('Сколько постов в день максимум создавать'),
+      postIntervalMinutes: z.number().min(5).max(1440).describe('Минимальный интервал в минутах между публикациями постов'),
+      postMaxLength: z.number().min(300).max(4000).describe('Максимальная длина поста в символах'),
     }),
     prompt: `Пользователь хочет настроить автоматический поиск новостей и генерацию постов для Telegram-канала.
 
@@ -175,8 +181,11 @@ export async function generateTaskConfig(options: {
 2. searchCountries — коды стран откуда искать. Если пользователь упомянул регион (Прибалтика = lv, lt, ee).
 3. searchLang — язык РЕЗУЛЬТАТОВ (не страны). Если пользователь хочет русскоязычный контент — "ru", даже если ищет в Латвии.
 4. systemPrompt — инструкция для AI-редактора который будет писать пост. Включи стиль, тон, язык поста, что важно для аудитории канала.
-5. timeRange — "day" для новостей, "week" для обзоров, "month" для исследований.
-6. maxResults — обычно 3-5, больше если тема узкая.`,
+5. timeRange — "day" для ежедневных новостей, "week" для еженедельных обзоров, "month" для исследований.
+6. maxResults — обычно 3-5 источников на запрос, больше если тема узкая.
+7. maxPostsPerDay — сколько постов в день. Для новостного канала 3-5, для нишевого 1-2.
+8. postIntervalMinutes — интервал между публикациями. 60 мин для частых, 120-180 для редких.
+9. postMaxLength — длина поста. 800-1200 для коротких, 1500-2500 для подробных.`,
     maxRetries: 1,
   });
 
