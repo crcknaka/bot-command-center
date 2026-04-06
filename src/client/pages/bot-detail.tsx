@@ -410,7 +410,7 @@ export function BotDetailPage() {
             if (taskType === 'auto_reply') config = { rules: taskConfig.rules.filter((r: any) => r.pattern), cooldownSeconds: taskConfig.cooldownSeconds ?? 0 };
             if (taskType === 'welcome') config = { welcomeText: taskConfig.welcomeText, deleteAfterSeconds: taskConfig.deleteAfterSeconds || 0, imageUrl: taskConfig.imageUrl || undefined, buttons: taskConfig.buttons?.filter((b: any) => b.text && b.url) ?? [], farewellText: taskConfig.farewellText || undefined, farewellImageUrl: taskConfig.farewellImageUrl || undefined };
             if (taskType === 'moderation') config = { ...taskConfig };
-            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, postMode: taskConfig.postMode, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountries: taskConfig.searchCountries, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined };
+            if (taskType === 'web_search') config = { queries: (taskConfig.queries ?? []).filter((q: string) => q.trim()), useAi: taskConfig.useAi, systemPrompt: taskConfig.useAi ? (taskConfig.systemPrompt || undefined) : undefined, rawTemplate: taskConfig.useAi ? undefined : taskConfig.rawTemplate, postMode: taskConfig.postMode, maxResults: taskConfig.maxResults, timeRange: taskConfig.timeRange, postLanguage: taskConfig.postLanguage, searchLang: taskConfig.searchLang, searchCountries: taskConfig.searchCountries, includeDomains: taskConfig.includeDomains?.length ? taskConfig.includeDomains : undefined, maxPostsPerDay: taskConfig.maxPostsPerDay, postIntervalMinutes: taskConfig.postIntervalMinutes, postMaxLength: taskConfig.postMaxLength, aiSetupPrompt: taskConfig.aiSetupPrompt || undefined };
             addTaskMut.mutate({ channelId: showAddTask.channelId, name: taskName || undefined, type: taskType, schedule: taskSchedule, config });
           }}>
             <div className="mb-4">
@@ -549,7 +549,7 @@ export function BotDetailPage() {
 
             {/* Web Search config */}
             {taskType === 'web_search' && (
-              <WebSearchConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} botId={botId} />
+              <WebSearchConfigUI config={taskConfig} onChange={(c: any) => setTaskConfig({ ...taskConfig, ...c })} botId={botId} onScheduleChange={setTaskSchedule} />
             )}
 
             {/* Hint per task type */}
@@ -818,12 +818,13 @@ function WarnConfig({ label, warnKey, value, onChange }: {
 
 // ─── Web Search Config UI ────────────────────────────────────────────────────
 
-function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange: (patch: any) => void; botId?: number }) {
+function WebSearchConfigUI({ config, onChange, botId, onScheduleChange }: { config: any; onChange: (patch: any) => void; botId?: number; onScheduleChange?: (cron: string) => void }) {
   const [newQ, setNewQ] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [aiSetupPrompt, setAiSetupPrompt] = useState(config.aiSetupPrompt ?? '');
   const [aiSetupLoading, setAiSetupLoading] = useState(false);
   const [aiSetupDone, setAiSetupDone] = useState(false);
+  const [aiSetupError, setAiSetupError] = useState('');
   const queries: string[] = config.queries ?? [];
   const domains: string[] = config.includeDomains ?? [];
   const { data: searchProviders } = useQuery({ queryKey: ['search-providers'], queryFn: () => apiFetch('/search-providers') });
@@ -864,7 +865,7 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
           <button
             onClick={async () => {
               if (!aiSetupPrompt.trim()) return;
-              setAiSetupLoading(true);
+              setAiSetupLoading(true); setAiSetupError(''); setAiSetupDone(false);
               try {
                 const res = await apiFetch('/tasks/ai-setup', { method: 'POST', body: JSON.stringify({ prompt: aiSetupPrompt, botId }) });
                 if (res.ok && res.config) {
@@ -881,11 +882,14 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
                     useAi: true,
                     aiSetupPrompt: aiSetupPrompt.trim(),
                   });
+                  if (res.config.schedule && onScheduleChange) {
+                    onScheduleChange(res.config.schedule);
+                  }
                   setAiSetupDone(true);
                   setTimeout(() => setAiSetupDone(false), 3000);
                 }
               } catch (err) {
-                console.error('AI setup failed:', err);
+                setAiSetupError((err as Error).message);
               } finally { setAiSetupLoading(false); }
             }}
             disabled={aiSetupLoading || !aiSetupPrompt.trim()}
@@ -894,6 +898,7 @@ function WebSearchConfigUI({ config, onChange, botId }: { config: any; onChange:
             <Sparkles size={12} /> {aiSetupLoading ? 'Настраиваю...' : 'Настроить автоматически'}
           </button>
           {aiSetupDone && <span className="text-[11px] text-green-400">✅ Готово! Проверьте настройки ниже.</span>}
+          {aiSetupError && <div className="text-[11px] text-red-400 mt-1">{aiSetupError.includes('quota') || aiSetupError.includes('rate') ? '⚠️ Лимит AI-провайдера исчерпан. Подождите минуту или смените провайдер в Настройках.' : `❌ ${aiSetupError}`}</div>}
         </div>
       </div>
 
@@ -1556,7 +1561,7 @@ function EditTaskModal({ task, onSave, onClose, isPending, botId }: {
 
         {/* Web Search config */}
         {task.type === 'web_search' && (
-          <WebSearchConfigUI config={webSearchConfig} onChange={(patch: any) => setWebSearchConfig((prev: any) => ({ ...prev, ...patch }))} botId={botId} />
+          <WebSearchConfigUI config={webSearchConfig} onChange={(patch: any) => setWebSearchConfig((prev: any) => ({ ...prev, ...patch }))} botId={botId} onScheduleChange={setSchedule} />
         )}
 
         {/* Filter keywords */}

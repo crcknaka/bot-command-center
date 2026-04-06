@@ -155,6 +155,7 @@ export async function generateTaskConfig(options: {
   maxPostsPerDay: number;
   postIntervalMinutes: number;
   postMaxLength: number;
+  schedule: string;
 }> {
   const model = createModelFromProvider(options.providerId, options.modelId);
 
@@ -170,6 +171,7 @@ export async function generateTaskConfig(options: {
       maxPostsPerDay: z.number().min(1).max(20).describe('Сколько постов в день максимум создавать'),
       postIntervalMinutes: z.number().min(5).max(1440).describe('Минимальный интервал в минутах между публикациями постов'),
       postMaxLength: z.number().min(300).max(4000).describe('Максимальная длина поста в символах'),
+      schedule: z.string().describe('Cron-выражение для расписания запуска задачи. Примеры: "0 9 * * *" (каждый день в 9:00), "0 9,18 * * *" (дважды в день), "0 */3 * * *" (каждые 3 часа)'),
     }),
     prompt: `Пользователь хочет настроить автоматический поиск новостей и генерацию постов для Telegram-канала.
 
@@ -185,7 +187,8 @@ export async function generateTaskConfig(options: {
 6. maxResults — обычно 3-5 источников на запрос, больше если тема узкая.
 7. maxPostsPerDay — сколько постов в день. Для новостного канала 3-5, для нишевого 1-2.
 8. postIntervalMinutes — интервал между публикациями. 60 мин для частых, 120-180 для редких.
-9. postMaxLength — длина поста. 800-1200 для коротких, 1500-2500 для подробных.`,
+9. postMaxLength — длина поста. 800-1200 для коротких, 1500-2500 для подробных.
+10. schedule — cron-выражение. "0 9 * * *" для раз в день утром, "0 9,14,19 * * *" для 3 раз в день, "0 */4 * * *" для каждые 4 часа. Частота должна соответствовать теме.`,
     maxRetries: 1,
   });
 
