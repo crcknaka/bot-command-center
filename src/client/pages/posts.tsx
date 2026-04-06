@@ -428,7 +428,6 @@ export function PostsPage() {
                   <button onClick={() => confirm({ title: 'Удалить пост?', message: post.status === 'published' ? 'Пост будет удалён из системы. Если он ещё в канале — удалите его там вручную.' : 'Пост будет удалён безвозвратно.', onConfirm: () => deleteMut.mutate(post.id) })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors ml-auto">
                       <Trash2 size={12} /> Удалить
                     </button>
-                  )}
                 </div>
                 </div>
               </div>
