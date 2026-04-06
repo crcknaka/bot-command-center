@@ -1,5 +1,4 @@
-import { generateText, generateObject } from 'ai';
-import { z } from 'zod';
+import { generateText } from 'ai';
 import { createModelFromProvider } from './provider.js';
 
 export interface GeneratePostOptions {
@@ -222,44 +221,3 @@ export async function generateTaskConfig(options: {
   }
 }
 
-// Remove unused imports placeholder
-void generateObject;
-void z;
-
-/*
-  Old code used generateObject with z.object schema — removed because
-  Groq and some other providers don't support json_schema response format.
-  Now using generateText + JSON parse which works with all providers.
-*/
-      queries: z.array(z.string()).describe('3-5 поисковых запросов для Google, короткие и конкретные, на языке который даст лучшие результаты'),
-      searchCountries: z.array(z.string()).describe('ISO коды стран для поиска: ru, us, lv, lt, ee, de, ua, gb, fr, es, kz, by, il'),
-      searchLang: z.string().describe('Код языка результатов: ru, en, lv, uk, de, fr, es'),
-      systemPrompt: z.string().describe('Промпт для AI который будет писать пост из найденных статей — стиль, тон, что включать, на каком языке писать'),
-      timeRange: z.enum(['day', 'week', 'month']).describe('Как свежие нужны результаты'),
-      maxResults: z.number().min(1).max(10).describe('Сколько источников искать на каждый запрос'),
-      maxPostsPerDay: z.number().min(1).max(20).describe('Сколько постов в день максимум создавать'),
-      postIntervalMinutes: z.number().min(5).max(1440).describe('Минимальный интервал в минутах между публикациями постов'),
-      postMaxLength: z.number().min(300).max(4000).describe('Максимальная длина поста в символах'),
-      schedule: z.string().describe('Cron-выражение для расписания запуска задачи. Примеры: "0 9 * * *" (каждый день в 9:00), "0 9,18 * * *" (дважды в день), "0 */3 * * *" (каждые 3 часа)'),
-    }),
-    prompt: `Пользователь хочет настроить автоматический поиск новостей и генерацию постов для Telegram-канала.
-
-Вот что он написал:
-"${options.userPrompt}"
-
-Сгенерируй конфигурацию:
-1. queries — 3-5 поисковых запросов для Google. Делай их конкретными. Если тема связана с конкретной страной, добавляй название страны в часть запросов. Запросы на том языке, на котором больше контента по теме.
-2. searchCountries — коды стран откуда искать. Если пользователь упомянул регион (Прибалтика = lv, lt, ee).
-3. searchLang — язык РЕЗУЛЬТАТОВ (не страны). Если пользователь хочет русскоязычный контент — "ru", даже если ищет в Латвии.
-4. systemPrompt — инструкция для AI-редактора который будет писать пост. Включи стиль, тон, язык поста, что важно для аудитории канала.
-5. timeRange — "day" для ежедневных новостей, "week" для еженедельных обзоров, "month" для исследований.
-6. maxResults — обычно 3-5 источников на запрос, больше если тема узкая.
-7. maxPostsPerDay — сколько постов в день. Для новостного канала 3-5, для нишевого 1-2.
-8. postIntervalMinutes — интервал между публикациями. 60 мин для частых, 120-180 для редких.
-9. postMaxLength — длина поста. 800-1200 для коротких, 1500-2500 для подробных.
-10. schedule — cron-выражение. "0 9 * * *" для раз в день утром, "0 9,14,19 * * *" для 3 раз в день, "0 */4 * * *" для каждые 4 часа. Частота должна соответствовать теме.`,
-    maxRetries: 1,
-  });
-
-  return result.object;
-}
