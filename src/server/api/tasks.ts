@@ -185,15 +185,17 @@ tasksApi.post('/tasks/:id/preview', async (c) => {
     const bot = channel ? db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get() : null;
     const maxPerDay = bot?.maxPostsPerDay ?? 5;
 
+    const lang = config?.postLanguage ?? bot?.postLanguage ?? 'Russian';
+    const searchResults = await Promise.allSettled(
+      queries.map(query => searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang, searchLang: config?.searchLang, searchCountry: config?.searchCountry, searchCountries: config?.searchCountries, includeDomains: config?.includeDomains }))
+    );
     const allResults: Array<{ title: string; summary: string; url: string; imageUrl?: string }> = [];
-    for (const query of queries) {
-      try {
-        const lang = config?.postLanguage ?? bot?.postLanguage ?? 'Russian';
-        const results = await searchWeb({ query, maxResults: config.maxResults ?? 3, timeRange: config.timeRange ?? 'day', botId: bot?.id, language: lang, searchLang: config?.searchLang, searchCountry: config?.searchCountry, searchCountries: config?.searchCountries, includeDomains: config?.includeDomains });
-        for (const r of results) {
+    for (const result of searchResults) {
+      if (result.status === 'fulfilled') {
+        for (const r of result.value) {
           allResults.push({ title: r.title, summary: (r.content ?? '').slice(0, 300), url: r.url, imageUrl: r.imageUrl });
         }
-      } catch {}
+      }
     }
 
     return c.json({

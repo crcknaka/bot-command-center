@@ -277,20 +277,21 @@ export async function searchWeb(opts: SearchOptions): Promise<SearchResult[]> {
   const provider = resolveSearchProvider(opts.botId);
   const countries = opts.searchCountries?.length ? opts.searchCountries : undefined;
 
-  // If multiple countries, search each and merge (deduplicate by URL)
+  // If multiple countries, search each in parallel and merge (deduplicate by URL)
   if (countries && countries.length > 1) {
     const perCountry = Math.max(1, Math.ceil((opts.maxResults ?? 5) / countries.length));
     const allResults: SearchResult[] = [];
     const seenUrls = new Set<string>();
 
-    for (const country of countries) {
-      const countryOpts = { ...opts, searchCountries: [country], maxResults: perCountry };
-      try {
-        const results = await searchWebSingle(provider, countryOpts);
-        for (const r of results) {
+    const settled = await Promise.allSettled(
+      countries.map(country => searchWebSingle(provider, { ...opts, searchCountries: [country], maxResults: perCountry }))
+    );
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        for (const r of result.value) {
           if (!seenUrls.has(r.url)) { seenUrls.add(r.url); allResults.push(r); }
         }
-      } catch {}
+      }
     }
     return allResults.slice(0, opts.maxResults ?? 5);
   }
