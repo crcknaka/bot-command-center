@@ -54,7 +54,7 @@ export function MembersPage() {
     mutationFn: (data: { chatId: string; userId: number; action: string; duration?: number }) =>
       apiFetch(`/bots/${selectedBotId}/moderate`, { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: (data, vars) => {
-      const labels: Record<string, string> = { ban: 'Забанен', unban: 'Разбанен', mute: 'Замучен', unmute: 'Размучен', restrict_media: 'Медиа запрещено', restrict_links: 'Ссылки запрещены' };
+      const labels: Record<string, string> = { ban: 'Забанен', unban: 'Разбанен', mute: 'Замучен', unmute: 'Размучен', restrict_media: 'Медиа запрещено', restrict_links: 'Ссылки запрещены', promote: 'Назначен админом', demote: 'Снят с админов' };
       toast.success(labels[vars.action] ?? 'Готово');
       // Update status in cache immediately (Telegram API may lag)
       qc.setQueryData(['members', selectedBotId, selectedChat], (old: any) => {
@@ -261,6 +261,28 @@ export function MembersPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Admin rights */}
+                  {actionUser.status !== 'creator' && actionUser.status !== 'kicked' && (
+                    <div>
+                      <div className="text-xs font-medium mb-1.5">👑 Права админа</div>
+                      <div className="flex gap-1.5">
+                        {actionUser.status === 'administrator' ? (
+                          <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'demote' })}
+                            disabled={moderateMut.isPending}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+                            Снять с админов
+                          </button>
+                        ) : (
+                          <button onClick={() => moderateMut.mutate({ chatId: selectedChat!, userId: actionUser.userId, action: 'promote' })}
+                            disabled={moderateMut.isPending}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors">
+                            Назначить админом
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Restore */}
                   {(actionUser.status === 'restricted' || actionUser.status === 'kicked') && (

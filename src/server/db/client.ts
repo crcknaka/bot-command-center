@@ -9,7 +9,7 @@ mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = resolve(DATA_DIR, 'bot-center.db');
 
-const sqlite = new Database(DB_PATH);
+export const sqlite: Database.Database = new Database(DB_PATH);
 
 // Enable WAL mode for better concurrent read performance
 sqlite.pragma('journal_mode = WAL');

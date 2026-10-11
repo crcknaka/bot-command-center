@@ -4,9 +4,18 @@ services:
     container_name: bot-command-center
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # BIND_ADDR=127.0.0.1 in .env keeps the panel reachable only through a reverse proxy on this host
+      - "${BIND_ADDR:-0.0.0.0}:3000:3000"
     volumes:
       - ./data:/app/data
     environment:
       - PORT=3000
       - NODE_ENV=production
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -7,6 +7,7 @@ import { generatePost } from '../../services/ai/generate.js';
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 import { resolvePostMode, type PostMode } from '../utils.js';
 import { buildSystemPrompt } from '../prompts.js';
+import { sqlTime } from '../../db/time.js';
 
 interface NewsFeedConfig {
   useAi?: boolean; // true = AI rewrites, false = raw format from template
@@ -74,7 +75,7 @@ export class NewsFeedTask implements TaskModule {
     todayStart.setHours(0, 0, 0, 0);
     const postsToday = db.select().from(posts)
       .where(eq(posts.channelId, ctx.channelId)).all()
-      .filter((p) => p.createdAt >= todayStart.toISOString()).length;
+      .filter((p) => p.createdAt >= sqlTime(todayStart)).length;
 
     if (postsToday >= maxPerDay) {
       steps.push({ action: 'Лимит', status: 'skipped', detail: `Достигнут лимит ${maxPerDay} постов в день (создано: ${postsToday}). Пропускаю генерацию.` });
@@ -140,6 +141,8 @@ export class NewsFeedTask implements TaskModule {
 
       const unprocessed = filtered.filter((article) => {
         // Skip if already has a post (not deleted)
+        // processedAt survives the post being deleted, so a rejected article is not generated again
+        if (article.processedAt) return false;
         const existingPost = db.select({ id: posts.id }).from(posts)
           .where(eq(posts.articleId, article.id)).limit(1).get();
         return !existingPost;
@@ -193,6 +196,7 @@ export class NewsFeedTask implements TaskModule {
             aiProviderId: aiPid,
             aiModel,
           }).returning().get();
+          db.update(articles).set({ processedAt: new Date().toISOString() }).where(eq(articles.id, article.id)).run();
 
           const modeLabel = postStatus === 'queued' ? (scheduledFor ? `в очереди (${new Date(scheduledFor).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })})` : 'в очереди') : 'черновик';
           steps.push({

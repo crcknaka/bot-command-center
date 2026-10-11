@@ -10,6 +10,8 @@ export interface TaskContext {
   chatId: string;
   config: TaskConfig;
   bot: Bot;
+  /** Live on/off switch for tasks that read it at message time (moderation) */
+  enabled?: boolean;
 }
 
 export interface TaskRunLog {

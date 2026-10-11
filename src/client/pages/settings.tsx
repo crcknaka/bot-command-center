@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, Check, Plus, Trash2, Zap, X, Settings2, Cpu, Search, FileText, Pencil } from 'lucide-react';
 import { apiFetch } from '../lib/api.js';
+import { useAuth } from '../lib/auth.js';
 import { InfoTip } from '../components/ui/tooltip.js';
 import { Spinner } from '../components/ui/spinner.js';
 import { useConfirm } from '../components/ui/confirm-dialog.js';
@@ -152,7 +153,9 @@ function GeneralTab() {
 }
 
 function ChangePassword() {
-  const [open, setOpen] = useState(false);
+  const { user, refresh } = useAuth();
+  // Opens by itself while the account is still on the default password
+  const [open, setOpen] = useState(!!user?.mustChangePassword);
   const [current, setCurrent] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [error, setError] = useState('');
@@ -160,7 +163,7 @@ function ChangePassword() {
 
   const changeMut = useMutation({
     mutationFn: () => apiFetch('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: current, newPassword: newPwd }) }),
-    onSuccess: () => { setDone(true); setCurrent(''); setNewPwd(''); setTimeout(() => { setDone(false); setOpen(false); }, 2000); },
+    onSuccess: () => { setDone(true); setCurrent(''); setNewPwd(''); refresh().catch(() => {}); setTimeout(() => { setDone(false); setOpen(false); }, 2000); },
     onError: (err) => setError((err as Error).message),
   });
 
@@ -268,7 +271,7 @@ function AIModelsTab() {
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiFetch('/ai-providers', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai-providers'] }); setShowAdd(false); setForm({ name: '', type: 'openai', apiKey: '', isDefault: false }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai-providers'] }); setShowAdd(false); setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/ai-providers/${id}`, { method: 'DELETE' }),
@@ -469,7 +472,7 @@ function SearchTab() {
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Поисковые провайдеры ищут новости в интернете для генерации постов. Для каждого бота можно переназначить отдельно.
         </p>
-        <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
+        <button onClick={() => { setForm({ name: '', type: 'tavily', apiKey: '', isDefault: false }); setShowAdd(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white shrink-0 ml-4" style={{ background: 'var(--primary)' }}>
           <Plus size={14} /> Добавить
         </button>
       </div>
@@ -481,7 +484,7 @@ function SearchTab() {
           <p className="text-xs mb-4 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
             Добавьте API-ключ от <b>Tavily</b>, <b>Serper</b>, <b>Brave Search</b> или другого поискового сервиса.
           </p>
-          <button onClick={() => { setForm({ name: '', type: 'openai', apiKey: '', baseUrl: '', isDefault: false }); setShowAdd(true); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
+          <button onClick={() => { setForm({ name: '', type: 'tavily', apiKey: '', isDefault: false }); setShowAdd(true); }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>Добавить провайдера</button>
         </div>
       ) : (
         <div className="space-y-3">

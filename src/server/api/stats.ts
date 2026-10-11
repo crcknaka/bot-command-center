@@ -3,9 +3,27 @@ import { db } from '../db/client.js';
 import { bots, channels, posts, activityLog, messageStats, settings } from '../db/schema.js';
 import { eq, count, and, gte, sql, inArray } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { accessScope, canAccessChat } from './helpers.js';
+import { sqlTime } from '../db/time.js';
 
 const statsApi = new Hono();
 statsApi.use('*', requireAuth);
+statsApi.use('/chat/:chatId/*', async (c, next) => {
+  if (!canAccessChat((c as any).get('user'), c.req.param('chatId'))) return c.json({ error: 'Нет доступа' }, 403);
+  await next();
+});
+
+/** Filter for post rows: keeps what the current user may see */
+function inUserScope(c: any) {
+  const scope = accessScope(c.get('user'));
+  return (p: { channelId: number }) => !scope || scope.channelIds.includes(p.channelId);
+}
+
+/** Filter for channel rows: keeps what the current user may see */
+function channelInUserScope(c: any) {
+  const scope = accessScope(c.get('user'));
+  return (ch: { id: number }) => !scope || scope.channelIds.includes(ch.id);
+}
 
 // GET /api/stats/overview
 statsApi.get('/overview', async (c) => {
@@ -15,20 +33,22 @@ statsApi.get('/overview', async (c) => {
     ? db.select({ value: count() }).from(bots).get()!.value
     : db.select({ value: count() }).from(bots).where(eq(bots.ownerId, user.id)).get()!.value;
 
-  const totalChannels = db.select({ value: count() }).from(channels).get()!.value;
+  const scope = accessScope(user);
+  const inScope = scope ? inArray(posts.channelId, scope.channelIds.length ? scope.channelIds : [-1]) : undefined;
+  const totalChannels = scope ? scope.channelIds.length : db.select({ value: count() }).from(channels).get()!.value;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString();
+  const todayStr = sqlTime(today);
 
   const postsToday = db.select({ value: count() }).from(posts)
-    .where(and(eq(posts.status, 'published'), gte(posts.publishedAt, todayStr))).get()!.value;
+    .where(and(eq(posts.status, 'published'), gte(posts.publishedAt, todayStr), inScope)).get()!.value;
 
   const queuedPosts = db.select({ value: count() }).from(posts)
-    .where(eq(posts.status, 'queued')).get()!.value;
+    .where(and(eq(posts.status, 'queued'), inScope)).get()!.value;
 
   const draftPosts = db.select({ value: count() }).from(posts)
-    .where(eq(posts.status, 'draft')).get()!.value;
+    .where(and(eq(posts.status, 'draft'), inScope)).get()!.value;
 
   return c.json({
     totalBots,
@@ -44,25 +64,25 @@ statsApi.get('/weekly', async (c) => {
   const weekStart = new Date();
   weekStart.setHours(0, 0, 0, 0);
   weekStart.setDate(weekStart.getDate() - 6);
-  const weekStartStr = weekStart.toISOString();
+  const weekStartStr = sqlTime(weekStart);
 
   // Single query: load all posts from last 7 days
   const allPosts = db.select().from(posts)
     .where(gte(posts.createdAt, weekStartStr))
-    .all();
+    .all().filter(inUserScope(c));
 
   const days: { date: string; published: number; failed: number; drafts: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() - i);
-    const dayStart = d.toISOString();
+    const dayStart = sqlTime(d);
     const nextDay = new Date(d);
     nextDay.setDate(nextDay.getDate() + 1);
-    const dayEnd = nextDay.toISOString();
+    const dayEnd = sqlTime(nextDay);
 
     const dayPosts = allPosts.filter((p) => {
-      const t = p.publishedAt ?? p.createdAt;
+      const t = sqlTime(p.publishedAt ?? p.createdAt);
       return t >= dayStart && t < dayEnd;
     });
 
@@ -79,7 +99,7 @@ statsApi.get('/weekly', async (c) => {
 
 // GET /api/stats/top-channels — most active channels
 statsApi.get('/top-channels', async (c) => {
-  const allChannels = db.select().from(channels).all();
+  const allChannels = db.select().from(channels).all().filter(channelInUserScope(c));
   if (allChannels.length === 0) return c.json([]);
 
   // Single query: load all posts for these channels
@@ -111,13 +131,13 @@ statsApi.get('/top-channels', async (c) => {
 statsApi.get('/moderation', async (c) => {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const since = weekAgo.toISOString();
+  const since = sqlTime(weekAgo);
 
   const logs = db.select().from(activityLog)
     .where(and(
       gte(activityLog.createdAt, since),
       sql`${activityLog.action} LIKE 'mod.%'`
-    )).all();
+    )).all().filter((l) => { const scope = accessScope((c as any).get('user')); return !scope || (l.botId !== null && scope.botIds.includes(l.botId)); });
 
   const deleted = logs.filter((l) => l.action === 'mod.deleted').length;
   const muted = logs.filter((l) => l.action === 'mod.muted').length;
@@ -154,7 +174,7 @@ function getChatMessages(chatId: string, period: string, threadId?: string) {
   if (days) {
     const d = new Date();
     d.setDate(d.getDate() - days);
-    since = d.toISOString();
+    since = sqlTime(d);
   }
 
   const msgs = db.select().from(messageStats)
@@ -211,10 +231,10 @@ statsApi.get('/chat/:chatId/activity', async (c) => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() - i);
-    const dayStart = d.toISOString();
+    const dayStart = sqlTime(d);
     const nextDay = new Date(d);
     nextDay.setDate(nextDay.getDate() + 1);
-    const dayEnd = nextDay.toISOString();
+    const dayEnd = sqlTime(nextDay);
 
     result.push({ date: dayStart.slice(0, 10), count: allMsgs.filter(m => m.createdAt >= dayStart && m.createdAt < dayEnd).length });
   }
@@ -254,7 +274,7 @@ statsApi.get('/chat/:chatId/summary', async (c) => {
   for (const [key, days] of Object.entries(periods)) {
     const since = new Date(now);
     since.setDate(since.getDate() - days);
-    const sinceStr = since.toISOString();
+    const sinceStr = sqlTime(since);
     const msgs = allMsgs.filter(m => m.createdAt >= sinceStr);
     data[key] = { messages: msgs.length, users: new Set(msgs.map(m => m.userId)).size, avgPerDay: Math.round(msgs.length / days) };
   }
@@ -358,7 +378,7 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
   doublePeriodStart.setDate(doublePeriodStart.getDate() - days * 2);
   const allMsgs = filterByThread(
     db.select().from(messageStats)
-      .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, doublePeriodStart.toISOString())))
+      .where(and(eq(messageStats.chatId, chatId), gte(messageStats.createdAt, sqlTime(doublePeriodStart))))
       .all()
       .filter(m => m.messageType !== 'reaction'),
     threadId
@@ -366,7 +386,7 @@ statsApi.get('/chat/:chatId/engagement', async (c) => {
 
   const periodStart = new Date();
   periodStart.setDate(periodStart.getDate() - days);
-  const periodStartStr = periodStart.toISOString();
+  const periodStartStr = sqlTime(periodStart);
 
   const currentMsgs = allMsgs.filter(m => m.createdAt >= periodStartStr);
   const prevMsgs = allMsgs.filter(m => m.createdAt < periodStartStr);
@@ -444,7 +464,7 @@ statsApi.get('/chat/:chatId/user/:userId', async (c) => {
   const activity: Record<string, number> = {};
   const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   for (const m of msgs) {
-    if (m.createdAt >= thirtyDaysAgo.toISOString()) {
+    if (m.createdAt >= sqlTime(thirtyDaysAgo)) {
       const day = m.createdAt.slice(0, 10);
       activity[day] = (activity[day] ?? 0) + 1;
     }
@@ -532,7 +552,7 @@ statsApi.patch('/chat/:chatId/threads/:threadId', async (c) => {
 // GET /api/stats/chats — list chats with stats
 statsApi.get('/chats', async (c) => {
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString();
+  const weekAgoStr = sqlTime(weekAgo);
 
   // Load only recent messages instead of ALL messageStats
   const recentMsgs = db.select().from(messageStats)
@@ -544,7 +564,8 @@ statsApi.get('/chats', async (c) => {
     .from(messageStats)
     .groupBy(messageStats.chatId)
     .all()
-    .map(r => r.chatId);
+    .map(r => r.chatId)
+    .filter(chatId => canAccessChat((c as any).get('user'), chatId));
 
   const allChannels = db.select().from(channels).all();
 
@@ -582,6 +603,7 @@ statsApi.get('/posts/top', async (c) => {
   const topPosts = db.select().from(posts)
     .where(and(...conditions))
     .all()
+    .filter(inUserScope(c))
     .filter(p => (p.reactionCount ?? 0) > 0)
     .sort((a, b) => (b.reactionCount ?? 0) - (a.reactionCount ?? 0))
     .slice(0, limit);
@@ -610,7 +632,7 @@ statsApi.get('/posts/best-time', async (c) => {
   const conditions = [eq(posts.status, 'published')];
   if (channelId) conditions.push(eq(posts.channelId, Number(channelId)));
 
-  const published = db.select().from(posts).where(and(...conditions)).all().filter(p => p.publishedAt);
+  const published = db.select().from(posts).where(and(...conditions)).all().filter(inUserScope(c)).filter(p => p.publishedAt);
 
   const hourData: Record<number, { posts: number; reactions: number }> = {};
   for (const p of published) {

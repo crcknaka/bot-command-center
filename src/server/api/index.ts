@@ -18,11 +18,12 @@ import { activityApi } from './activity.js';
 import { usersApi } from './users.js';
 import { templatesApi } from './templates.js';
 import { pollsApi } from './polls.js';
+import { uploadsApi, uploadsPublic } from './uploads.js';
 
 export const api = new Hono();
 
 // Middleware
-api.use('*', cors({ origin: env.CORS_ORIGIN, credentials: true }));
+if (env.CORS_ORIGIN) api.use('*', cors({ origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()), credentials: true }));
 api.use('*', logger());
 
 // Health check
@@ -44,6 +45,8 @@ api.route('/api/activity', activityApi);
 api.route('/api/users', usersApi);
 api.route('/api/templates', templatesApi);
 api.route('/api/polls', pollsApi);
+api.route('/api/uploads', uploadsApi);
+api.route('/uploads', uploadsPublic);
 
 // 404 fallback for API
 api.all('/api/*', (c) => {

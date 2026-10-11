@@ -83,6 +83,26 @@ export function PostsPage() {
     onError: (err) => toast.error((err as Error).message),
   });
 
+  const editPublishedMut = useMutation({
+    mutationFn: ({ id, content }: { id: number; content: string }) =>
+      apiFetch(`/posts/${id}/edit-published`, { method: 'POST', body: JSON.stringify({ content }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); toast.success('Пост в канале изменён'); setEditPost(null); },
+    onError: (err) => toast.error((err as Error).message),
+  });
+
+  const unpublishMut = useMutation({
+    mutationFn: (post: any) => apiFetch(`/posts/${post.id}?telegram=1`, { method: 'DELETE' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); toast.success('Пост удалён из канала'); },
+    // Telegram refused (bot stopped, no rights): offer to drop the post from the panel only
+    onError: (err, post) => confirm({
+      title: 'Не удалось удалить из Telegram',
+      message: `${(err as Error).message}. Убрать пост только из панели? В канале он останется.`,
+      confirmLabel: 'Убрать из панели',
+      variant: 'warning',
+      onConfirm: () => deleteMut.mutate(post.id),
+    }),
+  });
+
   const [bulkError, setBulkError] = useState('');
   const bulkMut = useMutation({
     mutationFn: (data: { ids: number[]; action: string }) =>
@@ -384,7 +404,7 @@ export function PostsPage() {
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => { setEditPost(post); setEditContent(post.content); setEditImageUrl(post.imageUrl ?? null); }} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors">
-                    <Eye size={12} /> {post.status === 'published' ? 'Просмотр' : 'Просмотр / Редактировать'}
+                    <Eye size={12} /> {post.status === 'published' ? 'Просмотр / Изменить' : 'Просмотр / Редактировать'}
                   </button>
                   <div className="relative">
                     <button onClick={() => setExportPostId(exportPostId === post.id ? null : post.id)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 flex items-center gap-1 transition-colors" title="Экспортировать текст для другой платформы">
@@ -425,7 +445,9 @@ export function PostsPage() {
                       <RefreshCw size={12} /> Повторить
                     </button>
                   )}
-                  <button onClick={() => confirm({ title: 'Удалить пост?', message: post.status === 'published' ? 'Пост будет удалён из системы. Если он ещё в канале — удалите его там вручную.' : 'Пост будет удалён безвозвратно.', onConfirm: () => deleteMut.mutate(post.id) })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors ml-auto">
+                  <button onClick={() => post.status === 'published' && post.telegramMessageId
+                    ? confirm({ title: 'Удалить пост из канала?', message: 'Пост исчезнет из Telegram и из панели. Вернуть его будет нельзя.', confirmLabel: 'Удалить из канала', onConfirm: () => unpublishMut.mutate(post) })
+                    : confirm({ title: 'Удалить пост?', message: 'Пост будет удалён безвозвратно.', onConfirm: () => deleteMut.mutate(post.id) })} className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-1 transition-colors ml-auto">
                       <Trash2 size={12} /> Удалить
                     </button>
                 </div>
@@ -460,7 +482,7 @@ export function PostsPage() {
               <div className="lg:w-[340px] shrink-0">
                 <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Telegram превью:</div>
                 <TelegramPreview
-                  content={editPost.status === 'published' ? editPost.content : editContent}
+                  content={editContent}
                   imageUrl={editPost.status === 'published' ? editPost.imageUrl : (editImageUrl || undefined)}
                   channelTitle={channelMap[editPost.channelId]?.channelTitle}
                 />
@@ -470,8 +492,28 @@ export function PostsPage() {
               <div className="flex-1 min-w-0">
                 {editPost.status === 'published' ? (
                   <div>
-                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>HTML-код:</div>
-                    <pre className="w-full px-3 py-2 rounded-lg border text-xs font-mono whitespace-pre-wrap break-all" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>{editPost.content}</pre>
+                    <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Текст в канале (HTML):</div>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      rows={12}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono"
+                      style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+                    />
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                      Пост уже в Telegram. Изменение текста сразу поправит его в канале; картинку заменить нельзя.
+                    </p>
+                    <div className="flex gap-3 justify-end mt-4 flex-wrap">
+                      <button onClick={() => setEditPost(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Закрыть</button>
+                      <button
+                        onClick={() => editPublishedMut.mutate({ id: editPost.id, content: editContent })}
+                        disabled={editPublishedMut.isPending || editContent === editPost.content || !editContent.trim()}
+                        className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                        style={{ background: 'var(--primary)' }}
+                      >
+                        Изменить в Telegram
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -512,8 +554,9 @@ export function PostsPage() {
                               message: `Пост будет ${hasChanges ? 'сохранён и ' : ''}отправлен в «${channelName}» прямо сейчас.`,
                               confirmLabel: 'Опубликовать',
                               variant: 'warning',
-                              onConfirm: () => {
-                                if (hasChanges) updateMut.mutate({ id: editPost.id, content: editContent, imageUrl: editImageUrl ?? undefined } as any);
+                              onConfirm: async () => {
+                                // Edits must be saved before the send starts, or the old text goes out
+                                if (hasChanges) await updateMut.mutateAsync({ id: editPost.id, content: editContent, imageUrl: editImageUrl } as any);
                                 publishMut.mutate(editPost.id, {
                                   onSuccess: () => { toast.success('Опубликовано!'); setEditPost(null); },
                                   onError: (err) => toast.error(`Ошибка: ${(err as Error).message}`),

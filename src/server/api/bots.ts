@@ -6,10 +6,15 @@ import { requireAuth } from '../auth/middleware.js';
 import { botManager } from '../bot/manager.js';
 import { Bot } from 'grammy';
 import { logActivity } from '../services/activity.js';
+import { requireAccess, canAccessBot } from './helpers.js';
+import { invalidateAdminCache } from '../tasks/moderation/index.js';
+import { listClosedTopics, closeTopic, reopenTopic } from '../services/topics.js';
 
 const botsApi = new Hono();
 
 botsApi.use('*', requireAuth);
+botsApi.use('/:id', requireAccess('id', canAccessBot));
+botsApi.use('/:id/*', requireAccess('id', canAccessBot));
 
 /** Check if user owns this bot */
 function checkBotAccess(user: any, botId: number): boolean {
@@ -101,7 +106,14 @@ botsApi.patch('/:id', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const updated = db.update(bots)
-    .set({ ...body, updatedAt: new Date().toISOString() })
+    .set({
+      // Explicit field list: the request must not reach columns like token or ownerId
+      name: body.name, aiProviderId: body.aiProviderId, searchProviderId: body.searchProviderId,
+      systemPrompt: body.systemPrompt, postLanguage: body.postLanguage, maxPostsPerDay: body.maxPostsPerDay,
+      minPostIntervalMinutes: body.minPostIntervalMinutes, maxPostLength: body.maxPostLength,
+      postSignature: body.postSignature, autoPin: body.autoPin, autoDeleteHours: body.autoDeleteHours,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(bots.id, id))
     .returning().get();
 
@@ -384,7 +396,7 @@ botsApi.post('/:id/moderate', async (c) => {
   const { chatId, userId, action, duration } = await c.req.json<{
     chatId: string;
     userId: number;
-    action: 'mute' | 'ban' | 'unban' | 'unmute' | 'restrict_media' | 'restrict_links';
+    action: 'mute' | 'ban' | 'unban' | 'unmute' | 'restrict_media' | 'restrict_links' | 'promote' | 'demote';
     duration?: number; // minutes (0 = forever)
   }>();
 
@@ -444,6 +456,23 @@ botsApi.post('/:id/moderate', async (c) => {
       case 'restrict_media':
         await botInstance.api.restrictChatMember(numChatId, userId, { permissions: noMedia, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
+      case 'promote':
+        // Moderator rights: delete, restrict, pin, invite. The bot needs "add new admins" itself.
+        await botInstance.api.promoteChatMember(numChatId, userId, {
+          can_delete_messages: true, can_restrict_members: true, can_pin_messages: true,
+          can_invite_users: true, can_manage_video_chats: true, can_manage_topics: true,
+        } as any);
+        invalidateAdminCache(Number(numChatId));
+        break;
+      case 'demote':
+        // All rights off removes the admin status. Works only for admins this bot appointed.
+        await botInstance.api.promoteChatMember(numChatId, userId, {
+          can_manage_chat: false, can_delete_messages: false, can_restrict_members: false, can_pin_messages: false,
+          can_invite_users: false, can_manage_video_chats: false, can_manage_topics: false, can_promote_members: false,
+          can_change_info: false,
+        } as any);
+        invalidateAdminCache(Number(numChatId));
+        break;
       case 'restrict_links':
         await botInstance.api.restrictChatMember(numChatId, userId, { permissions: noLinks, until_date: untilDate || undefined, use_independent_chat_permissions: true } as any);
         break;
@@ -452,8 +481,64 @@ botsApi.post('/:id/moderate', async (c) => {
     const chatChannel = db.select().from(channels).where(eq(channels.chatId, String(chatId))).limit(1).get();
     logActivity({ userId: user.id, botId: id, action: `mod.${action}`, details: { targetUserId: userId, chatId, chatTitle: chatChannel?.title ?? chatId, duration, action } });
     // Return expected new status so client can update immediately
-    const newStatus = action === 'ban' ? 'kicked' : action === 'unban' || action === 'unmute' ? 'member' : action === 'mute' ? 'restricted' : 'restricted';
+    const newStatus = action === 'promote' ? 'administrator' : action === 'demote' ? 'member' : action === 'ban' ? 'kicked' : action === 'unban' || action === 'unmute' ? 'member' : action === 'mute' ? 'restricted' : 'restricted';
     return c.json({ ok: true, newStatus });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /api/bots/:id/admins?chatId= — current admins of a chat, straight from Telegram
+botsApi.get('/:id/admins', async (c) => {
+  const chatId = c.req.query('chatId');
+  if (!chatId) return c.json({ error: 'chatId required' }, 400);
+  const botInstance = botManager.getBotInstance(Number(c.req.param('id')));
+  if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
+  try {
+    const admins = await botInstance.api.getChatAdministrators(/^-?\d+$/.test(chatId) ? Number(chatId) : chatId);
+    return c.json(admins.map((a) => ({
+      userId: a.user.id,
+      userName: a.user.first_name,
+      username: a.user.username ?? null,
+      isBot: a.user.is_bot,
+      status: a.status, // 'creator' | 'administrator'
+      title: (a as any).custom_title ?? null,
+      // Telegram lets a bot demote only the admins it appointed itself
+      canBeDemoted: a.status === 'administrator' && (a as any).can_be_edited === true,
+    })));
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /api/bots/:id/topics/closed?chatId= — topics currently closed from the panel
+botsApi.get('/:id/topics/closed', async (c) => {
+  const chatId = c.req.query('chatId');
+  if (!chatId) return c.json({ error: 'chatId required' }, 400);
+  return c.json(listClosedTopics(Number(c.req.param('id')), chatId));
+});
+
+// POST /api/bots/:id/topics/close — close a forum topic, optionally for a limited time
+botsApi.post('/:id/topics/close', async (c) => {
+  const { chatId, threadId, minutes, includeAdmins } = await c.req.json<{ chatId: string; threadId: number | null; minutes?: number; includeAdmins?: boolean }>();
+  if (!chatId) return c.json({ error: 'chatId required' }, 400);
+  try {
+    const result = await closeTopic(Number(c.req.param('id')), String(chatId), threadId ?? null, {
+      minutes: Math.max(0, Number(minutes) || 0), includeAdmins: !!includeAdmins, userId: (c as any).get('user').id,
+    });
+    return c.json({ ok: true, ...result });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// POST /api/bots/:id/topics/reopen
+botsApi.post('/:id/topics/reopen', async (c) => {
+  const { chatId, threadId } = await c.req.json<{ chatId: string; threadId: number | null }>();
+  if (!chatId) return c.json({ error: 'chatId required' }, 400);
+  try {
+    await reopenTopic(Number(c.req.param('id')), String(chatId), threadId ?? null, (c as any).get('user').id);
+    return c.json({ ok: true });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
   }
@@ -472,7 +557,7 @@ botsApi.post('/:id/send', async (c) => {
   if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
 
   const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
-  if (!channel) return c.json({ error: 'Канал не найден' }, 404);
+  if (!channel || channel.botId !== id) return c.json({ error: 'Канал не найден' }, 404);
 
   try {
     let messageId: number;

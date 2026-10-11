@@ -9,6 +9,8 @@
     "dev": "npx concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "build:client": "vite build",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "start": "node dist/server/index.js"
   },
   "keywords": [

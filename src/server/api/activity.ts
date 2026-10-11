@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { activityLog, users, bots } from '../db/schema.js';
 import { desc, eq, like, gte, and, or, sql, SQL } from 'drizzle-orm';
 import { requireAuth, requireSuperadmin } from '../auth/middleware.js';
+import { sqlTime } from '../db/time.js';
 
 const activityApi = new Hono();
 activityApi.use('*', requireAuth);
@@ -33,13 +34,13 @@ activityApi.get('/', async (c) => {
   // Filter by period
   if (period === 'today') {
     const start = new Date(); start.setHours(0, 0, 0, 0);
-    conditions.push(gte(activityLog.createdAt, start.toISOString()));
+    conditions.push(gte(activityLog.createdAt, sqlTime(start)));
   } else if (period === 'week') {
     const start = new Date(); start.setDate(start.getDate() - 7);
-    conditions.push(gte(activityLog.createdAt, start.toISOString()));
+    conditions.push(gte(activityLog.createdAt, sqlTime(start)));
   } else if (period === 'month') {
     const start = new Date(); start.setDate(start.getDate() - 30);
-    conditions.push(gte(activityLog.createdAt, start.toISOString()));
+    conditions.push(gte(activityLog.createdAt, sqlTime(start)));
   }
 
   // Text search in details JSON

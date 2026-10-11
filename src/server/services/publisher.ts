@@ -1,21 +1,9 @@
 import { db } from '../db/client.js';
-import { logActivity } from './activity.js';
-
-/** Sanitize HTML for Telegram — only allow supported tags */
-function sanitizeForTelegram(html: string): string {
-  let clean = html.replace(/<\/?(?!b|i|u|s|a|code|pre|\/b|\/i|\/u|\/s|\/a|\/code|\/pre)[^>]*>/gi, '');
-  const allowed = ['b', 'i', 'u', 's', 'code', 'pre'];
-  for (const tag of allowed) {
-    const opens = (clean.match(new RegExp(`<${tag}[^>]*>`, 'gi')) || []).length;
-    const closes = (clean.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
-    for (let i = 0; i < opens - closes; i++) clean += `</${tag}>`;
-  }
-  return clean;
-}
 import { posts, channels, bots } from '../db/schema.js';
 import { eq, and, lte, or, isNull, desc } from 'drizzle-orm';
 import { botManager } from '../bot/manager.js';
 import { scheduler } from './scheduler.js';
+import { sendClaimedPost } from './publish.js';
 
 /**
  * Delete posts whose deleteAt has passed.
@@ -63,6 +51,8 @@ async function publishPendingPosts() {
     .returning()
     .all();
 
+  const requeue = (id: number) => db.update(posts).set({ status: 'queued' }).where(eq(posts.id, id)).run();
+
   for (const post of ready) {
     const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
     if (!channel) {
@@ -70,14 +60,19 @@ async function publishPendingPosts() {
       continue;
     }
 
-    const botInstance = botManager.getBotInstance(channel.botId);
-    if (!botInstance) {
-      db.update(posts).set({ status: 'failed', errorMessage: 'Bot not running', updatedAt: new Date().toISOString() }).where(eq(posts.id, post.id)).run();
+    const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+
+    if (!botManager.getBotInstance(channel.botId)) {
+      if (bot?.status === 'active' || botManager.isStarting(channel.botId)) {
+        // The bot is mid-restart (task or rule change) — try again next minute
+        requeue(post.id);
+      } else {
+        db.update(posts).set({ status: 'failed', errorMessage: 'Бот остановлен', updatedAt: new Date().toISOString() }).where(eq(posts.id, post.id)).run();
+      }
       continue;
     }
 
     // Check min interval between posts
-    const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
     const minInterval = bot?.minPostIntervalMinutes ?? 60;
     const lastPublished = db.select().from(posts)
       .where(and(eq(posts.channelId, post.channelId), eq(posts.status, 'published')))
@@ -87,87 +82,30 @@ async function publishPendingPosts() {
       const elapsed = (Date.now() - new Date(lastPublished.publishedAt).getTime()) / 60000;
       if (elapsed < minInterval) {
         // Too soon — reset to queued so it's retried next cycle
-        db.update(posts).set({ status: 'queued' }).where(eq(posts.id, post.id)).run();
+        requeue(post.id);
         continue;
       }
     }
 
-    try {
-      // Build content with signature, sanitize for Telegram
-      let content = sanitizeForTelegram(post.content);
-      if (bot?.postSignature) {
-        content += '\n\n' + bot.postSignature;
-      }
-
-      // Build inline keyboard
-      let reply_markup: any = undefined;
-      const buttons = post.inlineButtons as Array<{ text: string; url: string }> | null;
-      if (buttons?.length) {
-        reply_markup = { inline_keyboard: [buttons.map((b) => ({ text: b.text, url: b.url }))] };
-      }
-
-      // Common send options
-      const sendOpts: any = {
-        parse_mode: 'HTML' as const,
-        message_thread_id: channel.threadId ?? undefined,
-        reply_markup,
-      };
-
-      let messageId: number;
-
-      if (post.imageUrl) {
-        try {
-          const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, {
-            caption: content,
-            ...sendOpts,
-          });
-          messageId = msg.message_id;
-        } catch (photoErr) {
-          // Fallback: send as text without image if photo URL is broken
-          console.error(`[publisher] sendPhoto failed for post #${post.id}, sending as text: ${(photoErr as Error).message}`);
-          const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
-          messageId = msg.message_id;
-        }
-      } else {
-        const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
-        messageId = msg.message_id;
-      }
-
-      // Calculate deleteAt if auto-delete is configured
-      let deleteAt: string | null = null;
-      if (bot?.autoDeleteHours && bot.autoDeleteHours > 0) {
-        deleteAt = new Date(Date.now() + bot.autoDeleteHours * 3600 * 1000).toISOString();
-      }
-
-      db.update(posts).set({
-        status: 'published',
-        publishedAt: new Date().toISOString(),
-        telegramMessageId: messageId,
-        deleteAt,
-        updatedAt: new Date().toISOString(),
-      }).where(eq(posts.id, post.id)).run();
-
-      // Auto-pin
-      if (bot?.autoPin) {
-        try { await botInstance.api.pinChatMessage(channel.chatId, messageId); } catch (e) {
-          console.error(`[publisher] Failed to pin post #${post.id}:`, e);
-        }
-      }
-
-      logActivity({ botId: channel.botId, action: 'post.published', details: { postId: post.id, channelTitle: channel.title } });
-      console.log(`📨 Published post #${post.id} to channel ${channel.title}`);
-    } catch (err) {
-      const errorMsg = (err as Error).message;
-      db.update(posts).set({
-        status: 'failed',
-        errorMessage: errorMsg,
-        updatedAt: new Date().toISOString(),
-      }).where(eq(posts.id, post.id)).run();
-
-      logActivity({ botId: channel.botId, action: 'post.failed', details: { postId: post.id, channelTitle: channel.title, error: errorMsg } });
-      console.error(`❌ Failed to publish post #${post.id}:`, errorMsg);
-    }
+    // Failures are recorded on the post by sendClaimedPost
+    await sendClaimedPost(post).catch(() => {});
   }
+}
+
+/**
+ * Posts left in 'publishing' by a restart: the send may or may not have reached Telegram,
+ * so they are not retried automatically — a duplicate in the channel is worse than a manual check.
+ */
+export function recoverInterruptedPosts() {
+  const stuck = db.update(posts)
+    .set({
+      status: 'failed',
+      errorMessage: 'Сервер перезапустился во время отправки. Проверьте канал: пост мог уже выйти.',
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(posts.status, 'publishing'))
+    .run();
+  if (stuck.changes > 0) console.log(`⚠️  ${stuck.changes} post(s) were interrupted mid-publish and marked as failed`);
 }
 
 /**

@@ -1,5 +1,8 @@
 import type { TaskModule, TaskContext, TaskConfig, TaskRunLog } from '../types.js';
 import { logActivity } from '../../services/activity.js';
+import { db } from '../../db/client.js';
+import { channels } from '../../db/schema.js';
+import { eq } from 'drizzle-orm';
 
 interface ViolationWarn {
   enabled: boolean;
@@ -23,6 +26,8 @@ interface ModerationConfig {
   stickersWarn?: ViolationWarn;
   blockVoice?: boolean;
   voiceWarn?: ViolationWarn;
+  blockVideoNotes?: boolean; // unset = follows blockVoice (legacy: one switch for both)
+  videoNotesWarn?: ViolationWarn;
   minMessageLength?: number;
   shortMsgWarn?: ViolationWarn;
   // Warnings behavior
@@ -39,6 +44,11 @@ interface ModerationConfig {
   // Mute
   muteOnViolation?: boolean;
   muteDurationMinutes?: number;
+  // Scope and exemptions
+  chatIds?: string[]; // groups the rules apply to (empty = every group of the bot)
+  exemptAdmins?: boolean; // skip chat admins (default true)
+  trustedUserIds?: number[]; // users the rules never apply to
+  trustedUsers?: Array<{ id: number; name: string }>; // display names for trustedUserIds
   // Legacy fields (backward compat)
   warnText?: string;
   floodWarnText?: string;
@@ -53,6 +63,7 @@ const DEFAULTS_DELETE: Record<string, string> = {
   forwards: '🚫 {user}, пересланное сообщение удалено.',
   stickers: '🚫 {user}, стикер удалён — стикеры и GIF запрещены.',
   voice: '🚫 {user}, голосовое сообщение удалено.',
+  videoNotes: '🚫 {user}, видео-кружок удалён.',
 };
 
 const DEFAULTS_WARN: Record<string, string> = {
@@ -63,6 +74,7 @@ const DEFAULTS_WARN: Record<string, string> = {
   forwards: '🚫 {user}, пересланные сообщения не приветствуются.',
   stickers: '🚫 {user}, стикеры и GIF запрещены в этом чате.',
   voice: '🚫 {user}, голосовые сообщения запрещены в этом чате.',
+  videoNotes: '🚫 {user}, видео-кружки запрещены в этом чате.',
 };
 
 /** Build a mention link for the user */
@@ -192,24 +204,67 @@ async function muteUser(api: any, chatId: number, userId: number, minutes: numbe
   await api.restrictChatMember(chatId, userId, { permissions: { can_send_messages: false, can_send_other_messages: false, can_add_web_page_previews: false }, until_date: until });
 }
 
+const ADMIN_CACHE_MS = 5 * 60_000;
+const adminCache = new Map<number, { ids: Set<number>; at: number }>();
+
+/** Chat admins, cached so moderation does not call Telegram on every message */
+async function isChatAdmin(api: any, chatId: number, userId: number): Promise<boolean> {
+  const cached = adminCache.get(chatId);
+  if (cached && Date.now() - cached.at < ADMIN_CACHE_MS) return cached.ids.has(userId);
+  try {
+    const admins = await api.getChatAdministrators(chatId);
+    const ids = new Set<number>(admins.map((a: any) => a.user.id));
+    adminCache.set(chatId, { ids, at: Date.now() });
+    return ids.has(userId);
+  } catch (e) {
+    console.error('[moderation] admin list error:', e);
+    // Keep the stale list if there is one; otherwise treat the author as a regular member
+    return cached?.ids.has(userId) ?? false;
+  }
+}
+
+/** Forget cached admins of a chat (after promoting or demoting someone) */
+export function invalidateAdminCache(chatId: number) {
+  adminCache.delete(chatId);
+}
+
 export class ModerationTask implements TaskModule {
   readonly type = 'moderation';
 
   onInit(ctx: TaskContext): void {
-    const config = ctx.config as unknown as ModerationConfig;
     if (!ctx.bot) return;
 
+    // Live view of the task config: the bot manager swaps ctx.config when rules change,
+    // so handlers always read current values without a bot restart.
+    const config = new Proxy({}, { get: (_t, key) => (ctx.config as any)?.[key] }) as ModerationConfig;
+
     // Resolve bot and channel info for logging
-    const { channels: channelsTable, bots: botsTable } = require('../../db/schema.js');
-    const { db } = require('../../db/client.js');
-    const { eq } = require('drizzle-orm');
-    const channelRow = db.select().from(channelsTable).where(eq(channelsTable.id, ctx.channelId)).limit(1).get();
+    const channelRow = db.select().from(channels).where(eq(channels.id, ctx.channelId)).limit(1).get();
     const botId = channelRow?.botId ?? null;
     const chatTitle = channelRow?.title ?? ctx.chatId;
 
-    const deleteSec = config.warnDeleteSeconds ?? 10;
+    /** Whether the rules apply to this message: task on, chat in scope, author not exempt */
+    const applies = async (msgCtx: any): Promise<boolean> => {
+      if (ctx.enabled === false) return false;
+      const chat = msgCtx.chat;
+      const msg = msgCtx.message;
+      if (!chat || chat.type === 'private' || !msg) return false;
+      if (config.chatIds?.length && !config.chatIds.includes(String(chat.id))) return false;
+      // Channel posts mirrored into the linked discussion group are not user messages
+      if (msg.is_automatic_forward) return false;
+      const from = msgCtx.from;
+      if (!from) return false;
+      if (config.trustedUserIds?.includes(from.id)) return false;
+      if (config.exemptAdmins !== false) {
+        // Anonymous admins post on behalf of the chat itself
+        if (msg.sender_chat?.id === chat.id) return false;
+        if (await isChatAdmin(msgCtx.api, chat.id, from.id)) return false;
+      }
+      return true;
+    };
+
     const warn = async (msgCtx: any, text: string | null) => {
-      await sendWarn(msgCtx, text, deleteSec);
+      await sendWarn(msgCtx, text, config.warnDeleteSeconds ?? 10);
       if (text) logMod('warned', msgCtx, 'warning_sent');
     };
 
@@ -281,6 +336,8 @@ export class ModerationTask implements TaskModule {
 
     // Text message moderation (call next() to let other handlers run)
     ctx.bot.on('message:text', async (msgCtx, next) => {
+      if (!(await applies(msgCtx))) return next();
+
       const text = msgCtx.message.text;
       const userId = msgCtx.from?.id;
       const chatId = msgCtx.chat.id;
@@ -352,57 +409,34 @@ export class ModerationTask implements TaskModule {
       await next();
     });
 
-    // Block forwards (non-text, e.g. forwarded photos)
-    if (config.blockForwards) {
-      ctx.bot.on('message:forward_origin', async (msgCtx, next) => {
-        try {
-          await msgCtx.deleteMessage();
-          logMod('deleted', msgCtx, 'forward');
-          await warn(msgCtx, pickWarn(config.forwardsWarn, 'forwards', msgCtx.from, true));
-        } catch (e) { console.error('[moderation] forward error:', e); }
+    /** Register a media filter: deletes the message while its rule is switched on */
+    const blockMedia = (
+      filter: 'message:forward_origin' | 'message:sticker' | 'message:animation' | 'message:voice' | 'message:video_note',
+      reason: string,
+      rule: () => { on: boolean | undefined; warn: ViolationWarn | undefined; warnKey: string },
+    ) => {
+      ctx.bot.on(filter, async (msgCtx, next) => {
+        const { on, warn: warnConfig, warnKey } = rule();
+        if (on && await applies(msgCtx)) {
+          try {
+            await msgCtx.deleteMessage();
+            logMod('deleted', msgCtx, reason);
+            await warn(msgCtx, pickWarn(warnConfig, warnKey, msgCtx.from, true));
+          } catch (e) { console.error(`[moderation] ${reason} error:`, e); }
+        }
         await next();
       });
-    }
+    };
 
-    // Block stickers
-    if (config.blockStickers) {
-      ctx.bot.on('message:sticker', async (msgCtx, next) => {
-        try {
-          await msgCtx.deleteMessage();
-          logMod('deleted', msgCtx, 'sticker');
-          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from, true));
-        } catch (e) { console.error('[moderation] sticker error:', e); }
-        await next();
-      });
-      ctx.bot.on('message:animation', async (msgCtx, next) => {
-        try {
-          await msgCtx.deleteMessage();
-          logMod('deleted', msgCtx, 'animation');
-          await warn(msgCtx, pickWarn(config.stickersWarn, 'stickers', msgCtx.from, true));
-        } catch (e) { console.error('[moderation] animation error:', e); }
-        await next();
-      });
-    }
-
-    // Block voice/video notes
-    if (config.blockVoice) {
-      ctx.bot.on('message:voice', async (msgCtx, next) => {
-        try {
-          await msgCtx.deleteMessage();
-          logMod('deleted', msgCtx, 'voice');
-          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from, true));
-        } catch (e) { console.error('[moderation] voice error:', e); }
-        await next();
-      });
-      ctx.bot.on('message:video_note', async (msgCtx, next) => {
-        try {
-          await msgCtx.deleteMessage();
-          logMod('deleted', msgCtx, 'video_note');
-          await warn(msgCtx, pickWarn(config.voiceWarn, 'voice', msgCtx.from, true));
-        } catch (e) { console.error('[moderation] video_note error:', e); }
-        await next();
-      });
-    }
+    // Forwards without text (e.g. forwarded photos); text forwards are handled above
+    blockMedia('message:forward_origin', 'forward', () => ({ on: config.blockForwards, warn: config.forwardsWarn, warnKey: 'forwards' }));
+    blockMedia('message:sticker', 'sticker', () => ({ on: config.blockStickers, warn: config.stickersWarn, warnKey: 'stickers' }));
+    blockMedia('message:animation', 'animation', () => ({ on: config.blockStickers, warn: config.stickersWarn, warnKey: 'stickers' }));
+    blockMedia('message:voice', 'voice', () => ({ on: config.blockVoice, warn: config.voiceWarn, warnKey: 'voice' }));
+    // Video notes follow the voice switch until they get their own setting
+    blockMedia('message:video_note', 'video_note', () => config.blockVideoNotes === undefined
+      ? { on: config.blockVoice, warn: config.voiceWarn, warnKey: 'voice' }
+      : { on: config.blockVideoNotes, warn: config.videoNotesWarn, warnKey: 'videoNotes' });
   }
 
   async onSchedule(_ctx: TaskContext): Promise<TaskRunLog> {

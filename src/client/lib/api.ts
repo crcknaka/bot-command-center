@@ -47,3 +47,15 @@ export async function apiFetch<T = any>(path: string, options?: RequestInit): Pr
 
   return data as T;
 }
+
+/** Upload an image for a post; returns its URL on this server (/uploads/…) */
+export async function uploadImage(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const token = getToken();
+  // No Content-Type here: the browser sets the multipart boundary itself
+  const res = await fetch(`${BASE}/uploads`, { method: 'POST', body: form, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.url;
+}

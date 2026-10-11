@@ -1,26 +1,38 @@
 import { Bot } from 'grammy';
 import { db } from '../db/client.js';
-import { bots, channels, tasks, messageStats, posts, polls, pollVotes } from '../db/schema.js';
+import { bots, channels, tasks, messageStats, posts, polls, pollVotes, settings } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { scheduler } from '../services/scheduler.js';
 import { getTaskModule } from '../tasks/registry.js';
+import type { TaskContext } from '../tasks/types.js';
 import { sources } from '../db/schema.js';
 import { registerTelegramSourceListener } from '../tasks/news-feed/telegram-source.js';
+import { isSilencedForEveryone } from '../services/topics.js';
 
 interface RunningBot {
   botId: number;
   bot: Bot;
   username: string;
   cronJobIds: string[];
+  /** Contexts of tasks that read their config at message time, by task id */
+  liveTasks: Map<number, TaskContext>;
 }
+
+// Task types whose handlers pick up config and on/off changes without a bot restart
+const LIVE_TASK_TYPES = new Set(['moderation']);
+const AUTOSTART_MIGRATION_KEY = 'migration.botAutostart';
 
 class BotManager {
   private running = new Map<number, RunningBot>();
   private starting = new Set<number>();
 
   async startAll() {
-    // Start all bots (active + stopped) on server startup, skip only error
-    const allBots = db.select().from(bots).all().filter(b => b.status !== 'error');
+    // Only bots that were running come back up; a bot stopped by hand stays stopped.
+    // Older versions marked every bot 'stopped' on shutdown, so the first start after
+    // the upgrade still brings up everything that is not in error.
+    const migrated = db.select().from(settings).where(eq(settings.key, AUTOSTART_MIGRATION_KEY)).limit(1).get();
+    if (!migrated) db.insert(settings).values({ key: AUTOSTART_MIGRATION_KEY, value: '1' }).run();
+    const allBots = db.select().from(bots).all().filter(b => migrated ? b.status === 'active' : b.status !== 'error');
     for (const botRecord of allBots) {
       try {
         await this.startBot(botRecord.id);
@@ -74,6 +86,17 @@ class BotManager {
 
     bot.catch((err) => {
       console.error(`❌ Bot @${me.username} error:`, err.message);
+    });
+
+    // ── Topics silenced for everyone, admins included ───────────────────
+    // Telegram cannot restrict admins, so while such a silence lasts the bot removes every message.
+    bot.on('message', async (ctx, next) => {
+      const msg = ctx.message;
+      const threadId = msg.is_topic_message ? msg.message_thread_id ?? null : null;
+      if (ctx.from?.is_bot || msg.is_automatic_forward || !isSilencedForEveryone(botId, ctx.chat.id, threadId)) return next();
+      try {
+        await ctx.deleteMessage();
+      } catch (e) { console.error('[topics] silence delete error:', (e as Error).message); }
     });
 
     // ── Message stats middleware (before task handlers) ──────────────────
@@ -161,9 +184,11 @@ class BotManager {
         // Update post reactions if this message is a published post
         const messageId = reaction.message_id;
         const chatId = String(reaction.chat.id);
+        // Message ids repeat across chats, so match the chat through the post's channel
+        const chatChannelIds = new Set(db.select().from(channels).where(eq(channels.chatId, chatId)).all().map(ch => ch.id));
         const post = db.select().from(posts)
           .where(and(eq(posts.telegramMessageId, messageId), eq(posts.status, 'published')))
-          .limit(1).get();
+          .all().find(p => chatChannelIds.has(p.channelId));
         if (post) {
           const currentReactions: Record<string, number> = (post.reactions as Record<string, number>) ?? {};
           // Decrement old reactions
@@ -235,22 +260,27 @@ class BotManager {
 
     // ── Load channels → tasks → register cron + onInit ──────────────────
     const cronJobIds: string[] = [];
+    const liveTasks = new Map<number, TaskContext>();
     const botChannels = db.select().from(channels).where(eq(channels.botId, botId)).all();
 
     for (const channel of botChannels) {
       const channelTasks = db.select().from(tasks).where(eq(tasks.channelId, channel.id)).all();
 
       for (const task of channelTasks) {
-        if (!task.enabled) continue;
+        const isLive = LIVE_TASK_TYPES.has(task.type);
+        // Live tasks register even when switched off, so they can be switched on without a restart
+        if (!task.enabled && !isLive) continue;
 
         const taskModule = getTaskModule(task.type);
-        const taskCtx = {
+        const taskCtx: TaskContext = {
           taskId: task.id,
           channelId: channel.id,
           chatId: channel.chatId,
           config: task.config as Record<string, unknown>,
           bot,
+          enabled: task.enabled,
         };
+        if (isLive) liveTasks.set(task.id, taskCtx);
 
         // Register event handlers (auto_reply, welcome, moderation)
         try {
@@ -260,7 +290,7 @@ class BotManager {
         }
 
         // Register cron schedule (news_feed)
-        if (task.schedule) {
+        if (task.schedule && task.enabled) {
           const jobId = `task-${task.id}`;
           try {
             scheduler.register(jobId, task.schedule, async () => {
@@ -303,13 +333,17 @@ class BotManager {
       onStart: () => console.log(`🟢 Bot @${me.username} started polling`),
     });
 
-    this.running.set(botId, { botId, bot, username: me.username ?? '', cronJobIds });
+    this.running.set(botId, { botId, bot, username: me.username ?? '', cronJobIds, liveTasks });
 
     const taskCount = cronJobIds.length;
     console.log(`✅ Bot @${me.username} (id: ${botId}) running, ${taskCount} scheduled task(s)`);
   }
 
-  async stopBot(botId: number) {
+  /**
+   * @param persist false keeps the bot marked 'active' in the database (server shutdown, restart),
+   *   so it comes back on the next start; true is a deliberate stop.
+   */
+  async stopBot(botId: number, persist = true) {
     const running = this.running.get(botId);
     if (!running) return;
 
@@ -321,23 +355,42 @@ class BotManager {
     await running.bot.stop();
     this.running.delete(botId);
 
-    db.update(bots)
-      .set({ status: 'stopped', updatedAt: new Date().toISOString() })
-      .where(eq(bots.id, botId))
-      .run();
+    if (persist) {
+      db.update(bots)
+        .set({ status: 'stopped', updatedAt: new Date().toISOString() })
+        .where(eq(bots.id, botId))
+        .run();
+    }
 
     console.log(`🔴 Bot @${running.username} stopped (${running.cronJobIds.length} cron jobs removed)`);
   }
 
   async restartBot(botId: number) {
-    await this.stopBot(botId);
+    await this.stopBot(botId, false);
     await this.startBot(botId);
+  }
+
+  /**
+   * Apply a config or on/off change to a running task without restarting the bot.
+   * Returns false when the task has no live handlers (other task types, bot not running,
+   * task created after the bot started) — the caller then restarts the bot.
+   */
+  updateLiveTask(botId: number, taskId: number, patch: { config?: Record<string, unknown>; enabled?: boolean }): boolean {
+    const ctx = this.running.get(botId)?.liveTasks.get(taskId);
+    if (!ctx) return false;
+    if (patch.config !== undefined) ctx.config = patch.config;
+    if (patch.enabled !== undefined) ctx.enabled = patch.enabled;
+    return true;
   }
 
   async shutdownAll() {
     console.log(`🔴 Shutting down ${this.running.size} bot(s)...`);
-    const promises = Array.from(this.running.keys()).map((id) => this.stopBot(id));
+    const promises = Array.from(this.running.keys()).map((id) => this.stopBot(id, false));
     await Promise.allSettled(promises);
+  }
+
+  isStarting(botId: number): boolean {
+    return this.starting.has(botId);
   }
 
   isRunning(botId: number): boolean {

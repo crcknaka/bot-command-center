@@ -3,10 +3,14 @@ import { db } from '../db/client.js';
 import { channels, bots, tasks, sources } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { requireAccess, canAccessBot, canAccessChannel } from './helpers.js';
 import { Bot } from 'grammy';
 
 const channelsApi = new Hono();
 channelsApi.use('*', requireAuth);
+channelsApi.use('/bots/:botId/channels', requireAccess('botId', canAccessBot));
+channelsApi.use('/channels/:id', requireAccess('id', canAccessChannel));
+channelsApi.use('/channels/:id/*', requireAccess('id', canAccessChannel));
 
 // GET /api/bots/:botId/channels
 channelsApi.get('/bots/:botId/channels', async (c) => {
@@ -69,7 +73,13 @@ channelsApi.post('/bots/:botId/channels', async (c) => {
 // PATCH /api/channels/:id
 channelsApi.patch('/channels/:id', async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json<{ chatId?: string; title?: string; threadId?: number | null; threadTitle?: string | null }>();
+  const input = await c.req.json<{ chatId?: string; title?: string; threadId?: number | null; threadTitle?: string | null }>();
+  // Explicit field list: the request must not reach columns like botId
+  const body: Partial<typeof channels.$inferInsert> = {};
+  if (input.chatId !== undefined) body.chatId = input.chatId;
+  if (input.title !== undefined) body.title = input.title;
+  if (input.threadId !== undefined) body.threadId = input.threadId;
+  if (input.threadTitle !== undefined) body.threadTitle = input.threadTitle;
 
   // If chatId changed, try to resolve new channel info
   if (body.chatId) {
@@ -82,17 +92,17 @@ channelsApi.patch('/channels/:id', async (c) => {
           const chat = await tempBot.api.getChat(body.chatId);
           body.title = ('title' in chat ? chat.title : chat.first_name) ?? body.chatId;
           if (chat.type === 'channel' || chat.type === 'group' || chat.type === 'supergroup') {
-            (body as any).type = chat.type;
+            body.type = chat.type;
           }
-          (body as any).isLinked = true;
+          body.isLinked = true;
         } catch {
-          (body as any).isLinked = false;
+          body.isLinked = false;
         }
       }
     }
   }
 
-  const updated = db.update(channels).set(body as any).where(eq(channels.id, id)).returning().get();
+  const updated = db.update(channels).set(body).where(eq(channels.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
   return c.json(updated);

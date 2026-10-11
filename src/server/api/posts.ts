@@ -3,23 +3,7 @@ import { db } from '../db/client.js';
 import { posts, channels, bots, tasks } from '../db/schema.js';
 import { eq, desc, inArray, and, or } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
-import { botManager } from '../bot/manager.js';
-import { logActivity } from '../services/activity.js';
-
-/** Sanitize HTML for Telegram — only allow supported tags, escape the rest */
-function sanitizeForTelegram(html: string): string {
-  // Strip all tags except Telegram-supported ones
-  let clean = html.replace(/<\/?(?!b|i|u|s|a|code|pre|\/b|\/i|\/u|\/s|\/a|\/code|\/pre)[^>]*>/gi, '');
-  // Fix unclosed tags by stripping them
-  const allowed = ['b', 'i', 'u', 's', 'code', 'pre'];
-  for (const tag of allowed) {
-    const opens = (clean.match(new RegExp(`<${tag}[^>]*>`, 'gi')) || []).length;
-    const closes = (clean.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
-    // Add missing closing tags
-    for (let i = 0; i < opens - closes; i++) clean += `</${tag}>`;
-  }
-  return clean;
-}
+import { publishPostNow, editPublishedPost, deletePublishedMessage, PublishError } from '../services/publish.js';
 
 /** Calculate next available time slot for a channel based on existing scheduled/published posts */
 function calculateNextSlot(channelId: number, taskId?: number | null): string {
@@ -146,7 +130,8 @@ postsApi.post('/', async (c) => {
     content: body.content,
     imageUrl: body.imageUrl,
     scheduledFor: body.scheduledFor,
-    status: (body.status as any) ?? 'draft',
+    // New posts can only be drafts or queued — sending always goes through /publish
+    status: body.status === 'queued' ? 'queued' : 'draft',
   }).returning().get();
 
   return c.json(created, 201);
@@ -163,19 +148,17 @@ postsApi.patch('/:id', async (c) => {
 
   const body = await c.req.json<{
     content?: string;
-    imageUrl?: string;
+    imageUrl?: string | null;
     status?: string;
-    scheduledFor?: string;
+    scheduledFor?: string | null;
     inlineButtons?: Array<{ text: string; url: string }>;
   }>();
 
-  // Status transition validation
+  // Only the transitions a person makes; publishing/published/failed are set by the publisher
   if (body.status && body.status !== existing.status) {
     const allowedTransitions: Record<string, string[]> = {
-      draft: ['queued', 'publishing'],
-      queued: ['publishing', 'failed', 'draft'],
-      publishing: ['published', 'failed'],
-      published: [],
+      draft: ['queued'],
+      queued: ['draft'],
       failed: ['queued', 'draft'],
     };
     const allowed = allowedTransitions[existing.status] ?? [];
@@ -183,14 +166,25 @@ postsApi.patch('/:id', async (c) => {
       return c.json({ error: `Нельзя сменить статус с "${existing.status}" на "${body.status}"` }, 400);
     }
   }
+  if (existing.status === 'published' && body.content !== undefined && body.content !== existing.content) {
+    return c.json({ error: 'Пост уже в канале — меняйте его через «Изменить в Telegram»' }, 400);
+  }
 
   // Normalize scheduledFor timezone — ensure UTC 'Z' suffix
   if (body.scheduledFor && !body.scheduledFor.endsWith('Z')) {
     body.scheduledFor = body.scheduledFor + 'Z';
   }
 
+  // Explicit field list: the body must not reach columns like channelId or telegramMessageId
+  const changes: Partial<typeof posts.$inferInsert> = { updatedAt: new Date().toISOString() };
+  if (body.content !== undefined) changes.content = body.content;
+  if (body.imageUrl !== undefined) changes.imageUrl = body.imageUrl;
+  if (body.status !== undefined) changes.status = body.status as any;
+  if (body.scheduledFor !== undefined) changes.scheduledFor = body.scheduledFor;
+  if (body.inlineButtons !== undefined) changes.inlineButtons = body.inlineButtons;
+
   const updated = db.update(posts)
-    .set({ ...body, updatedAt: new Date().toISOString() } as any)
+    .set(changes)
     .where(eq(posts.id, id))
     .returning().get();
 
@@ -206,8 +200,36 @@ postsApi.delete('/:id', async (c) => {
   if (!post) return c.json({ error: 'Not found' }, 404);
   if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
 
+  // ?telegram=1 also removes the message from the channel
+  if (c.req.query('telegram') === '1') {
+    try {
+      await deletePublishedMessage(post, user.id);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, err instanceof PublishError ? err.status : 500);
+    }
+  }
+
   db.delete(posts).where(eq(posts.id, id)).run();
   return c.json({ ok: true });
+});
+
+// POST /api/posts/:id/edit-published — change the text of a post that is already in the channel
+postsApi.post('/:id/edit-published', async (c) => {
+  const user = (c as any).get('user');
+  const id = Number(c.req.param('id'));
+  const { content } = await c.req.json<{ content: string }>();
+  if (!content?.trim()) return c.json({ error: 'Текст поста не может быть пустым' }, 400);
+
+  const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
+  if (!post) return c.json({ error: 'Not found' }, 404);
+  if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
+
+  try {
+    await editPublishedPost(post, content, user.id);
+    return c.json({ ok: true });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, err instanceof PublishError ? err.status : 500);
+  }
 });
 
 // POST /api/posts/:id/publish
@@ -218,66 +240,12 @@ postsApi.post('/:id/publish', async (c) => {
   const post = db.select().from(posts).where(eq(posts.id, id)).limit(1).get();
   if (!post) return c.json({ error: 'Not found' }, 404);
   if (!checkPostAccess(user, post)) return c.json({ error: 'Forbidden' }, 403);
-  if (post.status === 'published') return c.json({ error: 'Already published' }, 400);
-
-  const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
-  if (!channel) return c.json({ error: 'Channel not found' }, 404);
-
-  const botInstance = botManager.getBotInstance(channel.botId);
-  if (!botInstance) return c.json({ error: 'Bot is not running' }, 400);
-
-  db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
 
   try {
-    // Build content with signature, sanitize for Telegram
-    const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
-    let content = sanitizeForTelegram(post.content);
-    if (bot?.postSignature) content += '\n\n' + bot.postSignature;
-
-    // Inline keyboard
-    let reply_markup: any = undefined;
-    const buttons = post.inlineButtons as Array<{ text: string; url: string }> | null;
-    if (buttons?.length) {
-      reply_markup = { inline_keyboard: [buttons.map((b: any) => ({ text: b.text, url: b.url }))] };
-    }
-
-    const sendOpts: any = { parse_mode: 'HTML' as const, message_thread_id: channel.threadId ?? undefined, reply_markup };
-
-    let messageId: number;
-    if (post.imageUrl) {
-      try {
-        const msg = await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...sendOpts });
-        messageId = msg.message_id;
-      } catch (photoErr) {
-        // Fallback: send as text without image
-        console.error(`[publish] sendPhoto failed, sending as text: ${(photoErr as Error).message}`);
-        const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
-        messageId = msg.message_id;
-      }
-    } else {
-      const msg = await botInstance.api.sendMessage(channel.chatId, content, sendOpts);
-      messageId = msg.message_id;
-    }
-
-    db.update(posts)
-      .set({
-        status: 'published',
-        publishedAt: new Date().toISOString(),
-        telegramMessageId: messageId,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(posts.id, id))
-      .run();
-
-    logActivity({ userId: (c as any).get('user')?.id, botId: channel.botId, action: 'post.published', details: { postId: id, channelTitle: channel.title } });
+    const messageId = await publishPostNow(id, user.id);
     return c.json({ ok: true, messageId });
   } catch (err) {
-    db.update(posts)
-      .set({ status: 'failed', errorMessage: (err as Error).message, updatedAt: new Date().toISOString() })
-      .where(eq(posts.id, id))
-      .run();
-
-    return c.json({ error: (err as Error).message }, 500);
+    return c.json({ error: (err as Error).message }, err instanceof PublishError ? err.status : 500);
   }
 });
 
@@ -331,31 +299,10 @@ postsApi.post('/bulk', async (c) => {
           } else { failed++; }
           break;
 
-        case 'publish': {
-          if (post.status === 'published') { failed++; break; }
-          const channel = db.select().from(channels).where(eq(channels.id, post.channelId)).limit(1).get();
-          if (!channel) { failed++; break; }
-          const botInstance = botManager.getBotInstance(channel.botId);
-          if (!botInstance) { failed++; break; }
-
-          db.update(posts).set({ status: 'publishing' }).where(eq(posts.id, id)).run();
-
-          const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
-          let content = sanitizeForTelegram(post.content);
-          if (bot?.postSignature) content += '\n\n' + bot.postSignature;
-          let reply_markup: any = undefined;
-          const btns = post.inlineButtons as Array<{ text: string; url: string }> | null;
-          if (btns?.length) reply_markup = { inline_keyboard: [btns.map((b: any) => ({ text: b.text, url: b.url }))] };
-          const opts: any = { parse_mode: 'HTML' as const, message_thread_id: channel.threadId ?? undefined, reply_markup };
-
-          const msg = post.imageUrl
-            ? await botInstance.api.sendPhoto(channel.chatId, post.imageUrl, { caption: content, ...opts })
-            : await botInstance.api.sendMessage(channel.chatId, content, opts);
-
-          db.update(posts).set({ status: 'published', publishedAt: new Date().toISOString(), telegramMessageId: msg.message_id, updatedAt: new Date().toISOString() }).where(eq(posts.id, id)).run();
+        case 'publish':
+          await publishPostNow(id, user.id);
           ok++;
           break;
-        }
 
         case 'delete':
           db.delete(posts).where(eq(posts.id, id)).run();

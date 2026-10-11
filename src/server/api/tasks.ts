@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { tasks, sources, channels, bots } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
+import { requireAccess, canAccessBot, canAccessChannel, canAccessTask, canAccessSource } from './helpers.js';
 import { getTaskModule, getAvailableTaskTypes } from '../tasks/registry.js';
 import { fetchAndStore, fetchOnly } from '../tasks/news-feed/fetcher.js';
 import { botManager } from '../bot/manager.js';
@@ -23,6 +24,14 @@ async function restartBotForChannel(channelId: number) {
 
 const tasksApi = new Hono();
 tasksApi.use('*', requireAuth);
+tasksApi.use('/channels/:channelId/tasks', requireAccess('channelId', canAccessChannel));
+tasksApi.use('/tasks/:id', requireAccess('id', canAccessTask));
+tasksApi.use('/tasks/:id/*', requireAccess('id', canAccessTask));
+tasksApi.use('/sources/:id', requireAccess('id', canAccessSource));
+tasksApi.use('/sources/:id/*', requireAccess('id', canAccessSource));
+
+// Task types that write posts into a channel
+const POSTING_TASK_TYPES = new Set(['news_feed', 'web_search']);
 
 // GET /api/task-types — list available task types
 tasksApi.get('/task-types', async (c) => {
@@ -57,7 +66,8 @@ tasksApi.post('/channels/:channelId/tasks', async (c) => {
     channelId,
     name: body.name ?? null,
     type: body.type as any,
-    config: body.config ?? {},
+    // New posting tasks wait for approval unless a mode was chosen explicitly
+    config: POSTING_TASK_TYPES.has(body.type) ? { postMode: 'draft', ...body.config } : body.config ?? {},
     schedule: body.schedule,
     enabled: body.enabled ?? true,
   }).returning().get();
@@ -68,10 +78,12 @@ tasksApi.post('/channels/:channelId/tasks', async (c) => {
 
 // PATCH /api/tasks/:id
 tasksApi.patch('/tasks/:id', async (c) => {
+  const user = (c as any).get('user');
   const id = Number(c.req.param('id'));
   const body = await c.req.json<{
+    name?: string | null;
     config?: Record<string, unknown>;
-    schedule?: string;
+    schedule?: string | null;
     enabled?: boolean;
     channelId?: number; // move task to another channel
   }>();
@@ -79,14 +91,34 @@ tasksApi.patch('/tasks/:id', async (c) => {
   if (body.schedule && !cron.validate(body.schedule)) {
     return c.json({ error: `Неверное cron-выражение: ${body.schedule}` }, 400);
   }
+  if (body.channelId !== undefined && !canAccessChannel(user, body.channelId)) {
+    return c.json({ error: 'Нет доступа' }, 403);
+  }
 
-  // If moving to another channel, restart both old and new bots
-  const oldTask = body.channelId ? db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get() : null;
+  const oldTask = db.select().from(tasks).where(eq(tasks.id, id)).limit(1).get();
+  if (!oldTask) return c.json({ error: 'Not found' }, 404);
 
-  const updated = db.update(tasks).set(body as any).where(eq(tasks.id, id)).returning().get();
+  // Explicit field list: the request must not reach columns like type
+  const changes: Partial<typeof tasks.$inferInsert> = {};
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.config !== undefined) changes.config = body.config;
+  if (body.schedule !== undefined) changes.schedule = body.schedule;
+  if (body.enabled !== undefined) changes.enabled = body.enabled;
+  if (body.channelId !== undefined) changes.channelId = body.channelId;
+  if (Object.keys(changes).length === 0) return c.json(oldTask);
+
+  const updated = db.update(tasks).set(changes).where(eq(tasks.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Not found' }, 404);
 
-  if (oldTask && oldTask.channelId !== updated.channelId) {
+  // Rule and on/off changes of live tasks (moderation) apply to the running bot as is
+  const onlyLiveFields = body.channelId === undefined && body.schedule === undefined;
+  const channel = db.select().from(channels).where(eq(channels.id, updated.channelId)).limit(1).get();
+  if (onlyLiveFields && channel && botManager.updateLiveTask(channel.botId, id, { config: body.config, enabled: body.enabled })) {
+    return c.json(updated);
+  }
+
+  // Everything else needs the bot to re-register its handlers and cron jobs
+  if (oldTask.channelId !== updated.channelId) {
     await restartBotForChannel(oldTask.channelId);
   }
   await restartBotForChannel(updated.channelId);
@@ -391,6 +423,7 @@ tasksApi.post('/tasks/:id/test-ai', async (c) => {
 tasksApi.post('/tasks/ai-setup', async (c) => {
   const { prompt, botId } = await c.req.json<{ prompt: string; botId?: number }>();
   if (!prompt?.trim()) return c.json({ error: 'Опишите что вы хотите.' }, 400);
+  if (botId && !canAccessBot((c as any).get('user'), botId)) return c.json({ error: 'Нет доступа' }, 403);
 
   const { resolveProvider, resolveModel } = await import('../services/ai/provider.js');
   const { generateTaskConfig } = await import('../services/ai/generate.js');

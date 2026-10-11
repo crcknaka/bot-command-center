@@ -1,31 +1,71 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen, ListChecks } from 'lucide-react';
+import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen, ListChecks, ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
 import { apiFetch } from '../../lib/api.js';
 
-const navItems = [
+type NavItem = { path: string; labelKey: string; icon: typeof Bot; superadminOnly?: boolean };
+
+// Everyday work
+const navItems: NavItem[] = [
   { path: '/', labelKey: 'nav.home', icon: LayoutDashboard },
-  { path: '/bots', labelKey: 'nav.bots', icon: Bot },
   { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
-  { path: '/polls', labelKey: 'nav.polls', icon: ListChecks },
-  { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
   { path: '/members', labelKey: 'nav.members', icon: UserCheck },
+  { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
+];
+
+// Setup and rarely used pages, folded under "More"
+const moreItems: NavItem[] = [
+  { path: '/bots', labelKey: 'nav.bots', icon: Bot },
+  { path: '/polls', labelKey: 'nav.polls', icon: ListChecks },
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },
   { path: '/users', labelKey: 'nav.users', icon: Users, superadminOnly: true },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings },
   { path: '/docs', labelKey: 'nav.docs', icon: BookOpen },
 ];
 
+const MORE_KEY = 'nav:more';
+
 export function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } });
+
+  const toggleMore = () => {
+    setMoreOpen((open) => {
+      try { localStorage.setItem(MORE_KEY, open ? '0' : '1'); } catch {}
+      return !open;
+    });
+  };
+
+  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+  const visible = (item: NavItem) => !item.superadminOnly || user?.role === 'superadmin';
+  // Keep the group open while one of its pages is showing
+  const showMore = moreOpen || moreItems.some((item) => isActive(item.path));
+
+  const renderItem = (item: NavItem) => {
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.path}
+        to={item.path}
+        onClick={() => setMobileOpen(false)}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+          isActive(item.path) ? 'bg-blue-500/15 text-blue-400' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+        )}
+      >
+        <Icon size={18} />
+        {t(item.labelKey)}
+      </Link>
+    );
+  };
 
   const { data: bots } = useQuery({
     queryKey: ['bots'],
@@ -60,26 +100,18 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-        {navItems
-          .filter((item) => !item.superadminOnly || user?.role === 'superadmin')
-          .map((item) => {
-            const Icon = item.icon;
-            const active = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                  active ? 'bg-blue-500/15 text-blue-400' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-                )}
-              >
-                <Icon size={18} />
-                {t(item.labelKey)}
-              </Link>
-            );
-          })}
+        {navItems.filter(visible).map(renderItem)}
+
+        <button
+          type="button"
+          onClick={toggleMore}
+          aria-expanded={showMore}
+          className="w-full flex items-center justify-between px-3 py-2 mt-2 rounded-lg text-xs uppercase tracking-wide text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+        >
+          {t('nav.more')}
+          <ChevronDown size={14} className={cn('transition-transform', showMore && 'rotate-180')} />
+        </button>
+        {showMore && moreItems.filter(visible).map(renderItem)}
       </nav>
 
       <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>

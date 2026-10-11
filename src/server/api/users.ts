@@ -22,7 +22,11 @@ usersApi.get('/', async (c) => {
 usersApi.patch('/:id', async (c) => {
   const id = Number(c.req.param('id'));
   const body = await c.req.json<{ isActive?: boolean; role?: string; name?: string }>();
-  const updated = db.update(users).set(body as any).where(eq(users.id, id)).returning().get();
+  if (body.role !== undefined && body.role !== 'superadmin' && body.role !== 'client') return c.json({ error: 'Неизвестная роль' }, 400);
+  // Explicit field list: the request must not reach columns like passwordHash
+  const updated = db.update(users)
+    .set({ isActive: body.isActive, role: body.role as 'superadmin' | 'client' | undefined, name: body.name })
+    .where(eq(users.id, id)).returning().get();
   if (!updated) return c.json({ error: 'Не найден' }, 404);
   return c.json({ ...updated, passwordHash: undefined });
 });

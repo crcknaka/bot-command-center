@@ -7,6 +7,8 @@ interface User {
   name: string;
   role: 'superadmin' | 'client';
   avatarUrl?: string;
+  /** Still on the well-known default password */
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextValue {
@@ -14,6 +16,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Re-read the account from the server (after a password change) */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>(null!);
@@ -49,8 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refresh = async () => { setUser(await apiFetch<User>('/auth/me')); };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

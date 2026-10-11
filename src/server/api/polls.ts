@@ -80,7 +80,7 @@ pollsApi.post('/', async (c) => {
   if (!botInstance) return c.json({ error: 'Бот не запущен' }, 400);
 
   const channel = db.select().from(channels).where(eq(channels.id, body.channelId)).limit(1).get();
-  if (!channel) return c.json({ error: 'Канал не найден' }, 404);
+  if (!channel || channel.botId !== body.botId) return c.json({ error: 'Канал не найден' }, 404);
 
   // Save to DB first
   const pollRecord = db.insert(polls).values({

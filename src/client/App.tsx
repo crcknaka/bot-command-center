@@ -20,6 +20,7 @@ import { RegisterPage } from './pages/register.js';
 import { PollsPage } from './pages/polls.js';
 import { ToastProvider } from './components/ui/toast.js';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,10 +36,16 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function AppLayout({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-4 pt-14 lg:p-8 lg:pt-8 min-h-screen">
+      <main className="lg:ml-60 flex-1 min-w-0 p-4 pt-14 lg:p-8 lg:pt-8 min-h-screen">
+        {user?.mustChangePassword && (
+          <Link to="/settings" className="block rounded-xl border px-4 py-3 mb-6 text-sm text-red-400 hover:text-red-300" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)' }}>
+            Вход защищён стандартным паролем, который знает любой. Смените его в настройках →
+          </Link>
+        )}
         {children}
       </main>
     </div>

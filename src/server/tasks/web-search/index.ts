@@ -7,6 +7,7 @@ import { generatePostFromSearch, generatePost } from '../../services/ai/generate
 import { resolveProvider, resolveModel } from '../../services/ai/provider.js';
 import { resolvePostMode, type PostMode } from '../utils.js';
 import { buildSystemPrompt } from '../prompts.js';
+import { sqlTime } from '../../db/time.js';
 
 interface WebSearchConfig {
   queries: string[]; // Search queries
@@ -82,7 +83,7 @@ export class WebSearchTask implements TaskModule {
     todayStart.setHours(0, 0, 0, 0);
     const postsToday = db.select().from(posts)
       .where(eq(posts.channelId, ctx.channelId)).all()
-      .filter((p) => p.createdAt >= todayStart.toISOString()).length;
+      .filter((p) => p.createdAt >= sqlTime(todayStart)).length;
 
     if (postsToday >= maxPerDay) {
       steps.push({ action: 'Лимит', status: 'skipped', detail: `Достигнут лимит ${maxPerDay} постов в день.` });

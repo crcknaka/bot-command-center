@@ -1,6 +1,8 @@
 # Bot Command Center
 
-Веб-платформа для управления Telegram-ботами. Создавайте ботов для разных каналов, генерируйте посты через AI, контролируйте качество.
+Веб-панель для управления Telegram-ботами: посты в каналы (вручную и через AI), модерация групп, статистика чатов.
+
+Боевой адрес: https://tgbots.sitespro.org
 
 ## Быстрый старт (локально)
 
@@ -9,63 +11,52 @@ npm install
 npm run dev
 ```
 
-Откройте http://localhost:5173  
-Логин: `admin@localhost` / `admin`
+Откройте http://localhost:5173.
+
+При первом запуске создаётся администратор `admin@localhost` со случайным одноразовым паролем — он один раз печатается в лог сервера. Свой логин и пароль можно задать заранее через `ADMIN_EMAIL` и `ADMIN_PASSWORD` (см. `.env.example`).
+
+## Команды
+
+| Команда | Что делает |
+|---|---|
+| `npm run dev` | сервер (порт 3000) и интерфейс (порт 5173) с автоперезагрузкой |
+| `npm run typecheck` | проверка типов сервера и интерфейса |
+| `npm test` | тесты |
+| `npm run build` | сборка в `dist/` |
+| `npm start` | запуск собранной версии |
 
 ## Production (Docker)
 
 ```bash
-# Собрать и запустить
-docker compose up -d
-
-# Или без Docker
-npm run build
-npm start
-```
-
-Откройте http://localhost:3000
-
-## Деплой на Ubuntu (bots.sitespro.org)
-
-### 1. На сервере
-
-```bash
-# Клонировать репо
-git clone https://github.com/crcknaka/bot-command-center.git
-cd bot-command-center
-
-# Запустить
 docker compose up -d
 ```
 
-### 2. Nginx reverse proxy
+Панель слушает порт 3000. Если она стоит за обратным прокси на той же машине, задайте в `.env` `BIND_ADDR=127.0.0.1` — тогда порт не будет виден снаружи в обход прокси.
 
-```nginx
-server {
-    listen 80;
-    server_name bots.sitespro.org;
+Данные лежат в `./data`:
 
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+- `bot-center.db` — база (в том числе токены ботов и ключи AI, открытым текстом — берегите этот файл);
+- `uploads/` — картинки, загруженные для постов;
+- `backups/` — ночные копии базы, хранятся последние 7.
 
-### 3. Cloudflare
+Копии лежат на том же диске, что и база. От потери сервера они не спасут — папку `data/backups` стоит дополнительно забирать наружу.
 
-- DNS: `bots.sitespro.org` → IP сервера (Proxied)
-- SSL: Full (strict)
+## Выкат
+
+Пуш в `master` запускает GitHub Action (`.github/workflows/deploy.yml`): проверка типов, тесты и сборка, и только если они прошли — `git pull` и `docker compose up -d --build` на сервере в `/opt/bot-command-center`.
+
+Перезапуск занимает до минуты. Работавшие боты поднимаются сами, остановленные вручную остаются остановленными. Пост, который отправлялся в момент перезапуска, получает статус «Ошибка» и не отправляется повторно: сначала проверьте в канале, не вышел ли он.
+
+## Что важно знать о поведении
+
+- **Посты задач.** Новые задачи («Новостная лента», «Мониторинг тем») складывают посты в черновики. Режимы «В очередь» и «Сразу» публикуют без проверки; кнопка «Запустить» в этих режимах создаёт настоящие посты.
+- **Модерация.** Правила читаются на лету — менять их можно без перезапуска бота. По умолчанию не действуют на админов и доверенных участников. Боту нужны права админа группы: удаление сообщений, блокировка участников; для закрытия топиков — управление темами; для назначения админов — добавление админов.
+- **Тишина в топике.** Закрытый топик открывается сам по таймеру. С галочкой «включая админов» бот удаляет в нём все сообщения, потому что ограничить админов Telegram не позволяет.
+- **Статистика чата.** Хранятся счётчики сообщений за 90 дней. Начало текста сообщения (до 200 символов) хранится 14 дней, затем стирается.
 
 ## Стек
 
 - **Backend**: Node.js, TypeScript, Hono, grammY, Drizzle ORM, SQLite
 - **Frontend**: React, Vite, Tailwind CSS
-- **AI**: Vercel AI SDK (OpenAI, Anthropic, Gemini, OpenRouter, Ollama, LM Studio)
+- **AI**: Vercel AI SDK (OpenAI, Anthropic, Gemini, OpenRouter, Groq, Ollama, LM Studio)
 - **Поиск**: Tavily, Serper, Brave Search, SerpAPI, Google CSE
-# Auto-deploy test Sat Apr  4 10:27:30 TST 2026
