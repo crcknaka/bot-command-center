@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen, ListChecks, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Bot, FileText, Calendar, BarChart3, UserCheck, Settings, Users, Activity, LogOut, Menu, X, BookOpen, ListChecks, ChevronDown, PenLine, MessagesSquare } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
 import { apiFetch } from '../../lib/api.js';
+import { useAlerts } from '../home/use-workspace.js';
 
 type NavItem = { path: string; labelKey: string; icon: typeof Bot; superadminOnly?: boolean };
 
-// Everyday work
+// The three work screens; they are also the bottom bar on a phone
+const mainItems: NavItem[] = [
+  { path: '/', labelKey: 'nav.compose', icon: PenLine },
+  { path: '/chat', labelKey: 'nav.chat', icon: MessagesSquare },
+  { path: '/overview', labelKey: 'nav.overview', icon: LayoutDashboard },
+];
+
+// Lists behind them
 const navItems: NavItem[] = [
-  { path: '/', labelKey: 'nav.home', icon: LayoutDashboard },
   { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
   { path: '/members', labelKey: 'nav.members', icon: UserCheck },
@@ -35,6 +42,7 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { count: alertCount } = useAlerts();
   const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } });
 
   const toggleMore = () => {
@@ -63,6 +71,9 @@ export function Sidebar() {
       >
         <Icon size={18} />
         {t(item.labelKey)}
+        {item.path === '/overview' && alertCount > 0 && (
+          <span className="ml-auto text-[10px] px-1.5 rounded-full bg-red-500/20 text-red-400">{alertCount}</span>
+        )}
       </Link>
     );
   };
@@ -100,6 +111,8 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        {mainItems.map(renderItem)}
+        <div className="my-2 border-t" style={{ borderColor: 'var(--border)' }} />
         {navItems.filter(visible).map(renderItem)}
 
         <button
@@ -132,14 +145,24 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-40 p-2 rounded-lg border"
-        style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-      >
-        <Menu size={20} />
-      </button>
+      {/* Mobile bottom bar: the three work screens plus the full menu */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t" style={{ background: 'var(--bg-sidebar)', borderColor: 'var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {mainItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.path} to={item.path}
+              className={cn('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive(item.path) ? 'text-blue-400' : 'text-zinc-400')}>
+              <Icon size={20} />
+              {t(item.path === '/' ? 'nav.composeShort' : item.labelKey)}
+              {item.path === '/overview' && alertCount > 0 && <span className="absolute top-1.5 right-1/4 w-2 h-2 rounded-full bg-red-500" />}
+            </Link>
+          );
+        })}
+        <button type="button" onClick={() => setMobileOpen(true)} className="flex flex-col items-center gap-0.5 py-2 text-[11px] text-zinc-400">
+          <Menu size={20} />
+          {t('nav.menu')}
+        </button>
+      </nav>
 
       {/* Mobile overlay */}
       {mobileOpen && (

@@ -5,6 +5,8 @@ import { I18nProvider } from './lib/i18n.js';
 import { Sidebar } from './components/layout/sidebar.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard.js';
+import { ComposePage } from './pages/compose.js';
+import { ChatPage } from './pages/chat.js';
 import { BotsPage } from './pages/bots.js';
 import { AnalyticsPage } from './pages/analytics.js';
 import { MembersPage } from './pages/members.js';
@@ -40,7 +42,7 @@ function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 min-w-0 p-4 pt-14 lg:p-8 lg:pt-8 min-h-screen">
+      <main className="lg:ml-60 flex-1 min-w-0 p-4 pb-24 lg:p-8 min-h-screen">
         {user?.mustChangePassword && (
           <Link to="/settings" className="block rounded-xl border px-4 py-3 mb-6 text-sm text-red-400 hover:text-red-300" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)' }}>
             Вход защищён стандартным паролем, который знает любой. Смените его в настройках →
@@ -61,7 +63,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
-      <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute><AppLayout><ComposePage /></AppLayout></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><AppLayout><ChatPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/overview" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots" element={<ProtectedRoute><AppLayout><BotsPage /></AppLayout></ProtectedRoute>} />
       <Route path="/bots/:id" element={<ProtectedRoute><AppLayout><BotDetailPage /></AppLayout></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><AppLayout><PostsPage /></AppLayout></ProtectedRoute>} />

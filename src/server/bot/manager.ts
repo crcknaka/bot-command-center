@@ -132,6 +132,20 @@ class BotManager {
           textPreview: (msg.text ?? msg.caption ?? '').slice(0, 200) || null,
         }).run();
 
+        // Learn topic names: Telegram has no "list topics" call, but a topic's creation and rename
+        // arrive as service messages, and every message in a topic carries the creation one.
+        const topicName = (msg as any).forum_topic_edited?.name
+          ?? (msg as any).forum_topic_created?.name
+          ?? (msg as any).reply_to_message?.forum_topic_created?.name;
+        if (topicName && msg.is_topic_message && msg.message_thread_id) {
+          const key = `thread_name:${ctx.chat.id}:${msg.message_thread_id}`;
+          const known = db.select().from(settings).where(eq(settings.key, key)).limit(1).get();
+          const renamed = !!(msg as any).forum_topic_edited?.name;
+          // A name typed in the panel wins over the creation name, but a rename in Telegram is newer than both
+          if (!known) db.insert(settings).values({ key, value: topicName }).run();
+          else if (renamed && known.value !== topicName) db.update(settings).set({ value: topicName }).where(eq(settings.key, key)).run();
+        }
+
         // Normalize existing channel chatIds to numeric form
         const numericId = String(ctx.chat.id);
         const chatTitle = 'title' in ctx.chat ? (ctx.chat as any).title : null;

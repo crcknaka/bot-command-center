@@ -1,113 +1,62 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
-import { Bot as BotIcon, FileText, Clock, AlertTriangle, Calendar, Send, MessagesSquare } from 'lucide-react';
-import { useBots } from '../hooks/use-bots.js';
-import { Stepper } from '../components/ui/stepper.js';
-import { useToast } from '../components/ui/toast.js';
-import { Composer } from '../components/home/composer.js';
-import { ChatRules } from '../components/home/chat-rules.js';
-import { Violators } from '../components/home/violators.js';
-import { Topics } from '../components/home/topics.js';
-import { Admins } from '../components/home/admins.js';
-import type { ChatUser, HomeChat } from '../components/home/types.js';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { Bot as BotIcon, FileText, Clock, Zap, Shield, AlertTriangle, Activity, Send, LogIn, Trash2, UserPlus, MessagesSquare, CheckCircle, VolumeX, Pencil } from 'lucide-react';
+import { useAuth } from '../lib/auth.js';
+import { useAlerts } from '../components/home/use-workspace.js';
 import { apiFetch } from '../lib/api.js';
+import { cn, timeAgo } from '../lib/utils.js';
 
+const card = { background: 'var(--bg-card)', borderColor: 'var(--border)' };
+const muted = { color: 'var(--text-muted)' };
+
+// Activity log meta
+const actMeta: Record<string, { icon: any; label: string; color: string }> = {
+  'user.login': { icon: LogIn, label: 'Вход', color: 'text-blue-400' },
+  'user.registered': { icon: UserPlus, label: 'Регистрация', color: 'text-green-400' },
+  'bot.started': { icon: Zap, label: 'Бот запущен', color: 'text-green-400' },
+  'bot.stopped': { icon: Zap, label: 'Бот остановлен', color: 'text-zinc-400' },
+  'bot.created': { icon: BotIcon, label: 'Бот создан', color: 'text-purple-400' },
+  'bot.deleted': { icon: BotIcon, label: 'Бот удалён', color: 'text-red-400' },
+  'bot.message_sent': { icon: Send, label: 'Сообщение', color: 'text-green-400' },
+  'bot.poll_sent': { icon: FileText, label: 'Опрос отправлен', color: 'text-cyan-400' },
+  'post.published': { icon: Send, label: 'Опубликован', color: 'text-green-400' },
+  'post.failed': { icon: FileText, label: 'Ошибка публикации', color: 'text-red-400' },
+  'post.edited': { icon: Pencil, label: 'Пост изменён в канале', color: 'text-blue-400' },
+  'post.unpublished': { icon: Trash2, label: 'Пост удалён из канала', color: 'text-red-400' },
+  'mod.deleted': { icon: Trash2, label: 'Удалено ботом', color: 'text-red-400' },
+  'mod.muted': { icon: Shield, label: 'Мут', color: 'text-orange-400' },
+  'mod.warned': { icon: Shield, label: 'Предупреждение', color: 'text-yellow-400' },
+  'mod.topic_closed': { icon: VolumeX, label: 'Топик закрыт', color: 'text-orange-400' },
+  'mod.topic_reopened': { icon: VolumeX, label: 'Топик открыт', color: 'text-green-400' },
+};
+
+/** The state of things at a glance: what needs attention, the numbers, what happened lately */
 export function DashboardPage() {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const { data: bots } = useBots();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'superadmin';
+  const { failedPosts, stoppedBots, count: alertCount } = useAlerts();
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => apiFetch('/stats/overview') });
-  const { data: providers } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
-  const { data: queued } = useQuery({ queryKey: ['posts', { status: 'queued' }], queryFn: () => apiFetch('/posts?status=queued') });
-  const { data: failed } = useQuery({ queryKey: ['posts', { status: 'failed' }], queryFn: () => apiFetch('/posts?status=failed') });
+  const { data: weekly } = useQuery({ queryKey: ['stats-weekly'], queryFn: () => apiFetch('/stats/weekly') });
+  const { data: modStats } = useQuery({ queryKey: ['stats-mod'], queryFn: () => apiFetch('/stats/moderation') });
   const { data: chats } = useQuery({ queryKey: ['stats-chats'], queryFn: () => apiFetch('/stats/chats'), refetchInterval: 60000 });
+  // The activity log is open to superadmins only
+  const { data: activity } = useQuery({ queryKey: ['activity', 'all', 'all'], queryFn: () => apiFetch('/activity?limit=8'), refetchInterval: 30000, enabled: isAdmin });
 
-  const hasBots = (bots?.length ?? 0) > 0;
-  const hasActiveBots = bots?.some((b: any) => b.status === 'active') ?? false;
-  const hasProviders = (providers?.length ?? 0) > 0;
-  const hasChannels = bots?.some((b: any) => b.channels?.length > 0) ?? false;
-
-  const onboardingSteps = [
-    { label: 'Добавить Telegram-бота', description: 'Откройте @BotFather, создайте бота /newbot, вставьте токен.', done: hasBots, action: { label: 'Перейти к ботам', onClick: () => navigate('/bots') } },
-    { label: 'Запустить бота', description: 'Нажмите «Запустить» на карточке бота.', done: hasActiveBots, action: hasBots ? { label: 'Перейти к ботам', onClick: () => navigate('/bots') } : undefined },
-    { label: 'Подключить AI-модель', description: 'Добавьте API-ключ OpenAI, Anthropic, Gemini или OpenRouter.', done: hasProviders, action: { label: 'Настройки', onClick: () => navigate('/settings') } },
-    { label: 'Настроить канал и задачу', description: 'Откройте бота → добавьте канал → создайте задачу.', done: hasChannels, action: hasBots ? { label: 'Настроить', onClick: () => navigate(`/bots/${bots?.[0]?.id}`) } : undefined },
+  const tiles = [
+    { label: 'Боты', value: stats?.totalBots, icon: BotIcon, color: 'text-blue-400', to: '/bots' },
+    { label: 'Сегодня', value: stats?.postsToday, icon: Send, color: 'text-green-400', to: '/posts?status=published' },
+    { label: 'В очереди', value: stats?.queuedPosts, icon: Clock, color: 'text-yellow-400', to: '/schedule' },
+    { label: 'Черновики', value: stats?.draftPosts, icon: FileText, color: 'text-purple-400', to: '/posts?status=draft' },
   ];
-  const allDone = onboardingSteps.every(s => s.done);
-
-  // Every channel and topic of every bot — the places a post or a rule can go
-  const channels = (bots ?? []).flatMap((bot: any) =>
-    (bot.channels ?? []).map((ch: any) => ({
-      id: ch.id,
-      title: ch.title + (ch.threadId ? ` # ${ch.threadTitle || ch.threadId}` : ''),
-      type: ch.type,
-      chatId: ch.chatId,
-      threadId: ch.threadId as number | null,
-      threadTitle: ch.threadTitle as string | null,
-      botId: bot.id,
-      botName: bot.name,
-      botRunning: !!bot.isRunning,
-    }))
-  );
-  // Groups the bot sits in; topics of one group are separate channel rows, so they collapse here
-  const groups: HomeChat[] = [];
-  for (const bot of bots ?? []) {
-    for (const ch of bot.channels ?? []) {
-      if (ch.type !== 'group' && ch.type !== 'supergroup') continue;
-      if (groups.some((g) => g.chatId === ch.chatId && g.botId === bot.id)) continue;
-      groups.push({ chatId: ch.chatId, title: ch.title, botId: bot.id, botName: bot.name, botRunning: !!bot.isRunning });
-    }
-  }
-  const [chatKey, setChatKey] = useState<string | null>(() => { try { return localStorage.getItem('home:chat'); } catch { return null; } });
-  const keyOf = (g: HomeChat) => `${g.botId}:${g.chatId}`;
-  const chat = groups.find((g) => keyOf(g) === chatKey) ?? groups[0];
-  const selectChat = (key: string) => { setChatKey(key); try { localStorage.setItem('home:chat', key); } catch {} };
-
-  // People seen writing in the selected chat this month — who can be trusted or appointed
-  const { data: topUsers } = useQuery({
-    queryKey: ['stats-top-users', chat?.chatId],
-    queryFn: () => apiFetch(`/stats/chat/${chat!.chatId}/top-users?period=month`),
-    enabled: !!chat,
-  });
-  const chatUsers: ChatUser[] = topUsers?.users ?? [];
-  const chatWeek = chats?.find((c: any) => c.chatId === chat?.chatId);
-  const knownTopics = channels
-    .filter((ch: any) => chat && ch.chatId === chat.chatId && ch.botId === chat.botId && ch.threadId)
-    .map((ch: any) => ({ threadId: ch.threadId as number, title: ch.threadTitle || `Топик #${ch.threadId}` }));
-
-  const channelTitle = (id: number) => channels.find((ch: any) => ch.id === id)?.title ?? '';
-
-  // Alerts
-  const failedPosts = failed ?? [];
-  const stoppedBots = bots?.filter((b: any) => b.status === 'stopped' || b.status === 'error') ?? [];
-  const hasAlerts = failedPosts.length > 0 || stoppedBots.length > 0;
-
-  // Upcoming posts (queued, sorted by scheduledFor)
-  const upcoming = (queued ?? [])
-    .slice()
-    .sort((a: any, b: any) => (a.scheduledFor ?? '').localeCompare(b.scheduledFor ?? ''))
-    .slice(0, 6);
-
-  const unqueueMut = useMutation({
-    mutationFn: (id: number) => apiFetch(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'draft' }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); qc.invalidateQueries({ queryKey: ['stats'] }); toast.success('Публикация отменена, пост в черновиках'); },
-    onError: (err) => toast.error((err as Error).message),
-  });
+  const weekMax = Math.max(...(weekly ?? []).map((d: any) => d.published + d.failed + d.drafts), 1);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Главная</h1>
-      </div>
-
-      {/* Onboarding */}
-      {!allDone && <Stepper title="Начало работы" steps={onboardingSteps} />}
+      <h1 className="text-2xl font-bold mb-6">Обзор</h1>
 
       {/* Alerts */}
-      {hasAlerts && (
-        <div className="rounded-xl border p-4 mb-6 space-y-2" style={{ background: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.2)' }}>
+      {alertCount > 0 ? (
+        <div className="rounded-xl border p-4 mb-4 space-y-2" style={{ background: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.2)' }}>
           <h3 className="text-sm font-semibold flex items-center gap-2 text-red-400"><AlertTriangle size={16} /> Требует внимания</h3>
           {failedPosts.length > 0 && (
             <Link to="/posts?status=failed" className="flex items-center gap-2 text-xs text-red-400/80 hover:text-red-400">
@@ -120,124 +69,126 @@ export function DashboardPage() {
             </Link>
           ))}
         </div>
-      )}
-
-      <Composer channels={channels} />
-
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { label: 'Сегодня', value: stats.postsToday, icon: Send, color: 'text-green-400', to: '/posts' },
-            { label: 'В очереди', value: stats.queuedPosts, icon: Clock, color: 'text-yellow-400', to: '/schedule' },
-            { label: 'Черновики', value: stats.draftPosts, icon: FileText, color: 'text-purple-400', to: '/posts?status=draft' },
-          ].map((s) => {
-            const Icon = s.icon;
-            return (
-              <Link key={s.label} to={s.to} className="rounded-xl p-4 border hover:border-zinc-600 transition-colors" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold">{s.value}</div>
-                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
-                  </div>
-                  <Icon size={22} className={s.color} />
-                </div>
-              </Link>
-            );
-          })}
+      ) : (
+        <div className="rounded-xl border px-4 py-3 mb-4 text-sm flex items-center gap-2 text-green-400" style={{ background: 'rgba(34,197,94,0.05)', borderColor: 'rgba(34,197,94,0.2)' }}>
+          <CheckCircle size={16} /> Всё работает: боты запущены, постов с ошибками нет
         </div>
       )}
 
-      {/* Chat management */}
-      {hasChannels && (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h2 className="text-lg font-semibold">Управление чатом</h2>
-            {groups.length > 1 && (
-              <select value={chat ? keyOf(chat) : ''} onChange={(e) => selectChat(e.target.value)}
-                className="text-xs rounded-lg border px-2 py-1.5 bg-transparent max-w-full" style={{ borderColor: 'var(--border)' }}>
-                {groups.map((g) => <option key={keyOf(g)} value={keyOf(g)}>{g.title} · {g.botName}</option>)}
-              </select>
-            )}
-            {groups.length === 1 && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{chat?.title}</span>}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-start">
-            <ChatRules channels={channels} chat={chat} users={chatUsers} />
-            <div className="space-y-4">
-              <Violators />
-              {chat && <Topics chat={chat} knownTopics={knownTopics} />}
-              {chat && <Admins chat={chat} users={chatUsers} />}
-            </div>
-          </div>
-        </>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {tiles.map((s) => {
+          const Icon = s.icon;
+          return (
+            <Link key={s.label} to={s.to} className="rounded-xl p-4 border hover:border-zinc-600 transition-colors" style={card}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold">{s.value ?? '–'}</div>
+                  <div className="text-xs" style={muted}>{s.label}</div>
+                </div>
+                <Icon size={22} className={s.color} />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
 
-      {/* Two columns: Upcoming + Chat week */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Upcoming publications */}
-        <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Calendar size={14} className="text-yellow-400" /> Ближайшие публикации</h3>
-            <Link to="/schedule" className="text-[10px] text-zinc-500 hover:text-zinc-300">Расписание →</Link>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+        {/* Posts per day */}
+        <div className="rounded-xl p-4 border" style={card}>
+          <h3 className="text-sm font-semibold mb-3">Посты за неделю</h3>
+          <div className="flex items-end gap-1 h-20">
+            {(weekly ?? []).map((day: any) => {
+              const total = day.published + day.failed + day.drafts;
+              return (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1" title={`${day.date}: опубликовано ${day.published}, ошибок ${day.failed}, черновиков ${day.drafts}`}>
+                  <div className="w-full flex flex-col justify-end" style={{ height: '64px' }}>
+                    {day.published > 0 && <div className="bg-green-500/60 rounded-t" style={{ height: `${(day.published / weekMax) * 64}px` }} />}
+                    {day.failed > 0 && <div className="bg-red-500/60" style={{ height: `${(day.failed / weekMax) * 64}px` }} />}
+                    {day.drafts > 0 && <div className="bg-zinc-500/40 rounded-b" style={{ height: `${(day.drafts / weekMax) * 64}px` }} />}
+                    {total === 0 && <div className="bg-zinc-800 rounded" style={{ height: '2px' }} />}
+                  </div>
+                  <span className="text-[9px]" style={muted}>{day.date.slice(8)}</span>
+                </div>
+              );
+            })}
           </div>
-          {upcoming.length === 0 ? (
-            <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Нет запланированных постов</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px]" style={muted}>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-500/60" /> опубликовано</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500/60" /> ошибки</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-zinc-500/40" /> черновики</span>
+          </div>
+        </div>
+
+        {/* Chats */}
+        <div className="rounded-xl p-4 border" style={card}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><MessagesSquare size={14} className="text-blue-400" /> Чаты за неделю</h3>
+            <Link to="/analytics" className="text-[10px] text-zinc-500 hover:text-zinc-300">Аналитика →</Link>
+          </div>
+          {!chats?.length ? (
+            <p className="text-xs text-center py-6" style={muted}>Пока нет сообщений</p>
           ) : (
             <div className="space-y-2">
-              {upcoming.map((p: any) => (
-                <div key={p.id} className="flex items-center gap-2 text-xs">
-                  <span className="font-mono text-[10px] text-yellow-400 w-24 shrink-0 whitespace-nowrap">
-                    {p.scheduledFor
-                      ? new Date(p.scheduledFor).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                      : 'скоро'}
-                  </span>
-                  <span className="truncate flex-1" title={channelTitle(p.channelId)} style={{ color: 'var(--text-muted)' }}>
-                    {p.content?.replace(/<[^>]+>/g, '').slice(0, 80)}
-                  </span>
-                  <button type="button" disabled={unqueueMut.isPending} onClick={() => unqueueMut.mutate(p.id)}
-                    className="shrink-0 text-[10px] text-zinc-500 hover:text-red-400 disabled:opacity-40" title="Убрать из очереди в черновики">
-                    Отменить
-                  </button>
+              {chats.slice(0, 6).map((c: any) => (
+                <div key={c.chatId} className="flex items-center gap-2 text-xs">
+                  <span className="truncate flex-1">{c.title}</span>
+                  <span className="shrink-0" style={muted}>{c.weekMessages} сообщ. · {c.weekUsers} чел.</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Chat activity */}
-        <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+        {/* Moderation */}
+        <div className="rounded-xl p-4 border" style={card}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><MessagesSquare size={14} className="text-blue-400" /> Чат за неделю</h3>
-            <Link to="/analytics" className="text-[10px] text-zinc-500 hover:text-zinc-300">Аналитика →</Link>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Shield size={14} className="text-blue-400" /> Модерация за неделю</h3>
+            <Link to="/chat" className="text-[10px] text-zinc-500 hover:text-zinc-300">Чат →</Link>
           </div>
-          {!chats?.length ? (
-            <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Пока нет сообщений</p>
-          ) : (
-            <>
-              <div className="space-y-2 mb-3">
-                {chats.slice(0, 3).map((c: any) => (
-                  <div key={c.chatId} className="flex items-center gap-2 text-xs">
-                    <span className="truncate flex-1">{c.title}</span>
-                    <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>{c.weekMessages} сообщ. · {c.weekUsers} чел.</span>
-                  </div>
-                ))}
-              </div>
-              {chat && chatUsers.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Самые активные в «{chatWeek?.title ?? chat.title}» за месяц:</div>
-                  <div className="space-y-1">
-                    {chatUsers.slice(0, 5).map((u: any) => (
-                      <div key={u.userId} className="flex items-center justify-between text-[11px]">
-                        <span className="truncate">{u.userName}{u.username ? ` @${u.username}` : ''}</span>
-                        <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>{u.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="text-xl font-bold text-red-400">{modStats?.deleted ?? 0}</div>
+              <div className="text-[10px]" style={muted}>удалено</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-orange-400">{modStats?.muted ?? 0}</div>
+              <div className="text-[10px]" style={muted}>мутов</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-yellow-400">{modStats?.warned ?? 0}</div>
+              <div className="text-[10px]" style={muted}>предупр.</div>
+            </div>
+          </div>
         </div>
+
+        {/* Recent activity */}
+        {isAdmin && (
+          <div className="rounded-xl p-4 border" style={card}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Activity size={14} className="text-blue-400" /> Последние действия</h3>
+              <Link to="/activity" className="text-[10px] text-zinc-500 hover:text-zinc-300">Журнал →</Link>
+            </div>
+            {!activity?.length ? (
+              <p className="text-xs text-center py-6" style={muted}>Нет действий</p>
+            ) : (
+              <div className="space-y-2">
+                {activity.map((log: any) => {
+                  const meta = actMeta[log.action] ?? { icon: Activity, label: log.action, color: 'text-zinc-400' };
+                  const Icon = meta.icon;
+                  const who = log.action.startsWith('mod.') ? log.details?.userName : (log.botName ?? log.userName);
+                  return (
+                    <div key={log.id} className="flex items-center gap-2 text-xs">
+                      <Icon size={12} className={cn('shrink-0', meta.color)} />
+                      <span className={cn('shrink-0', meta.color)}>{meta.label}</span>
+                      {who && <span className="truncate" style={muted}>{who}</span>}
+                      <span className="text-[9px] shrink-0 ml-auto" style={muted}>{timeAgo(log.createdAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

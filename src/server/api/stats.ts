@@ -308,6 +308,15 @@ statsApi.get('/chat/:chatId/threads', async (c) => {
     threads[key] = (threads[key] ?? 0) + 1;
   }
 
+  // Topics known by name or added on the bot page count too, even with no messages on record
+  const namePrefix = `thread_name:${chatId}:`;
+  for (const row of db.select().from(settings).where(sql`${settings.key} LIKE ${namePrefix + '%'}`).all()) {
+    threads[row.key.slice(namePrefix.length)] ??= 0;
+  }
+  for (const ch of db.select().from(channels).where(eq(channels.chatId, chatId)).all()) {
+    if (ch.threadId) threads[String(ch.threadId)] ??= 0;
+  }
+
   // Get thread names — filtered queries instead of loading ALL
   const threadIds = Object.keys(threads);
   const settingKeys = threadIds.map(tid => `thread_name:${chatId}:${tid}`);
