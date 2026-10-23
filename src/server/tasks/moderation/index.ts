@@ -3,6 +3,7 @@ import { logActivity } from '../../services/activity.js';
 import { db } from '../../db/client.js';
 import { channels } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { findBannedWord } from './match.js';
 
 interface ViolationWarn {
   enabled: boolean;
@@ -11,6 +12,7 @@ interface ViolationWarn {
 
 interface ModerationConfig {
   bannedWords: string[];
+  allowedWords?: string[]; // exceptions: words that contain a banned root but are fine (спидран)
   bannedWordsWarn?: ViolationWarn;
   blockLinks?: boolean; // Delete messages with links
   maxLinksPerMessage?: number; // Legacy — treated as blockLinks if > 0
@@ -110,30 +112,6 @@ async function sendWarn(msgCtx: any, text: string | null, deleteAfterSec?: numbe
       setTimeout(() => { msgCtx.api.deleteMessage(warn.chat.id, warn.message_id).catch(() => {}); }, deleteAfterSec * 1000);
     }
   } catch (e) { console.error('[moderation] warn send error:', e); }
-}
-
-/** Normalize text for profanity detection: translit latin→cyrillic + homoglyphs */
-function normalizeForCheck(text: string): string {
-  const lower = text.toLowerCase();
-  // Step 1: replace multi-char latin combos → cyrillic
-  const multi: [string, string][] = [
-    ['shch', 'щ'], ['sch', 'щ'], ['sh', 'ш'], ['ch', 'ч'], ['zh', 'ж'],
-    ['ts', 'ц'], ['ya', 'я'], ['yu', 'ю'], ['yo', 'ё'], ['ye', 'е'],
-    ['uy', 'уй'], ['iy', 'ий'], ['ey', 'ей'], ['oy', 'ой'], ['ay', 'ай'],
-  ];
-  let result = lower;
-  for (const [lat, cyr] of multi) {
-    result = result.split(lat).join(cyr);
-  }
-  // Step 2: single char translit
-  const single: Record<string, string> = {
-    'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з',
-    'i': 'и', 'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о',
-    'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х',
-    'c': 'ц', 'w': 'в', 'x': 'кс', 'y': 'й', 'q': 'к',
-  };
-  result = result.replace(/[a-z]/g, (ch) => single[ch] ?? ch);
-  return result;
 }
 
 const floodTracker = new Map<string, number[]>();
@@ -383,14 +361,9 @@ export class ModerationTask implements TaskModule {
         return;
       }
 
-      // Banned words (check original + translit normalized version)
+      // Banned words (check original + translit normalized version, minus exception words)
       if (config.bannedWords?.length) {
-        const lower = text.toLowerCase();
-        const normalized = normalizeForCheck(text);
-        const found = config.bannedWords.find((word) => {
-          const w = word.toLowerCase();
-          return lower.includes(w) || normalized.includes(w);
-        });
+        const found = findBannedWord(text, config.bannedWords, config.allowedWords);
         if (found) {
           await handleViolation(msgCtx, chatId, userId, `banned_word:${found}`, config.bannedWordsWarn, 'bannedWords');
           return;
@@ -448,6 +421,7 @@ export class ModerationTask implements TaskModule {
       type: 'object',
       properties: {
         bannedWords: { type: 'array', items: { type: 'string' } },
+        allowedWords: { type: 'array', items: { type: 'string' } },
         bannedWordsWarn: { type: 'object' },
         blockLinks: { type: 'boolean' },
         linksWarn: { type: 'object' },

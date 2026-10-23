@@ -143,6 +143,15 @@ export function ChatRules({ channels, chat, users }: { channels: RulesChannel[];
     setWord('');
   };
 
+  const [allowed, setAllowed] = useState('');
+  const allowedWords: string[] = config.allowedWords ?? [];
+  const addAllowed = () => {
+    const w = allowed.trim().toLowerCase();
+    if (!w) return;
+    if (!allowedWords.includes(w)) save({ allowedWords: [...allowedWords, w] });
+    setAllowed('');
+  };
+
   const trusted: Array<{ id: number; name: string }> = config.trustedUsers
     ?? (config.trustedUserIds ?? []).map((id: number) => ({ id, name: String(id) }));
   const setTrusted = (list: Array<{ id: number; name: string }>) =>
@@ -218,6 +227,21 @@ export function ChatRules({ channels, chat, users }: { channels: RulesChannel[];
               <form onSubmit={(e) => { e.preventDefault(); addWord(); }} className="flex gap-2">
                 <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Слово или фраза" className={cn(inputCls, 'flex-1 min-w-0')} style={{ borderColor: 'var(--border)' }} />
                 <button type="submit" disabled={pending || !word.trim()} className="px-3 py-1.5 rounded-lg text-xs border hover:border-zinc-600 disabled:opacity-40" style={{ borderColor: 'var(--border)' }}>Добавить</button>
+              </form>
+            </Section>
+
+            <Section title="Исключения" count={allowedWords.length}>
+              <p className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+                Слова, в которых есть запрещённый корень, но ругаться за них не нужно: «спидран» содержит «пидр».
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {allowedWords.map((w) => (
+                  <Chip key={w} disabled={pending} onRemove={() => save({ allowedWords: allowedWords.filter((x) => x !== w) })}>{w}</Chip>
+                ))}
+              </div>
+              <form onSubmit={(e) => { e.preventDefault(); addAllowed(); }} className="flex gap-2">
+                <input value={allowed} onChange={(e) => setAllowed(e.target.value)} placeholder="Слово или его начало" className={cn(inputCls, 'flex-1 min-w-0')} style={{ borderColor: 'var(--border)' }} />
+                <button type="submit" disabled={pending || !allowed.trim()} className="px-3 py-1.5 rounded-lg text-xs border hover:border-zinc-600 disabled:opacity-40" style={{ borderColor: 'var(--border)' }}>Добавить</button>
               </form>
             </Section>
 
