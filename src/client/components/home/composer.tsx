@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Send, Clock, FileText, Bold, Italic, Link2, Image, Upload, X } from 'lucide-react';
+import { Send, Clock, FileText, Bold, Italic, Link2, Image, Upload, X, FlaskConical } from 'lucide-react';
 import { apiFetch, uploadImage } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { useToast } from '../ui/toast.js';
@@ -70,6 +70,14 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
   const [scheduleAt, setScheduleAt] = useState(defaultScheduleValue);
   const [busy, setBusy] = useState(false);
 
+  // Where «В тест» sends: one chat for checks, kept in the panel settings
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: () => apiFetch('/settings') });
+  const testChannel = channels.find((ch) => String(ch.id) === settings?.test_channel_id);
+  const [pickingTest, setPickingTest] = useState(false);
+  const [testPick, setTestPick] = useState('');
+  // First guess for the picker: a chat called "test", otherwise the last one
+  const guessTest = () => (channels.find((ch) => /тест|test/i.test(ch.title)) ?? channels[channels.length - 1])?.id;
+
   // Topics of one group are separate channel rows; they collapse into one destination here
   const destinations: Destination[] = [];
   for (const ch of channels) {
@@ -79,6 +87,7 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
     else destinations.push({ key, chatId: ch.chatId, title: ch.chatTitle, type: ch.type, botId: ch.botId, botName: ch.botName, botRunning: ch.botRunning, rows: [ch] });
   }
   const dest = destinations.find((d) => d.key === destKey) ?? destinations[0];
+  const multiBot = new Set(channels.map((ch) => ch.botId)).size > 1;
   const isGroup = dest?.type === 'group' || dest?.type === 'supergroup';
 
   // Topics the bot has seen messages in, plus the ones added by hand on the bot page
@@ -145,6 +154,7 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
   const overLimit = plainLength > limit;
   const longCaption = !!image && plainLength > CAPTION_LIMIT && !overLimit;
   const canSend = !!dest && content.trim() !== '' && !overLimit && !busy && (!isForum || picked.length > 0);
+  const canTest = content.trim() !== '' && !overLimit && !busy;
 
   /** Wrap the selected text in an HTML tag Telegram understands */
   const wrap = (open: string, close: string) => {
@@ -220,6 +230,28 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
     reset();
   });
 
+  const sendTest = (channelId: number) => run(async () => {
+    await apiFetch('/posts/test-send', {
+      method: 'POST',
+      body: JSON.stringify({ channelId, content, imageUrl: image || undefined }),
+    });
+    const title = channels.find((ch) => ch.id === channelId)?.title;
+    toast.success(`Отправлено в «${title}» — посмотрите, как выглядит`);
+  });
+
+  const openTestPicker = () => {
+    setTestPick(String(testChannel?.id ?? guessTest() ?? ''));
+    setPickingTest(true);
+  };
+
+  const saveTestChat = () => run(async () => {
+    const channelId = Number(testPick);
+    await apiFetch('/settings', { method: 'PUT', body: JSON.stringify({ test_channel_id: String(channelId) }) });
+    await qc.invalidateQueries({ queryKey: ['settings'] });
+    setPickingTest(false);
+    if (canTest) await sendTest(channelId);
+  });
+
   const publishNow = () => confirm({
     title: `Опубликовать в «${targetLabel}»?`,
     message: isForum && picked.length > 1
@@ -253,8 +285,8 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
   return (
     <div className="rounded-xl border p-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
       {dialog}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2"><Send size={14} className="text-blue-400" /> Новый пост</h3>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Куда:</span>
         {destinations.length > 1 ? (
           <select
             value={dest?.key}
@@ -263,11 +295,11 @@ export function Composer({ channels }: { channels: ComposerChannel[] }) {
             style={{ borderColor: 'var(--border)' }}
           >
             {destinations.map((d) => (
-              <option key={d.key} value={d.key}>{d.title} · {d.botName}</option>
+              <option key={d.key} value={d.key}>{d.title}{multiBot ? ` · ${d.botName}` : ''}</option>
             ))}
           </select>
         ) : (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{dest?.title}</span>
+          <span className="text-xs font-medium">{dest?.title}</span>
         )}
       </div>
 
@@ -358,22 +390,49 @@ Telegram принимает не больше 4096 символов.
           )}
 
           {!showSchedule && (
-            <div className="flex flex-wrap items-center gap-2 mt-3">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mt-3">
               <button type="button" disabled={!canSend || !dest?.botRunning} onClick={publishNow}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                className="col-span-2 justify-center flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
                 <Send size={14} /> Опубликовать сейчас
               </button>
+              <button type="button" disabled={!canTest || (!!testChannel && !testChannel.botRunning)}
+                onClick={() => testChannel ? sendTest(testChannel.id) : openTestPicker()}
+                title={testChannel ? `Отправить в «${testChannel.title}», чтобы посмотреть, как выглядит. Пост не сохраняется.` : 'Выбрать тестовый чат и отправить туда'}
+                className="justify-center flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed">
+                <FlaskConical size={14} /> В тест
+              </button>
               <button type="button" disabled={!canSend} onClick={() => { setScheduleAt(defaultScheduleValue()); setShowSchedule(true); }}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="justify-center flex items-center gap-2 px-4 py-2 rounded-lg text-sm border hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--border)' }}>
                 <Clock size={14} /> На время
               </button>
               <button type="button" disabled={!canSend} onClick={saveDraft}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="col-span-2 justify-center flex items-center gap-2 px-4 py-2 rounded-lg text-sm border hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--border)' }}>
                 <FileText size={14} /> В черновики
               </button>
             </div>
+          )}
+
+          {pickingTest ? (
+            <div className="flex flex-wrap items-center gap-2 mt-3 rounded-lg border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Тесты отправлять в</span>
+              <select value={testPick} onChange={(e) => setTestPick(e.target.value)}
+                className="text-xs rounded-lg border px-2 py-1.5 bg-transparent max-w-full" style={{ borderColor: 'var(--border)' }}>
+                {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.title}{multiBot ? ` · ${ch.botName}` : ''}</option>)}
+              </select>
+              <button type="button" disabled={!testPick || busy} onClick={saveTestChat}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40">
+                {canTest ? 'Сохранить и отправить' : 'Сохранить'}
+              </button>
+              <button type="button" onClick={() => setPickingTest(false)} className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>Отмена</button>
+            </div>
+          ) : testChannel && (
+            <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
+              «В тест» отправляет в «{testChannel.title}» и ничего не сохраняет.{' '}
+              <button type="button" onClick={openTestPicker} className="underline hover:text-zinc-300">Сменить чат</button>
+              {!testChannel.botRunning && <span className="text-orange-400"> Бот этого чата остановлен.</span>}
+            </p>
           )}
         </div>
 

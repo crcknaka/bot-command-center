@@ -27,8 +27,8 @@ export function claimPost(id: number): Post | null {
     .returning().get() ?? null;
 }
 
-function buildContent(post: Post, signature: string | null | undefined): string {
-  let content = sanitizeForTelegram(post.content);
+function buildContent(text: string, signature: string | null | undefined): string {
+  let content = sanitizeForTelegram(text);
   if (signature) content += '\n\n' + signature;
   return content;
 }
@@ -36,6 +36,64 @@ function buildContent(post: Post, signature: string | null | undefined): string 
 function buildKeyboard(post: Post) {
   const buttons = post.inlineButtons as Array<{ text: string; url: string }> | null;
   return buttons?.length ? { inline_keyboard: [buttons.map((b) => ({ text: b.text, url: b.url }))] } : undefined;
+}
+
+type Channel = typeof channels.$inferSelect;
+
+/**
+ * Send ready HTML with an optional image to a channel or topic.
+ * Returns the id of the message that carries the text.
+ */
+async function sendToChannel(api: any, channel: Channel, content: string, imageUrl: string | null, replyMarkup: unknown, label: string): Promise<number> {
+  const length = visibleLength(content);
+  const sendOpts: any = {
+    parse_mode: 'HTML' as const,
+    message_thread_id: channel.threadId ?? undefined,
+    reply_markup: replyMarkup,
+  };
+  const sendText = async (extra: Record<string, unknown> = {}) =>
+    (await api.sendMessage(channel.chatId, content, { ...sendOpts, ...extra })).message_id;
+
+  const localFile = uploadPath(imageUrl);
+  if (!imageUrl) return sendText();
+  if (length <= CAPTION_LIMIT) {
+    try {
+      const photo = localFile ? new InputFile(localFile) : imageUrl;
+      return (await api.sendPhoto(channel.chatId, photo, { caption: content, ...sendOpts })).message_id;
+    } catch (photoErr) {
+      // Broken image URL: the text still goes out
+      console.error(`[publish] sendPhoto failed for ${label}, sending as text: ${(photoErr as Error).message}`);
+      return sendText();
+    }
+  }
+  if (localFile) {
+    // Too long for a caption and the image is not reachable by URL: photo first, text right after
+    await api.sendPhoto(channel.chatId, new InputFile(localFile), { message_thread_id: channel.threadId ?? undefined });
+    return sendText();
+  }
+  // Too long for a caption: one message with the image as a large preview above the text
+  return sendText({ link_preview_options: { url: imageUrl, prefer_large_media: true, show_above_text: true } });
+}
+
+/**
+ * Send a post exactly as it would go out — signature included — without saving it anywhere.
+ * Used to check a post in the test chat before publishing it for real.
+ */
+export async function sendTestMessage(channelId: number, text: string, imageUrl?: string | null): Promise<number> {
+  const channel = db.select().from(channels).where(eq(channels.id, channelId)).limit(1).get();
+  if (!channel) throw new PublishError('Тестовый чат не найден', 404);
+  const botInstance = botManager.getBotInstance(channel.botId);
+  if (!botInstance) throw new PublishError('Бот не запущен', 400);
+  const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
+
+  const content = buildContent(text, bot?.postSignature);
+  const length = visibleLength(content);
+  if (length > MESSAGE_LIMIT) throw new PublishError(`Текст длиннее ${MESSAGE_LIMIT} символов (${length}) — Telegram его не примет`, 400);
+  try {
+    return await sendToChannel(botInstance.api, channel, content, imageUrl ?? null, undefined, 'test message');
+  } catch (err) {
+    throw new PublishError((err as Error).message);
+  }
 }
 
 /**
@@ -54,40 +112,13 @@ export async function sendClaimedPost(post: Post, opts: { userId?: number } = {}
   if (!botInstance) return fail('Бот не запущен', 400);
   const bot = db.select().from(bots).where(eq(bots.id, channel.botId)).limit(1).get();
 
-  const content = buildContent(post, bot?.postSignature);
+  const content = buildContent(post.content, bot?.postSignature);
   const length = visibleLength(content);
   if (length > MESSAGE_LIMIT) return fail(`Текст длиннее ${MESSAGE_LIMIT} символов (${length}) — Telegram его не примет`, 400);
 
-  const sendOpts: any = {
-    parse_mode: 'HTML' as const,
-    message_thread_id: channel.threadId ?? undefined,
-    reply_markup: buildKeyboard(post),
-  };
-  const sendText = async (extra: Record<string, unknown> = {}) =>
-    (await botInstance.api.sendMessage(channel.chatId, content, { ...sendOpts, ...extra })).message_id;
-
   let messageId: number;
   try {
-    const localFile = uploadPath(post.imageUrl);
-    if (!post.imageUrl) {
-      messageId = await sendText();
-    } else if (length <= CAPTION_LIMIT) {
-      try {
-        const photo = localFile ? new InputFile(localFile) : post.imageUrl;
-        messageId = (await botInstance.api.sendPhoto(channel.chatId, photo, { caption: content, ...sendOpts })).message_id;
-      } catch (photoErr) {
-        // Broken image URL: the text still goes out
-        console.error(`[publish] sendPhoto failed for post #${post.id}, sending as text: ${(photoErr as Error).message}`);
-        messageId = await sendText();
-      }
-    } else if (localFile) {
-      // Too long for a caption and the image is not reachable by URL: photo first, text right after
-      await botInstance.api.sendPhoto(channel.chatId, new InputFile(localFile), { message_thread_id: channel.threadId ?? undefined });
-      messageId = await sendText();
-    } else {
-      // Too long for a caption: one message with the image as a large preview above the text
-      messageId = await sendText({ link_preview_options: { url: post.imageUrl, prefer_large_media: true, show_above_text: true } });
-    }
+    messageId = await sendToChannel(botInstance.api, channel, content, post.imageUrl, buildKeyboard(post), `post #${post.id}`);
   } catch (err) {
     const message = (err as Error).message;
     logActivity({ userId: opts.userId, botId: channel.botId, action: 'post.failed', details: { postId: post.id, channelTitle: channel.title, error: message } });
@@ -143,14 +174,14 @@ function publishedTarget(post: Post) {
 /** Change the text of a post that is already in the channel */
 export async function editPublishedPost(post: Post, newContent: string, userId?: number): Promise<void> {
   const { channel, botInstance, bot, messageId } = publishedTarget(post);
-  const content = buildContent({ ...post, content: newContent }, bot?.postSignature);
+  const content = buildContent(newContent, bot?.postSignature);
   const length = visibleLength(content);
   const opts: any = { parse_mode: 'HTML' as const, reply_markup: buildKeyboard(post) };
 
   // A post sent as a photo carries its text as a caption; the post row does not record which one it was
   const asCaption = () => botInstance.api.editMessageCaption(channel.chatId, messageId, { caption: content, ...opts });
   const asText = () => botInstance.api.editMessageText(channel.chatId, messageId, content, opts);
-  const captionFirst = !!post.imageUrl && visibleLength(buildContent(post, bot?.postSignature)) <= CAPTION_LIMIT;
+  const captionFirst = !!post.imageUrl && visibleLength(buildContent(post.content, bot?.postSignature)) <= CAPTION_LIMIT;
 
   try {
     if (captionFirst) {

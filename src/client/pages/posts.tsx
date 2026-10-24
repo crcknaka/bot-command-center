@@ -42,7 +42,6 @@ export function PostsPage() {
   const [editPost, setEditPost] = useState<any>(null);
   const [editContent, setEditContent] = useState('');
   const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -53,6 +52,9 @@ export function PostsPage() {
   const toast = useToast();
   const { data: rawPosts, isLoading } = usePosts(statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const { data: bots } = useQuery({ queryKey: ['bots'], queryFn: () => apiFetch('/bots') });
+  // AI generation is offered only once a model is connected
+  const { data: providers } = useQuery({ queryKey: ['ai-providers'], queryFn: () => apiFetch('/ai-providers') });
+  const hasAi = (providers?.length ?? 0) > 0;
   const publishMut = usePublishPost();
   const deleteMut = useDeletePost();
   const updateMut = useUpdatePost();
@@ -131,13 +133,19 @@ export function PostsPage() {
 
   bots?.forEach((bot: any) => {
     botList.push({ id: bot.id, name: bot.name });
+    // A topic row may carry the raw chat id as its title; the group's own row has the real name
+    const chatTitles = new Map<string, string>();
+    bot.channels?.forEach?.((ch: any) => { if (!ch.threadId && ch.title !== ch.chatId) chatTitles.set(ch.chatId, ch.title); });
     bot.channels?.forEach?.((ch: any) => {
       const threadLabel = ch.threadId ? ` # ${ch.threadTitle || ch.threadId}` : '';
-      const displayTitle = ch.title + threadLabel;
+      const displayTitle = (chatTitles.get(ch.chatId) ?? ch.title) + threadLabel;
       channelMap[ch.id] = { botName: bot.name, channelTitle: displayTitle, botId: bot.id };
       channelList.push({ id: ch.id, title: ch.title, displayTitle, botId: bot.id, botName: bot.name });
     });
   });
+
+  // With a single bot its name only adds noise to every label
+  const multiBot = botList.length > 1;
 
   // Apply client-side filters
   let posts = rawPosts ?? [];
@@ -169,30 +177,27 @@ export function PostsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Посты</h1>
-          <InfoTip text="Все посты со всех ботов. Черновик → В очередь (автопубликация) или Опубликовать сейчас." position="bottom" />
-        </div>
-      </div>
-
-      {confirmDialog}
-
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+          <InfoTip text="Черновики, очередь и отправленные посты. Черновик → «В очередь» (уйдёт сам) или «Опубликовать» сразу." position="bottom" />
         </div>
         <div className="flex gap-2">
           <Link to="/schedule" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-colors" title="Открыть расписание">
             <Calendar size={16} /> <span className="hidden sm:inline">Расписание</span>
           </Link>
-          <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors" title="Ввести тему — AI сгенерирует пост">
-            <Sparkles size={16} /> <span className="hidden sm:inline">Создать с</span> AI
-          </button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }} title="Написать пост вручную">
-            <Plus size={16} /> <span className="hidden sm:inline">Вручную</span>
-          </button>
+          {hasAi && (
+            <button onClick={() => setShowAiGen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors" title="Ввести тему — AI сгенерирует пост">
+              <Sparkles size={16} /> <span className="hidden sm:inline">Создать с</span> AI
+            </button>
+          )}
+          <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }} title="Написать пост">
+            <Plus size={16} /> <span className="hidden sm:inline">Новый пост</span>
+          </Link>
         </div>
       </div>
+
+      {confirmDialog}
 
       {/* Filters bar */}
       <div className="rounded-xl border p-4 mb-6" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
@@ -218,15 +223,17 @@ export function PostsPage() {
             <Filter size={14} className="text-zinc-500" />
           </div>
 
-          <select
-            value={botFilter}
-            onChange={(e) => { setBotFilter(e.target.value); setChannelFilter('all'); }}
-            className="px-3 py-1.5 rounded-lg border text-xs"
-            style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
-          >
-            <option value="all">Все боты</option>
-            {botList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          {multiBot && (
+            <select
+              value={botFilter}
+              onChange={(e) => { setBotFilter(e.target.value); setChannelFilter('all'); }}
+              className="px-3 py-1.5 rounded-lg border text-xs"
+              style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+            >
+              <option value="all">Все боты</option>
+              {botList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
 
           <select
             value={channelFilter}
@@ -234,10 +241,10 @@ export function PostsPage() {
             className="px-3 py-1.5 rounded-lg border text-xs"
             style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
           >
-            <option value="all">Все каналы</option>
+            <option value="all">Все чаты</option>
             {filteredChannels.map((ch) => (
               <option key={ch.id} value={ch.id}>
-                {botFilter === 'all' ? `${ch.botName} → ` : ''}{ch.displayTitle}
+                {multiBot && botFilter === 'all' ? `${ch.botName} → ` : ''}{ch.displayTitle}
               </option>
             ))}
           </select>
@@ -321,7 +328,7 @@ export function PostsPage() {
           <p className="text-xs max-w-md mx-auto" style={{ color: 'var(--text-muted)' }}>
             {activeFilterCount > 0
               ? 'Попробуйте изменить фильтры или сбросить их.'
-              : 'Посты появятся после запуска задачи или создания вручную.'}
+              : 'Напишите пост — он появится здесь.'}
           </p>
           <div className="flex gap-2 mt-3 justify-center">
             {activeFilterCount > 0 ? (
@@ -330,12 +337,14 @@ export function PostsPage() {
               </button>
             ) : (
               <>
-                <button onClick={() => setShowAiGen(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/15 text-purple-400">
-                  <Sparkles size={12} className="inline mr-1" /> Создать с AI
-                </button>
-                <button onClick={() => setShowCreate(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">
-                  <Plus size={12} className="inline mr-1" /> Вручную
-                </button>
+                {hasAi && (
+                  <button onClick={() => setShowAiGen(true)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/15 text-purple-400">
+                    <Sparkles size={12} className="inline mr-1" /> Создать с AI
+                  </button>
+                )}
+                <Link to="/" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400">
+                  <Plus size={12} className="inline mr-1" /> Новый пост
+                </Link>
               </>
             )}
           </div>
@@ -355,7 +364,7 @@ export function PostsPage() {
                 </button>
                 <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  {ctx && (
+                  {ctx && multiBot && (
                     <Link to={`/bots/${ctx.botId}`} className="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors">
                       {ctx.botName}
                     </Link>
@@ -461,7 +470,7 @@ export function PostsPage() {
                 {statusFilter === 'draft' ? 'Нет черновиков' : statusFilter === 'queued' ? 'Очередь пуста' : statusFilter === 'failed' ? 'Нет ошибок — всё хорошо!' : 'Нет постов'}
               </div>
               <div className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
-                {statusFilter === 'draft' ? 'Запустите задачу или создайте пост вручную.' : statusFilter === 'queued' ? 'Посты появятся автоматически по расписанию задач.' : statusFilter === 'all' ? 'Создайте пост вручную или настройте задачу для автоматической генерации.' : ''}
+                {statusFilter === 'draft' ? 'Сохраните пост «В черновики» — он появится здесь.' : statusFilter === 'queued' ? 'Здесь будут посты, поставленные «На время».' : statusFilter === 'all' ? 'Напишите первый пост на странице «Новый пост».' : ''}
               </div>
             </div>
           )}
@@ -587,19 +596,9 @@ export function PostsPage() {
         </div>
       )}
 
-      {/* Create Modal */}
-      {showCreate && (
-        <CreatePostModal
-          channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: ch.botName }))}
-          onClose={() => setShowCreate(false)}
-          onCreate={(data) => { createMut.mutate(data); setShowCreate(false); }}
-          isPending={createMut.isPending}
-        />
-      )}
-
       {showAiGen && (
         <AiGenerateModal
-          channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: ch.botName }))}
+          channels={channelList.map((ch) => ({ id: ch.id, title: ch.displayTitle, botName: multiBot ? ch.botName : '' }))}
           onClose={() => setShowAiGen(false)}
           onSave={(channelId, content) => { createMut.mutate({ channelId, content, status: 'draft' }); setShowAiGen(false); }}
         />
@@ -617,51 +616,6 @@ export function PostsPage() {
         />
       )}
 
-    </div>
-  );
-}
-
-function CreatePostModal({ channels, onClose, onCreate, isPending }: {
-  channels: Array<{ id: number; title: string; botName: string }>;
-  onClose: () => void;
-  onCreate: (data: { channelId: number; content: string; status: string }) => void;
-  isPending: boolean;
-}) {
-  const [channelId, setChannelId] = useState<string>(channels[0]?.id?.toString() ?? '');
-  const [content, setContent] = useState('');
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-lg mx-4 p-6 rounded-2xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold mb-1">Создать пост вручную</h2>
-        <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Выберите канал и напишите текст поста.</p>
-        <div className="mb-3">
-          <label className="block text-sm font-medium mb-1">Канал</label>
-          {channels.length === 0 ? (
-            <p className="text-xs text-red-400">Нет каналов. Сначала добавьте канал к боту.</p>
-          ) : (
-            <select value={channelId} onChange={(e) => setChannelId(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-              {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.botName} → {ch.title}</option>)}
-            </select>
-          )}
-        </div>
-        <div className="mb-3">
-          <label className="block text-sm font-medium mb-1">Текст поста</label>
-          <textarea value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={ctrlEnter} rows={6} placeholder="<b>Заголовок</b>\nТекст поста... Ctrl+Enter — сохранить" className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none font-mono" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
-        </div>
-        {content && (
-          <div className="mb-4">
-            <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Превью:</div>
-            <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,255,255,0.03)' }} dangerouslySetInnerHTML={safeHtml(content)} />
-          </div>
-        )}
-        <div className="flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Отмена</button>
-          <button onClick={() => onCreate({ channelId: Number(channelId), content, status: 'draft' })} disabled={isPending || !content || !channelId} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
-            {isPending ? 'Создаю...' : 'Создать черновик'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -700,7 +654,7 @@ function AiGenerateModal({ channels, onClose, onSave }: {
               <p className="text-xs text-red-400">Нет каналов. Сначала добавьте канал к боту.</p>
             ) : (
               <select value={channelId} onChange={(e) => setChannelId(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-                {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.botName} → {ch.title}</option>)}
+                {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.botName ? `${ch.botName} → ` : ''}{ch.title}</option>)}
               </select>
             )}
           </div>

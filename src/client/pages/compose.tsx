@@ -25,8 +25,8 @@ export function ComposePage() {
     { label: 'Добавить канал или группу', description: 'Откройте бота → добавьте канал. Бот должен быть в нём админом.', done: hasChannels, action: hasBots ? { label: 'Настроить', onClick: () => navigate(`/bots/${bots[0]?.id}`) } : undefined },
     { label: 'Подключить AI-модель (по желанию)', description: 'Нужна только для автоматической генерации постов.', done: hasProviders, action: { label: 'Настройки', onClick: () => navigate('/settings') } },
   ];
-  // The AI model is optional: writing posts by hand needs only a running bot and a channel
-  const ready = hasBots && hasActiveBots && hasChannels;
+  // The setup guide is for an empty panel only; a bot that stopped later is reported by the alerts bar
+  const ready = hasBots && hasChannels;
 
   const channelTitle = (id: number) => channels.find((ch) => ch.id === id)?.title ?? '';
 
@@ -38,9 +38,10 @@ export function ComposePage() {
         <>
           {!ready && <Stepper title="Начало работы" steps={onboardingSteps} />}
 
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-4 items-start">
+          {/* The editor gets the full width; what goes out next sits under it */}
+          <div className="space-y-4">
             <Composer channels={channels} />
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] gap-4 items-start">
               <PostCounters />
               <Upcoming channelTitle={channelTitle} />
             </div>

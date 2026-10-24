@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth.js';
 import { I18nProvider } from './lib/i18n.js';
 import { Sidebar } from './components/layout/sidebar.js';
+import { AlertsBar } from './components/layout/alerts-bar.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard.js';
 import { ComposePage } from './pages/compose.js';
@@ -48,6 +49,7 @@ function AppLayout({ children }: { children: ReactNode }) {
             Вход защищён стандартным паролем, который знает любой. Смените его в настройках →
           </Link>
         )}
+        <AlertsBar />
         {children}
       </main>
     </div>

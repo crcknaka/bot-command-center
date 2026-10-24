@@ -6,32 +6,26 @@ import { useAuth } from '../../lib/auth.js';
 import { useI18n } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
 import { apiFetch } from '../../lib/api.js';
-import { useAlerts } from '../home/use-workspace.js';
 
 type NavItem = { path: string; labelKey: string; icon: typeof Bot; superadminOnly?: boolean };
 
-// The three work screens; they are also the bottom bar on a phone
+// The everyday screens: write a post, see the posts, run the chat. Also the bottom bar on a phone
 const mainItems: NavItem[] = [
   { path: '/', labelKey: 'nav.compose', icon: PenLine },
+  { path: '/posts', labelKey: 'nav.posts', icon: FileText },
   { path: '/chat', labelKey: 'nav.chat', icon: MessagesSquare },
-  { path: '/overview', labelKey: 'nav.overview', icon: LayoutDashboard },
 ];
 
-// Lists behind them
-const navItems: NavItem[] = [
-  { path: '/posts', labelKey: 'nav.posts', icon: FileText },
+// Everything else, folded under "More"
+const moreItems: NavItem[] = [
   { path: '/schedule', labelKey: 'nav.schedule', icon: Calendar },
+  { path: '/overview', labelKey: 'nav.overview', icon: LayoutDashboard },
   { path: '/members', labelKey: 'nav.members', icon: UserCheck },
   { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
-];
-
-// Setup and rarely used pages, folded under "More"
-const moreItems: NavItem[] = [
-  { path: '/bots', labelKey: 'nav.bots', icon: Bot },
   { path: '/polls', labelKey: 'nav.polls', icon: ListChecks },
+  { path: '/bots', labelKey: 'nav.botSetup', icon: Bot },
   { path: '/activity', labelKey: 'nav.activity', icon: Activity, superadminOnly: true },
   { path: '/users', labelKey: 'nav.users', icon: Users, superadminOnly: true },
-  { path: '/settings', labelKey: 'nav.settings', icon: Settings },
   { path: '/docs', labelKey: 'nav.docs', icon: BookOpen },
 ];
 
@@ -42,7 +36,6 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { count: alertCount } = useAlerts();
   const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } });
 
   const toggleMore = () => {
@@ -71,9 +64,6 @@ export function Sidebar() {
       >
         <Icon size={18} />
         {t(item.labelKey)}
-        {item.path === '/overview' && alertCount > 0 && (
-          <span className="ml-auto text-[10px] px-1.5 rounded-full bg-red-500/20 text-red-400">{alertCount}</span>
-        )}
       </Link>
     );
   };
@@ -112,8 +102,6 @@ export function Sidebar() {
 
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {mainItems.map(renderItem)}
-        <div className="my-2 border-t" style={{ borderColor: 'var(--border)' }} />
-        {navItems.filter(visible).map(renderItem)}
 
         <button
           type="button"
@@ -135,9 +123,15 @@ export function Sidebar() {
               {t(`role.${user?.role ?? 'client'}`)}
             </div>
           </div>
-          <button onClick={logout} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors shrink-0">
-            <LogOut size={14} /> {t('nav.logout')}
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Link to="/settings" onClick={() => setMobileOpen(false)} title={t('nav.settings')} aria-label={t('nav.settings')}
+              className={cn('p-1.5 rounded-lg transition-colors', isActive('/settings') ? 'bg-blue-500/15 text-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5')}>
+              <Settings size={16} />
+            </Link>
+            <button onClick={logout} title={t('nav.logout')} aria-label={t('nav.logout')} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors">
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </>
@@ -145,7 +139,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile bottom bar: the three work screens plus the full menu */}
+      {/* Mobile bottom bar: the everyday screens plus the full menu */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t" style={{ background: 'var(--bg-sidebar)', borderColor: 'var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {mainItems.map((item) => {
           const Icon = item.icon;
@@ -154,7 +148,6 @@ export function Sidebar() {
               className={cn('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive(item.path) ? 'text-blue-400' : 'text-zinc-400')}>
               <Icon size={20} />
               {t(item.path === '/' ? 'nav.composeShort' : item.labelKey)}
-              {item.path === '/overview' && alertCount > 0 && <span className="absolute top-1.5 right-1/4 w-2 h-2 rounded-full bg-red-500" />}
             </Link>
           );
         })}

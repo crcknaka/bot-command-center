@@ -3,7 +3,7 @@ import { db } from '../db/client.js';
 import { posts, channels, bots, tasks } from '../db/schema.js';
 import { eq, desc, inArray, and, or } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
-import { publishPostNow, editPublishedPost, deletePublishedMessage, PublishError } from '../services/publish.js';
+import { publishPostNow, editPublishedPost, deletePublishedMessage, sendTestMessage, PublishError } from '../services/publish.js';
 
 /** Calculate next available time slot for a channel based on existing scheduled/published posts */
 function calculateNextSlot(channelId: number, taskId?: number | null): string {
@@ -135,6 +135,22 @@ postsApi.post('/', async (c) => {
   }).returning().get();
 
   return c.json(created, 201);
+});
+
+// POST /api/posts/test-send — send the text to a chat as a check, without saving a post
+postsApi.post('/test-send', async (c) => {
+  const user = (c as any).get('user');
+  const body = await c.req.json<{ channelId: number; content: string; imageUrl?: string }>();
+
+  if (!body.content?.trim()) return c.json({ error: 'Текст поста не может быть пустым' }, 400);
+  if (!getAllowedChannelIds(user).includes(body.channelId)) return c.json({ error: 'Forbidden' }, 403);
+
+  try {
+    const messageId = await sendTestMessage(body.channelId, body.content, body.imageUrl);
+    return c.json({ ok: true, messageId });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, err instanceof PublishError ? err.status : 500);
+  }
 });
 
 // PATCH /api/posts/:id

@@ -91,20 +91,28 @@ export function ChatRules({ channels, chat, users }: { channels: RulesChannel[];
   });
 
   const [taskId, setTaskId] = useState<number | null>(null);
-  // Prefer the rules of the bot that runs the selected chat
-  const botOf = (t: any) => channels.find((ch) => ch.id === t.channelId)?.botId;
-  const task = modTasks?.find((t: any) => t.id === taskId)
-    ?? modTasks?.find((t: any) => chat && botOf(t) === chat.botId)
-    ?? modTasks?.[0];
+  // Rules that act in the selected chat: made for it, or set for every group of its bot.
+  // Rules of another chat are never shown here, so a test group cannot pass for the main one.
+  const channelOf = (t: any) => channels.find((ch) => ch.id === t.channelId);
+  const scopeOf = (t: any): string[] => t.config?.chatIds ?? [];
+  const chatTasks = (modTasks ?? []).filter((t: any) => {
+    if (!chat || channelOf(t)?.botId !== chat.botId) return false;
+    return scopeOf(t).length > 0 ? scopeOf(t).includes(chat.chatId) : true;
+  });
+  // A task made for this very chat beats one that covers every group
+  chatTasks.sort((a: any, b: any) => Number(scopeOf(b).includes(chat!.chatId) || channelOf(b)?.chatId === chat!.chatId)
+    - Number(scopeOf(a).includes(chat!.chatId) || channelOf(a)?.chatId === chat!.chatId));
+  const task = chatTasks.find((t: any) => t.id === taskId) ?? chatTasks[0];
   const taskChannel = task ? channels.find((ch) => ch.id === task.channelId) : undefined;
 
   const groups = channels.filter((ch) => ch.type === 'group' || ch.type === 'supergroup');
   // Topics of one group are separate channel rows; the rules attach to the group once
   const uniqueGroups = groups.filter((ch, i) => groups.findIndex((g) => g.chatId === ch.chatId && g.botId === ch.botId) === i);
   const [newChannelId, setNewChannelId] = useState<number | null>(null);
-  const newChannel = uniqueGroups.find((ch) => ch.id === newChannelId)
-    ?? uniqueGroups.find((ch) => chat && ch.chatId === chat.chatId && ch.botId === chat.botId)
+  const newChannel = uniqueGroups.find((ch) => chat && ch.chatId === chat.chatId && ch.botId === chat.botId)
+    ?? uniqueGroups.find((ch) => ch.id === newChannelId)
     ?? uniqueGroups[0];
+  const multiBot = new Set(channels.map((ch) => ch.botId)).size > 1;
 
   const onDone = () => qc.invalidateQueries({ queryKey: ['home-moderation'] });
   const onError = (err: unknown) => toast.error((err as Error).message);
@@ -183,14 +191,14 @@ export function ChatRules({ channels, chat, users }: { channels: RulesChannel[];
         ) : (
           <div className="py-3 space-y-3">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Модерация ещё не включена. Бот должен быть админом группы с правом удалять сообщения.</p>
-            {uniqueGroups.length > 1 && (
+            {!chat && uniqueGroups.length > 1 && (
               <select value={newChannel?.id} onChange={(e) => setNewChannelId(Number(e.target.value))} className={cn(inputCls, 'w-full')} style={{ borderColor: 'var(--border)' }}>
-                {uniqueGroups.map((ch) => <option key={ch.id} value={ch.id}>{ch.title} · {ch.botName}</option>)}
+                {uniqueGroups.map((ch) => <option key={ch.id} value={ch.id}>{ch.title}{multiBot ? ` · ${ch.botName}` : ''}</option>)}
               </select>
             )}
             <button type="button" disabled={createMut.isPending} onClick={() => createMut.mutate()}
               className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40">
-              Включить модерацию{uniqueGroups.length === 1 ? ` в «${newChannel?.title}»` : ''}
+              Включить модерацию{chat || uniqueGroups.length === 1 ? ` в «${newChannel?.title}»` : ''}
             </button>
           </div>
         )
@@ -198,11 +206,11 @@ export function ChatRules({ channels, chat, users }: { channels: RulesChannel[];
 
       {task && (
         <>
-          {modTasks!.length > 1 && (
+          {chatTasks.length > 1 && (
             <select value={task.id} onChange={(e) => setTaskId(Number(e.target.value))} className={cn(inputCls, 'w-full mb-3')} style={{ borderColor: 'var(--border)' }}>
-              {modTasks!.map((t: any) => {
-                const ch = channels.find((c) => c.id === t.channelId);
-                return <option key={t.id} value={t.id}>{ch?.title ?? `Канал ${t.channelId}`} · {ch?.botName}</option>;
+              {chatTasks.map((t: any) => {
+                const ch = channelOf(t);
+                return <option key={t.id} value={t.id}>{t.name || ch?.title || `Правила #${t.id}`}{multiBot && ch ? ` · ${ch.botName}` : ''}</option>;
               })}
             </select>
           )}

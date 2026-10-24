@@ -12,7 +12,7 @@ const { db } = await import('../db/client.js');
 const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
 const { users, bots, channels, posts } = await import('../db/schema.js');
 const { eq } = await import('drizzle-orm');
-const { claimPost, publishPostNow, PublishError } = await import('./publish.js');
+const { claimPost, publishPostNow, sendTestMessage, PublishError } = await import('./publish.js');
 
 let channelId: number;
 const newPost = (status: 'draft' | 'queued' | 'published' = 'draft') =>
@@ -45,4 +45,14 @@ test('publishing with a stopped bot is refused and leaves the draft untouched', 
 test('publishing an already published post is refused', async () => {
   const post = newPost('published');
   await assert.rejects(publishPostNow(post.id), (err: unknown) => err instanceof PublishError && err.status === 400);
+});
+
+test('a test send with a stopped bot is refused and saves nothing', async () => {
+  const before = db.select().from(posts).all().length;
+  await assert.rejects(sendTestMessage(channelId, 'проверка'), (err: unknown) => err instanceof PublishError && err.status === 400);
+  assert.equal(db.select().from(posts).all().length, before);
+});
+
+test('a test send to a missing chat is refused', async () => {
+  await assert.rejects(sendTestMessage(999999, 'проверка'), (err: unknown) => err instanceof PublishError && err.status === 404);
 });

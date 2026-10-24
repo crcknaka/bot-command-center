@@ -11,13 +11,14 @@ import { Admins } from '../components/home/admins.js';
 import { useWorkspace } from '../components/home/use-workspace.js';
 import type { ChatUser, HomeChat } from '../components/home/types.js';
 import { apiFetch } from '../lib/api.js';
+import { cn } from '../lib/utils.js';
 
 const CHAT_KEY = 'home:chat';
 const keyOf = (g: HomeChat) => `${g.botId}:${g.chatId}`;
 
 /** Everything about running a group: rules, silence, admins, who misbehaves */
 export function ChatPage() {
-  const { channels, groups, isLoading } = useWorkspace();
+  const { channels, groups, multiBot, isLoading } = useWorkspace();
   const [chatKey, setChatKey] = useState<string | null>(() => { try { return localStorage.getItem(CHAT_KEY); } catch { return null; } });
   const chat = groups.find((g) => keyOf(g) === chatKey) ?? groups[0];
   const selectChat = (key: string) => { setChatKey(key); try { localStorage.setItem(CHAT_KEY, key); } catch {} };
@@ -42,11 +43,21 @@ export function ChatPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Чат</h1>
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          {groups.length > 1 ? (
+          {groups.length > 4 ? (
             <select value={chat ? keyOf(chat) : ''} onChange={(e) => selectChat(e.target.value)}
               className="rounded-lg border px-2 py-1.5 bg-transparent max-w-full" style={{ borderColor: 'var(--border)' }}>
-              {groups.map((g) => <option key={keyOf(g)} value={keyOf(g)}>{g.title} · {g.botName}</option>)}
+              {groups.map((g) => <option key={keyOf(g)} value={keyOf(g)}>{g.title}{multiBot ? ` · ${g.botName}` : ''}</option>)}
             </select>
+          ) : groups.length > 1 ? (
+            // A couple of chats (the main one and a test one): switch with one tap
+            <div className="flex flex-wrap gap-1 rounded-lg border p-0.5" style={{ borderColor: 'var(--border)' }} role="group" aria-label="Чат">
+              {groups.map((g) => (
+                <button key={keyOf(g)} type="button" aria-pressed={chat && keyOf(g) === keyOf(chat)} onClick={() => selectChat(keyOf(g))}
+                  className={cn('px-3 py-1 rounded-md transition-colors', chat && keyOf(g) === keyOf(chat) ? 'bg-blue-500/15 text-blue-400' : 'text-zinc-400 hover:text-zinc-200')}>
+                  {g.title}{multiBot ? ` · ${g.botName}` : ''}
+                </button>
+              ))}
+            </div>
           ) : chat ? <span style={{ color: 'var(--text-muted)' }}>{chat.title}</span> : null}
           <Link to="/members" className="text-zinc-400 hover:text-zinc-200">Участники →</Link>
           <Link to="/analytics" className="text-zinc-400 hover:text-zinc-200">Аналитика →</Link>
